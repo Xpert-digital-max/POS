@@ -88,10 +88,8 @@
 
     <!-- ส่วนของ JavaScript -->
     <script>
-        CONFIG.supabaseUrl
-        CONFIG.liffIdDashboard
-
-        const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+        // เปลี่ยนมาเรียกใช้ตัวแปรจากไฟล์ config.js
+        const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
         let vendorData = null; // เก็บข้อมูลร้านค้าของแม่ค้าคนนี้
 
         // 2. ฟังก์ชันสลับ Tab
@@ -106,7 +104,9 @@
         // 3. เริ่มต้น LIFF และดึงข้อมูลร้าน
         async function initDashboard() {
             try {
-                await liff.init({ liffId: liffId });
+                // เปลี่ยนมาใช้ liffIdDashboard จาก CONFIG
+                await liff.init({ liffId: CONFIG.liffIdDashboard });
+                
                 if (liff.isLoggedIn()) {
                     const profile = await liff.getProfile();
                     loadVendorData(profile.userId);
