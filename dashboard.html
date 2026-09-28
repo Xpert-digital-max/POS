@@ -209,7 +209,7 @@
             btn.disabled = false;
         }
 
-        // 6. ฟังก์ชันดึงรายการอาหารของร้านนี้มาแสดง
+        // 6. ฟังก์ชันดึงรายการอาหาร (เวอร์ชันอัปเดตมีปุ่มลบ/แก้ไข)
         async function loadMenuItems() {
             if (!vendorData) return;
 
@@ -226,27 +226,73 @@
                 return;
             }
 
-            // สร้าง HTML แสดงการ์ดเมนู
             let html = '';
             data.forEach(item => {
                 const imgSrc = item.image_url ? item.image_url : 'https://via.placeholder.com/60?text=No+Image';
+                // เช็คสถานะเพื่อเปลี่ยนสีปุ่ม
+                const statusColor = item.is_available ? 'green' : 'red';
+                const statusText = item.is_available ? '✅ พร้อมขาย' : '❌ ของหมด';
+                const toggleBtnText = item.is_available ? '⏸️ พักการขาย' : '▶️ เปิดขาย';
+                const toggleBtnColor = item.is_available ? '#ff9800' : '#06C755';
+
                 html += `
                     <div class="card" style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
                         <img src="${imgSrc}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;">
                         <div style="flex: 1;">
                             <h4 style="margin: 0;">${item.name}</h4>
                             <p style="margin: 5px 0 0 0; color: #06C755; font-weight: bold;">฿${item.price}</p>
+                            <span style="font-size: 12px; color: ${statusColor};">${statusText}</span>
                         </div>
-                        <div>
-                            <!-- สวิตช์เปิดปิดของหมด -->
-                            <label style="font-size: 12px; color: ${item.is_available ? 'green' : 'red'};">
-                                ${item.is_available ? '✅ พร้อมขาย' : '❌ ของหมด'}
-                            </label>
+                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                            <!-- ปุ่มพักการขาย / เปิดขาย -->
+                            <button onclick="toggleMenuStatus('${item.id}', ${item.is_available})" style="background: ${toggleBtnColor}; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                                ${toggleBtnText}
+                            </button>
+                            <!-- ปุ่มลบเมนู -->
+                            <button onclick="deleteMenu('${item.id}', '${item.name}')" style="background: #ff4d4f; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                                🗑️ ลบ
+                            </button>
                         </div>
                     </div>
                 `;
             });
             menuListDiv.innerHTML = html;
+        }
+
+        // 7. ฟังก์ชันลบเมนู
+        async function deleteMenu(menuId, menuName) {
+            // แจ้งเตือนให้แม่ค้ายืนยันก่อนลบ
+            if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบเมนู "${menuName}" ทิ้ง?`)) {
+                return; // ถ้ากดยกเลิก ให้หยุดการทำงาน
+            }
+
+            const { error } = await supabaseClient
+                .from('menu_items')
+                .delete()
+                .eq('id', menuId);
+
+            if (error) {
+                alert("เกิดข้อผิดพลาดในการลบ: " + error.message);
+            } else {
+                alert("ลบเมนูเรียบร้อยแล้ว");
+                loadMenuItems(); // โหลดหน้าจอใหม่ให้เมนูหายไปทันที
+            }
+        }
+
+        // 8. ฟังก์ชันสลับสถานะ ของหมด/พร้อมขาย
+        async function toggleMenuStatus(menuId, currentStatus) {
+            const newStatus = !currentStatus; // สลับค่าจาก true เป็น false หรือ false เป็น true
+
+            const { error } = await supabaseClient
+                .from('menu_items')
+                .update({ is_available: newStatus })
+                .eq('id', menuId);
+
+            if (error) {
+                alert("อัปเดตสถานะไม่สำเร็จ: " + error.message);
+            } else {
+                loadMenuItems(); // โหลดหน้าจอใหม่เพื่ออัปเดตสีปุ่ม
+            }
         }
         window.onload = initDashboard;
     </script>
