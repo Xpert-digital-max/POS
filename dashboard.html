@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ระบบจัดการร้านค้า</title>
-    <!-- นำเข้า LIFF และ Supabase -->
+    <!-- นำเข้า LIFF, Supabase และ config.js -->
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
@@ -53,9 +53,12 @@
     <div class="content">
         <!-- หน้าออเดอร์ -->
         <div id="orders" class="tab-content active">
-            <h2>คิวรอทำ</h2>
+            <h2 style="display: flex; justify-content: space-between; align-items: center;">
+                คิวรอทำ 
+                <button onclick="loadOrders()" style="font-size: 14px; padding: 6px 12px; background: #eee; border: none; border-radius: 5px; cursor: pointer; color: #333;">🔄 รีเฟรช</button>
+            </h2>
             <div id="orderList">
-                <p style="text-align: center; color: #888;">ยังไม่มีออเดอร์เข้าในขณะนี้</p>
+                <p style="text-align: center; color: #888;">กำลังโหลด...</p>
                 <!-- การ์ดออเดอร์จะถูกดึงมาแทรกตรงนี้ -->
             </div>
         </div>
@@ -88,7 +91,7 @@
 
     <!-- ส่วนของ JavaScript -->
     <script>
-        // เปลี่ยนมาเรียกใช้ตัวแปรจากไฟล์ config.js
+        // เรียกใช้ตัวแปรจากไฟล์ config.js
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
         let vendorData = null; // เก็บข้อมูลร้านค้าของแม่ค้าคนนี้
 
@@ -140,11 +143,12 @@
                 document.getElementById('storeLogo').src = vendorData.line_picture_url;
             }
 
-            // 👇 เพิ่มบรรทัดนี้ เพื่อให้อัปเดตสีปุ่มตอนโหลดหน้าเว็บ
+            // อัปเดตสีปุ่มสถานะร้านตอนโหลดหน้าเว็บ
             updateStoreStatusUI(vendorData.is_open);
 
-            // สั่งให้ดึงเมนูอาหารทันทีที่โหลดข้อมูลร้านเสร็จ
+            // สั่งให้ดึงเมนูอาหารและรายการออเดอร์ทันที
             loadMenuItems(); 
+            loadOrders(); 
         }
 
         // ตัวแปรสำหรับจำว่ากำลังแก้ไขเมนูไหนอยู่
@@ -191,7 +195,7 @@
 
             // 5.2 เช็คว่าเป็นการ "เพิ่มใหม่" หรือ "แก้ไข"
             if (editingMenuId) {
-                // --- โหมดแก้ไขเมนู ---
+                // โหมดแก้ไขเมนู
                 const updateData = { name: name, price: price };
                 if (imageUrl) updateData.image_url = imageUrl; // ถ้ามีรูปใหม่ ค่อยอัปเดตรูป
 
@@ -204,7 +208,7 @@
                 else alert("อัปเดตเมนูสำเร็จ!");
 
             } else {
-                // --- โหมดเพิ่มเมนูใหม่ ---
+                // โหมดเพิ่มเมนูใหม่
                 const { error: insertError } = await supabaseClient
                     .from('menu_items')
                     .insert([{ vendor_id: vendorData.id, name: name, price: price, image_url: imageUrl, is_available: true }]);
@@ -230,7 +234,7 @@
             btn.disabled = false;
         }
 
-        // 6. ฟังก์ชันดึงรายการอาหาร (เพิ่มปุ่มแก้ไขสีฟ้า)
+        // 6. ฟังก์ชันดึงรายการอาหาร
         async function loadMenuItems() {
             if (!vendorData) return;
 
@@ -328,8 +332,8 @@
             if (error) {
                 alert("เปลี่ยนสถานะไม่สำเร็จ: " + error.message);
             } else {
-                vendorData.is_open = newStatus; // อัปเดตค่าในตัวแปรระบบ
-                updateStoreStatusUI(newStatus); // เปลี่ยนสีปุ่ม
+                vendorData.is_open = newStatus; 
+                updateStoreStatusUI(newStatus); 
             }
         }
 
@@ -346,6 +350,108 @@
                 btn.style.color = "white";
             }
         }
+
+        // 12. ฟังก์ชันดึงออเดอร์ของร้าน
+        async function loadOrders() {
+            if (!vendorData) return;
+
+            const orderListDiv = document.getElementById('orderList');
+            orderListDiv.innerHTML = '<p style="text-align: center; color: #888;">กำลังโหลด...</p>';
+
+            // ดึงออเดอร์ที่สถานะเป็น pending (รอยืนยัน) และ processing (กำลังทำ)
+            const { data, error } = await supabaseClient
+                .from('orders')
+                .select('*')
+                .eq('vendor_id', vendorData.id)
+                .in('status', ['pending', 'processing']) 
+                .order('created_at', { ascending: true }); // ให้คิวแรกมาก่อน
+
+            if (error || data.length === 0) {
+                orderListDiv.innerHTML = '<p style="text-align: center; color: #888;">ยังไม่มีออเดอร์เข้าในขณะนี้</p>';
+                return;
+            }
+
+            let html = '';
+            data.forEach((order, index) => {
+                const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+                let itemsHtml = '';
+                for (let key in items) {
+                    itemsHtml += `<li style="font-size: 14px; margin-bottom: 3px;">${items[key].qty}x ${items[key].name}</li>`;
+                }
+
+                // แปลงเวลาให้ดูง่ายขึ้น
+                const orderTime = new Date(order.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+
+                // จัดการปุ่มตามสถานะออเดอร์
+                let statusBadge = '';
+                let actionButtons = '';
+
+                if (order.status === 'pending') {
+                    statusBadge = '<span style="background: #fff3cd; color: #856404; padding: 3px 8px; border-radius: 12px; font-size: 12px;">รอยืนยันสลิป</span>';
+                    actionButtons = `
+                        <button onclick="updateOrderStatus('${order.id}', 'processing')" style="background: #06C755; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; flex: 1;">✅ รับออเดอร์</button>
+                        <button onclick="updateOrderStatus('${order.id}', 'rejected')" style="background: #ff4d4f; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; flex: 1;">❌ ปฏิเสธ (คืนเงิน)</button>
+                    `;
+                } else if (order.status === 'processing') {
+                    statusBadge = '<span style="background: #cce5ff; color: #004085; padding: 3px 8px; border-radius: 12px; font-size: 12px;">กำลังทำอาหาร 🍳</span>';
+                    actionButtons = `
+                        <button onclick="updateOrderStatus('${order.id}', 'completed')" style="background: #2196F3; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%;">🏁 อาหารเสร็จแล้ว (ลบคิว)</button>
+                    `;
+                }
+
+                html += `
+                    <div class="card" style="border-left: 4px solid #06C755;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                            <h3 style="margin: 0;">คิวที่ ${index + 1} <span style="font-size: 12px; color: #888; font-weight: normal;">(เวลา ${orderTime})</span></h3>
+                            ${statusBadge}
+                        </div>
+                        
+                        <div style="display: flex; gap: 15px; margin-bottom: 15px; background: #f9f9f9; padding: 10px; border-radius: 8px;">
+                            <div style="flex: 1;">
+                                <ul style="margin: 0; padding-left: 20px; color: #333;">
+                                    ${itemsHtml}
+                                </ul>
+                                <p style="margin: 10px 0 0 0; font-weight: bold; color: #06C755;">ยอดโอน: ฿${order.total_price}</p>
+                            </div>
+                            <div style="text-align: center;">
+                                <a href="${order.slip_image_url}" target="_blank">
+                                    <img src="${order.slip_image_url}" style="width: 70px; height: 100px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd;">
+                                </a>
+                                <p style="margin: 5px 0 0 0; font-size: 10px; color: #888;">กดดูสลิปเต็ม</p>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 10px;">
+                            ${actionButtons}
+                        </div>
+                    </div>
+                `;
+            });
+
+            orderListDiv.innerHTML = html;
+        }
+
+        // 13. ฟังก์ชันอัปเดตสถานะออเดอร์
+        async function updateOrderStatus(orderId, newStatus) {
+            let confirmMsg = "";
+            if (newStatus === 'processing') confirmMsg = "ตรวจสอบสลิปถูกต้อง และรับคิวนี้ใช่หรือไม่?";
+            if (newStatus === 'rejected') confirmMsg = "ต้องการยกเลิกออเดอร์นี้ใช่หรือไม่?";
+            if (newStatus === 'completed') confirmMsg = "อาหารเสร็จแล้ว ส่งมอบเรียบร้อยใช่หรือไม่?";
+
+            if (!confirm(confirmMsg)) return;
+
+            const { error } = await supabaseClient
+                .from('orders')
+                .update({ status: newStatus })
+                .eq('id', orderId);
+
+            if (error) {
+                alert("อัปเดตไม่สำเร็จ: " + error.message);
+            } else {
+                loadOrders(); // โหลดรายการใหม่
+            }
+        }
+
         window.onload = initDashboard;
     </script>
 </body>
