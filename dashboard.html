@@ -141,7 +141,10 @@
                 document.getElementById('storeLogo').src = vendorData.line_picture_url;
             }
 
-            // 👇 จุดที่เพิ่มเข้ามา: สั่งให้ดึงเมนูอาหารทันทีที่โหลดข้อมูลร้านเสร็จ
+            // 👇 เพิ่มบรรทัดนี้ เพื่อให้อัปเดตสีปุ่มตอนโหลดหน้าเว็บ
+            updateStoreStatusUI(vendorData.is_open);
+
+            // สั่งให้ดึงเมนูอาหารทันทีที่โหลดข้อมูลร้านเสร็จ
             loadMenuItems(); 
         }
 
@@ -306,6 +309,43 @@
             const { error } = await supabaseClient.from('menu_items').update({ is_available: !currentStatus }).eq('id', menuId);
             if (error) alert("อัปเดตสถานะไม่สำเร็จ: " + error.message);
             else loadMenuItems(); 
+        }
+
+        // 10. ฟังก์ชันสลับสถานะเปิด-ปิดร้าน (อัปเดตลงฐานข้อมูล)
+        async function toggleStoreStatus() {
+            if (!vendorData) return;
+            
+            const newStatus = !vendorData.is_open; // สลับค่าปัจจุบัน
+            const confirmMsg = newStatus ? "ยืนยันการเปิดรับออเดอร์ใหม่?" : "ปิดรับออเดอร์ชั่วคราวใช่หรือไม่?";
+            
+            if (!confirm(confirmMsg)) return;
+
+            // บันทึกสถานะใหม่ลงตาราง vendors
+            const { error } = await supabaseClient
+                .from('vendors')
+                .update({ is_open: newStatus })
+                .eq('id', vendorData.id);
+
+            if (error) {
+                alert("เปลี่ยนสถานะไม่สำเร็จ: " + error.message);
+            } else {
+                vendorData.is_open = newStatus; // อัปเดตค่าในตัวแปรระบบ
+                updateStoreStatusUI(newStatus); // เปลี่ยนสีปุ่ม
+            }
+        }
+
+        // 11. เปลี่ยนหน้าตาและสีของปุ่มตามสถานะ
+        function updateStoreStatusUI(isOpen) {
+            const btn = document.getElementById('storeStatusBtn');
+            if (isOpen) {
+                btn.innerText = "🟢 เปิดร้าน (รับออเดอร์)";
+                btn.style.background = "white";
+                btn.style.color = "#06C755";
+            } else {
+                btn.innerText = "🔴 ปิดร้าน";
+                btn.style.background = "#ff4d4f";
+                btn.style.color = "white";
+            }
         }
         window.onload = initDashboard;
     </script>
