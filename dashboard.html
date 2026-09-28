@@ -94,11 +94,19 @@
                 <input type="tel" id="settingPhone" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box;">
                 
                 <label style="font-size: 14px; font-weight: bold; color: #555;">เบอร์พร้อมเพย์ (รับเงิน)</label>
-                <input type="text" id="settingPromptpay" style="width: 100%; padding: 10px; margin-bottom: 20px; margin-top: 5px; box-sizing: border-box;">
+                <input type="text" id="settingPromptpay" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box;">
+
+                <!-- เพิ่มเมนูเลือกระบบตรวจสอบสลิป -->
+                <label style="font-size: 14px; font-weight: bold; color: #555;">ระบบตรวจสอบสลิป</label>
+                <select id="settingSlipMode" style="width: 100%; padding: 10px; margin-bottom: 20px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 8px;">
+                    <option value="manual">ตรวจสอบด้วยตัวเอง (Manual)</option>
+                    <option value="auto">ตรวจสอบอัตโนมัติ (SlipOK API)</option>
+                </select>
                 
                 <button onclick="updateStoreSettings()" id="saveSettingsBtn" style="background: #06C755; color: white; border: none; padding: 12px; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold;">💾 บันทึกการตั้งค่า</button>
             </div>
         </div>
+    </div>
 
     <!-- ส่วนของ JavaScript -->
     <script>
@@ -118,7 +126,6 @@
         // 3. เริ่มต้น LIFF และดึงข้อมูลร้าน
         async function initDashboard() {
             try {
-                // เปลี่ยนมาใช้ liffIdDashboard จาก CONFIG
                 await liff.init({ liffId: CONFIG.liffIdDashboard });
                 
                 if (liff.isLoggedIn()) {
@@ -139,34 +146,30 @@
                 .from('vendors')
                 .select('*')
                 .eq('line_owner_uid', uid)
-                .single(); // ดึงมาแค่แถวเดียว
+                .single(); 
 
             if (error || !data) {
                 alert("ไม่พบข้อมูลร้านค้า กรุณาลงทะเบียนก่อนใช้งาน");
-                window.location.href = "index.html"; // เด้งกลับไปหน้าลงทะเบียน
+                window.location.href = "index.html"; 
                 return;
             }
 
-            // ถ้าเจอข้อมูลร้าน ให้เอาชื่อและรูปมาโชว์
             vendorData = data;
             document.getElementById('storeName').innerText = vendorData.name;
             if(vendorData.line_picture_url) {
                 document.getElementById('storeLogo').src = vendorData.line_picture_url;
             }
 
-            // อัปเดตสีปุ่มสถานะร้านตอนโหลดหน้าเว็บ
             updateStoreStatusUI(vendorData.is_open);
 
-            // สั่งให้ดึงเมนูอาหารและรายการออเดอร์ทันที
             loadMenuItems(); 
             loadOrders();
             populateSettingsForm();
         }
 
-        // ตัวแปรสำหรับจำว่ากำลังแก้ไขเมนูไหนอยู่
         let editingMenuId = null; 
 
-        // 5. ฟังก์ชันเพิ่ม และ แก้ไขเมนู (ใช้ปุ่มเดียวกัน)
+        // 5. ฟังก์ชันเพิ่ม และ แก้ไขเมนู
         async function addNewMenu() {
             const name = document.getElementById('menuName').value;
             const price = document.getElementById('menuPrice').value;
@@ -183,13 +186,12 @@
 
             let imageUrl = null;
 
-            // 5.1 ถ้ามีการอัปโหลดรูปภาพใหม่
             if (fileInput.files.length > 0) {
                 const file = fileInput.files[0];
                 const fileExt = file.name.split('.').pop();
                 const fileName = `${vendorData.id}-${Date.now()}.${fileExt}`; 
 
-                const { data: uploadData, error: uploadError } = await supabaseClient.storage
+                const { error: uploadError } = await supabaseClient.storage
                     .from('menu-images')
                     .upload(fileName, file);
 
@@ -199,42 +201,29 @@
                     return;
                 }
 
-                const { data: publicUrlData } = supabaseClient.storage
-                    .from('menu-images')
-                    .getPublicUrl(fileName);
+                const { data: publicUrlData } = supabaseClient.storage.from('menu-images').getPublicUrl(fileName);
                 imageUrl = publicUrlData.publicUrl;
             }
 
-            // 5.2 เช็คว่าเป็นการ "เพิ่มใหม่" หรือ "แก้ไข"
             if (editingMenuId) {
-                // โหมดแก้ไขเมนู
                 const updateData = { name: name, price: price };
-                if (imageUrl) updateData.image_url = imageUrl; // ถ้ามีรูปใหม่ ค่อยอัปเดตรูป
+                if (imageUrl) updateData.image_url = imageUrl; 
 
-                const { error: updateError } = await supabaseClient
-                    .from('menu_items')
-                    .update(updateData)
-                    .eq('id', editingMenuId);
-
+                const { error: updateError } = await supabaseClient.from('menu_items').update(updateData).eq('id', editingMenuId);
                 if (updateError) alert("อัปเดตไม่สำเร็จ: " + updateError.message);
                 else alert("อัปเดตเมนูสำเร็จ!");
-
             } else {
-                // โหมดเพิ่มเมนูใหม่
-                const { error: insertError } = await supabaseClient
-                    .from('menu_items')
+                const { error: insertError } = await supabaseClient.from('menu_items')
                     .insert([{ vendor_id: vendorData.id, name: name, price: price, image_url: imageUrl, is_available: true }]);
-
                 if (insertError) alert("บันทึกเมนูไม่สำเร็จ: " + insertError.message);
                 else alert("เพิ่มเมนูสำเร็จ!");
             }
 
-            // 5.3 เคลียร์ค่าฟอร์มและดึงข้อมูลใหม่
             resetFormState();
             loadMenuItems(); 
         }
 
-        // ฟังก์ชันรีเซ็ตหน้าตาฟอร์มกลับเป็นโหมดเพิ่มเมนู
+        // ฟังก์ชันรีเซ็ตฟอร์ม
         function resetFormState() {
             document.getElementById('menuName').value = '';
             document.getElementById('menuPrice').value = '';
@@ -280,15 +269,9 @@
                             <span style="font-size: 12px; color: ${statusColor};">${statusText}</span>
                         </div>
                         <div style="display: flex; flex-direction: column; gap: 5px;">
-                            <button onclick="editMenu('${item.id}', '${item.name}', ${item.price})" style="background: #2196F3; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
-                                ✏️ แก้ไข
-                            </button>
-                            <button onclick="toggleMenuStatus('${item.id}', ${item.is_available})" style="background: ${toggleBtnColor}; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
-                                ${toggleBtnText}
-                            </button>
-                            <button onclick="deleteMenu('${item.id}', '${item.name}')" style="background: #ff4d4f; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
-                                🗑️ ลบ
-                            </button>
+                            <button onclick="editMenu('${item.id}', '${item.name}', ${item.price})" style="background: #2196F3; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">✏️ แก้ไข</button>
+                            <button onclick="toggleMenuStatus('${item.id}', ${item.is_available})" style="background: ${toggleBtnColor}; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">${toggleBtnText}</button>
+                            <button onclick="deleteMenu('${item.id}', '${item.name}')" style="background: #ff4d4f; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🗑️ ลบ</button>
                         </div>
                     </div>
                 `;
@@ -296,22 +279,19 @@
             menuListDiv.innerHTML = html;
         }
 
-        // 7. ฟังก์ชันเตรียมแก้ไขเมนู (เมื่อกดปุ่ม ✏️ แก้ไข)
+        // 7. ฟังก์ชันเตรียมแก้ไขเมนู
         function editMenu(id, name, price) {
             editingMenuId = id; 
             document.getElementById('menuName').value = name;
             document.getElementById('menuPrice').value = price;
             
-            // เปลี่ยนปุ่มเป็นสีฟ้าให้รู้ว่ากำลังแก้ไข
             const btn = document.getElementById('saveMenuBtn');
             btn.innerText = "💾 อัปเดตเมนู";
             btn.style.background = "#2196F3"; 
-            
-            // เลื่อนหน้าจอขึ้นไปบนสุดอัตโนมัติ
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // 8. ฟังก์ชันลบเมนู
+        // 8. ลบเมนู
         async function deleteMenu(menuId, menuName) {
             if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบ "${menuName}"?`)) return;
             const { error } = await supabaseClient.from('menu_items').delete().eq('id', menuId);
@@ -319,28 +299,20 @@
             else loadMenuItems(); 
         }
 
-        // 9. ฟังก์ชันสลับสถานะ ของหมด/พร้อมขาย
+        // 9. สลับสถานะของหมด
         async function toggleMenuStatus(menuId, currentStatus) {
             const { error } = await supabaseClient.from('menu_items').update({ is_available: !currentStatus }).eq('id', menuId);
             if (error) alert("อัปเดตสถานะไม่สำเร็จ: " + error.message);
             else loadMenuItems(); 
         }
 
-        // 10. ฟังก์ชันสลับสถานะเปิด-ปิดร้าน (อัปเดตลงฐานข้อมูล)
+        // 10. สลับสถานะร้าน
         async function toggleStoreStatus() {
             if (!vendorData) return;
-            
-            const newStatus = !vendorData.is_open; // สลับค่าปัจจุบัน
-            const confirmMsg = newStatus ? "ยืนยันการเปิดรับออเดอร์ใหม่?" : "ปิดรับออเดอร์ชั่วคราวใช่หรือไม่?";
-            
-            if (!confirm(confirmMsg)) return;
+            const newStatus = !vendorData.is_open; 
+            if (!confirm(newStatus ? "ยืนยันการเปิดรับออเดอร์ใหม่?" : "ปิดรับออเดอร์ชั่วคราวใช่หรือไม่?")) return;
 
-            // บันทึกสถานะใหม่ลงตาราง vendors
-            const { error } = await supabaseClient
-                .from('vendors')
-                .update({ is_open: newStatus })
-                .eq('id', vendorData.id);
-
+            const { error } = await supabaseClient.from('vendors').update({ is_open: newStatus }).eq('id', vendorData.id);
             if (error) {
                 alert("เปลี่ยนสถานะไม่สำเร็จ: " + error.message);
             } else {
@@ -349,7 +321,7 @@
             }
         }
 
-        // 11. เปลี่ยนหน้าตาและสีของปุ่มตามสถานะ
+        // 11. เปลี่ยนสีปุ่มสถานะร้าน
         function updateStoreStatusUI(isOpen) {
             const btn = document.getElementById('storeStatusBtn');
             if (isOpen) {
@@ -363,20 +335,19 @@
             }
         }
 
-        // 12. ฟังก์ชันดึงออเดอร์ของร้าน
+        // 12. ดึงออเดอร์ของร้าน
         async function loadOrders() {
             if (!vendorData) return;
 
             const orderListDiv = document.getElementById('orderList');
             orderListDiv.innerHTML = '<p style="text-align: center; color: #888;">กำลังโหลด...</p>';
 
-            // ดึงออเดอร์ที่สถานะเป็น pending (รอยืนยัน) และ processing (กำลังทำ)
             const { data, error } = await supabaseClient
                 .from('orders')
                 .select('*')
                 .eq('vendor_id', vendorData.id)
                 .in('status', ['pending', 'processing']) 
-                .order('created_at', { ascending: true }); // ให้คิวแรกมาก่อน
+                .order('created_at', { ascending: true });
 
             if (error || data.length === 0) {
                 orderListDiv.innerHTML = '<p style="text-align: center; color: #888;">ยังไม่มีออเดอร์เข้าในขณะนี้</p>';
@@ -391,23 +362,23 @@
                     itemsHtml += `<li style="font-size: 14px; margin-bottom: 3px;">${items[key].qty}x ${items[key].name}</li>`;
                 }
 
-                // แปลงเวลาให้ดูง่ายขึ้น
                 const orderTime = new Date(order.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+                const custUid = order.customer_uid || ''; // ป้องกันค่าว่าง
 
-                // จัดการปุ่มตามสถานะออเดอร์
                 let statusBadge = '';
                 let actionButtons = '';
 
+                // --- จุดที่ส่ง UID ลูกค้าไปพร้อมกับปุ่มกด ---
                 if (order.status === 'pending') {
                     statusBadge = '<span style="background: #fff3cd; color: #856404; padding: 3px 8px; border-radius: 12px; font-size: 12px;">รอยืนยันสลิป</span>';
                     actionButtons = `
-                        <button onclick="updateOrderStatus('${order.id}', 'processing')" style="background: #06C755; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; flex: 1;">✅ รับออเดอร์</button>
-                        <button onclick="updateOrderStatus('${order.id}', 'rejected')" style="background: #ff4d4f; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; flex: 1;">❌ ปฏิเสธ (คืนเงิน)</button>
+                        <button onclick="updateOrderStatus('${order.id}', 'processing', '${custUid}')" style="background: #06C755; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; flex: 1;">✅ รับออเดอร์</button>
+                        <button onclick="updateOrderStatus('${order.id}', 'rejected', '${custUid}')" style="background: #ff4d4f; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; flex: 1;">❌ ปฏิเสธ (คืนเงิน)</button>
                     `;
                 } else if (order.status === 'processing') {
                     statusBadge = '<span style="background: #cce5ff; color: #004085; padding: 3px 8px; border-radius: 12px; font-size: 12px;">กำลังทำอาหาร 🍳</span>';
                     actionButtons = `
-                        <button onclick="updateOrderStatus('${order.id}', 'completed')" style="background: #2196F3; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%;">🏁 อาหารเสร็จแล้ว (ลบคิว)</button>
+                        <button onclick="updateOrderStatus('${order.id}', 'completed', '${custUid}')" style="background: #2196F3; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%;">🏁 อาหารเสร็จแล้ว (ลบคิว)</button>
                     `;
                 }
 
@@ -417,12 +388,9 @@
                             <h3 style="margin: 0;">คิวที่ ${index + 1} <span style="font-size: 12px; color: #888; font-weight: normal;">(เวลา ${orderTime})</span></h3>
                             ${statusBadge}
                         </div>
-                        
                         <div style="display: flex; gap: 15px; margin-bottom: 15px; background: #f9f9f9; padding: 10px; border-radius: 8px;">
                             <div style="flex: 1;">
-                                <ul style="margin: 0; padding-left: 20px; color: #333;">
-                                    ${itemsHtml}
-                                </ul>
+                                <ul style="margin: 0; padding-left: 20px; color: #333;">${itemsHtml}</ul>
                                 <p style="margin: 10px 0 0 0; font-weight: bold; color: #06C755;">ยอดโอน: ฿${order.total_price}</p>
                             </div>
                             <div style="text-align: center;">
@@ -432,23 +400,32 @@
                                 <p style="margin: 5px 0 0 0; font-size: 10px; color: #888;">กดดูสลิปเต็ม</p>
                             </div>
                         </div>
-
                         <div style="display: flex; gap: 10px;">
                             ${actionButtons}
                         </div>
                     </div>
                 `;
             });
-
             orderListDiv.innerHTML = html;
         }
 
-        // 13. ฟังก์ชันอัปเดตสถานะออเดอร์
-        async function updateOrderStatus(orderId, newStatus) {
+        // 13. ฟังก์ชันอัปเดตสถานะออเดอร์ พร้อมแจ้งเตือนลูกค้า!
+        async function updateOrderStatus(orderId, newStatus, customerUid) {
             let confirmMsg = "";
-            if (newStatus === 'processing') confirmMsg = "ตรวจสอบสลิปถูกต้อง และรับคิวนี้ใช่หรือไม่?";
-            if (newStatus === 'rejected') confirmMsg = "ต้องการยกเลิกออเดอร์นี้ใช่หรือไม่?";
-            if (newStatus === 'completed') confirmMsg = "อาหารเสร็จแล้ว ส่งมอบเรียบร้อยใช่หรือไม่?";
+            let notifyMsg = "";
+
+            if (newStatus === 'processing') {
+                confirmMsg = "ตรวจสอบสลิปถูกต้อง และรับคิวนี้ใช่หรือไม่?";
+                notifyMsg = `ร้าน ${vendorData.name} ได้รับออเดอร์ของคุณแล้ว 👨‍🍳 กำลังเตรียมอาหารให้ครับ!`;
+            }
+            if (newStatus === 'rejected') {
+                confirmMsg = "ต้องการยกเลิกออเดอร์นี้ใช่หรือไม่?";
+                notifyMsg = `ขออภัยครับ ออเดอร์ของคุณถูกยกเลิก กรุณาติดต่อร้าน ${vendorData.name} เพื่อรับเงินคืนครับ`;
+            }
+            if (newStatus === 'completed') {
+                confirmMsg = "อาหารเสร็จแล้ว ส่งมอบเรียบร้อยใช่หรือไม่?";
+                notifyMsg = `อาหารจากร้าน ${vendorData.name} เสร็จเรียบร้อยแล้วครับ 🏁 ขอบคุณที่ใช้บริการครับ!`;
+            }
 
             if (!confirm(confirmMsg)) return;
 
@@ -460,7 +437,23 @@
             if (error) {
                 alert("อัปเดตไม่สำเร็จ: " + error.message);
             } else {
-                loadOrders(); // โหลดรายการใหม่
+                // --- จุดยิง API ไป GAS ---
+                if (customerUid && customerUid !== '') {
+                    try {
+                        await fetch(CONFIG.gasWebhookUrl, {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                action: 'notify_customer',
+                                vendor_id: vendorData.id, 
+                                uid: customerUid,
+                                message: notifyMsg
+                            })
+                        });
+                    } catch (e) {
+                        console.error("ส่งแจ้งเตือนไม่สำเร็จ:", e);
+                    }
+                }
+                loadOrders(); 
             }
         }
 
@@ -470,13 +463,15 @@
             document.getElementById('settingStoreName').value = vendorData.name || '';
             document.getElementById('settingPhone').value = vendorData.phone || '';
             document.getElementById('settingPromptpay').value = vendorData.promptpay_number || '';
+            document.getElementById('settingSlipMode').value = vendorData.slip_check_mode || 'manual'; // ดึงสถานะตรวจสลิป
         }
 
-        // 15. ฟังก์ชันบันทึกการตั้งค่าร้านค้า (และอัปเดตโลโก้)
+        // 15. ฟังก์ชันบันทึกการตั้งค่าร้านค้า
         async function updateStoreSettings() {
             const name = document.getElementById('settingStoreName').value.trim();
             const phone = document.getElementById('settingPhone').value.trim();
             const promptpay = document.getElementById('settingPromptpay').value.trim();
+            const slipMode = document.getElementById('settingSlipMode').value; // ค่า Manual หรือ Auto
             const fileInput = document.getElementById('settingStoreLogo');
             const btn = document.getElementById('saveSettingsBtn');
 
@@ -488,19 +483,14 @@
             btn.innerText = "กำลังบันทึก...";
             btn.disabled = true;
 
-            // ค่าเริ่มต้นคือใช้รูปเดิม
             let logoUrl = vendorData.line_picture_url; 
 
-            // ถ้ามีการอัปโหลดโลโก้ใหม่
             if (fileInput.files.length > 0) {
                 const file = fileInput.files[0];
                 const fileExt = file.name.split('.').pop();
                 const fileName = `logo-${vendorData.id}-${Date.now()}.${fileExt}`;
 
-                // ขออนุญาตใช้ถัง menu-images ในการเก็บโลโก้ด้วยเพื่อความสะดวก
-                const { data: uploadData, error: uploadError } = await supabaseClient.storage
-                    .from('menu-images') 
-                    .upload(fileName, file);
+                const { error: uploadError } = await supabaseClient.storage.from('menu-images').upload(fileName, file);
 
                 if (uploadError) {
                     alert("อัปโหลดโลโก้ไม่สำเร็จ: " + uploadError.message);
@@ -513,14 +503,14 @@
                 logoUrl = publicUrlData.publicUrl;
             }
 
-            // บันทึกข้อมูลใหม่ลงฐานข้อมูล
             const { error } = await supabaseClient
                 .from('vendors')
                 .update({ 
                     name: name, 
                     phone: phone, 
                     promptpay_number: promptpay,
-                    line_picture_url: logoUrl 
+                    line_picture_url: logoUrl,
+                    slip_check_mode: slipMode // บันทึกสถานะตรวจสลิปลงฐานข้อมูล
                 })
                 .eq('id', vendorData.id);
 
@@ -529,13 +519,12 @@
             } else {
                 alert("อัปเดตข้อมูลร้านค้าเรียบร้อยแล้ว!");
                 
-                // อัปเดตข้อมูลในระบบแบบ Real-time โดยไม่ต้องรีเฟรชหน้า
                 vendorData.name = name;
                 vendorData.phone = phone;
                 vendorData.promptpay_number = promptpay;
                 vendorData.line_picture_url = logoUrl;
+                vendorData.slip_check_mode = slipMode;
                 
-                // เปลี่ยนชื่อและรูปที่หัวเว็บทันที
                 document.getElementById('storeName').innerText = name;
                 if(logoUrl) document.getElementById('storeLogo').src = logoUrl;
             }
@@ -543,6 +532,7 @@
             btn.innerText = "💾 บันทึกการตั้งค่า";
             btn.disabled = false;
         }
+
         window.onload = initDashboard;
     </script>
 </body>
