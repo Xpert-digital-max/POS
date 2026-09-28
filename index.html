@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ลงทะเบียนเปิดร้านค้า</title>
+    <!-- นำเข้า LIFF, Supabase และ config.js -->
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
@@ -37,15 +38,14 @@
         </div>
 
         <div class="input-group">
-         <label>เบอร์พร้อมเพย์ (สำหรับรับเงิน)</label>
-         <input type="text" id="promptpayNumber" placeholder="เช่น 0812345678 หรือ เลขบัตร ปชช." required>
+            <label>เบอร์พร้อมเพย์ (สำหรับรับเงิน)</label>
+            <input type="text" id="promptpayNumber" placeholder="เช่น 0812345678 หรือ เลขบัตร ปชช." required>
         </div>
         
         <button id="registerBtn" onclick="registerVendor()" disabled>ยืนยันลงทะเบียน</button>
     </div>
 
     <script>
-        // ใช้ตัวแปรจาก CONFIG แทน
         const supabase = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
         let lineData = {};
 
@@ -61,10 +61,28 @@
                         pic: profile.pictureUrl
                     };
                     
-                    document.getElementById('profileImg').src = lineData.pic;
-                    document.getElementById('profileImg').style.display = 'inline-block';
+                    // เช็คก่อนว่าเคยลงทะเบียนหรือยัง?
+                    const { data, error } = await supabase
+                        .from('vendors')
+                        .select('id')
+                        .eq('line_owner_uid', lineData.uid)
+                        .single();
+
+                    if (data) {
+                        // ถ้าเคยลงทะเบียนแล้ว ให้เด้งไปหน้า Dashboard อัตโนมัติ
+                        alert("คุณเคยลงทะเบียนแล้ว ระบบจะพาไปหน้าจัดการร้านค้า");
+                        window.location.href = "dashboard.html"; 
+                        return;
+                    }
+
+                    // ถ้ายังไม่เคยลงทะเบียน ให้โชว์รูปและเปิดปุ่มให้กดได้
+                    if(lineData.pic) {
+                        document.getElementById('profileImg').src = lineData.pic;
+                        document.getElementById('profileImg').style.display = 'inline-block';
+                    }
                     document.getElementById('displayName').innerText = `สวัสดีคุณ ${lineData.name}`;
                     document.getElementById('registerBtn').disabled = false;
+                    
                 } else {
                     liff.login();
                 }
@@ -74,13 +92,11 @@
             }
         }
 
-        // --- 3. บันทึกข้อมูล ---
         async function registerVendor() {
             const storeName = document.getElementById('storeName').value.trim();
             const phoneNumber = document.getElementById('phoneNumber').value.trim();
             const promptpay = document.getElementById('promptpayNumber').value.trim(); 
 
-            // เช็คว่ากรอกข้อมูลครบไหม
             if(!storeName || !phoneNumber || !promptpay) {
                 alert("กรุณากรอกข้อมูลให้ครบถ้วน");
                 return;
@@ -101,10 +117,11 @@
                         name: storeName,
                         phone: phoneNumber,
                         promptpay_number: promptpay,
-                        is_open: false
+                        is_open: false,
+                        slip_check_mode: 'manual' // ค่าเริ่มต้นเป็น manual
                     }
                 ])
-                .select(); // <=== สำคัญมาก! สั่งให้ Supabase คืนค่ากลับมาเพื่อให้เรารู้ ID ร้านค้า
+                .select(); 
 
             if (error) {
                 console.error(error);
@@ -113,10 +130,9 @@
                 btn.disabled = false;
             } else {
                 
-                // ดึงข้อมูลร้านที่เพิ่งสร้างสำเร็จออกมา
                 const newVendor = data[0];
 
-                // ยิงข้อมูลไปที่ Google Apps Script เพื่อบันทึกลง Sheet!
+                // ยิงข้อมูลไปที่ Google Apps Script เพื่อบันทึกลง Sheet
                 try {
                     await fetch(CONFIG.gasWebhookUrl, {
                         method: 'POST',
@@ -132,8 +148,8 @@
                     console.error("บันทึกลง Sheet ไม่สำเร็จ (แต่ลง DB ไปแล้ว)", e);
                 }
 
-                alert("ลงทะเบียนร้านค้าสำเร็จ! ระบบจะปิดหน้าต่างนี้อัตโนมัติ");
-                liff.closeWindow(); 
+                alert("ลงทะเบียนร้านค้าสำเร็จ! ระบบจะพาไปหน้าจัดการร้านค้า");
+                window.location.href = "dashboard.html"; // เปลี่ยนจากปิดหน้าต่างเป็นเด้งไป Dashboard เลย
             }
         }
 
