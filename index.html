@@ -46,7 +46,8 @@
     </div>
 
     <script>
-        const supabase = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
+        // เปลี่ยนมาใช้ชื่อ supabaseClient ป้องกันการประกาศซ้ำซ้อน
+        const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
         let lineData = {};
 
         async function initializeLiff() {
@@ -62,7 +63,7 @@
                     };
                     
                     // เช็คก่อนว่าเคยลงทะเบียนหรือยัง?
-                    const { data, error } = await supabase
+                    const { data, error } = await supabaseClient
                         .from('vendors')
                         .select('id')
                         .eq('line_owner_uid', lineData.uid)
@@ -107,7 +108,7 @@
             btn.disabled = true;
 
             // บันทึกลง Supabase
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from('vendors')
                 .insert([
                     { 
@@ -118,7 +119,7 @@
                         phone: phoneNumber,
                         promptpay_number: promptpay,
                         is_open: false,
-                        slip_check_mode: 'manual' // ค่าเริ่มต้นเป็น manual
+                        slip_check_mode: 'manual' 
                     }
                 ])
                 .select(); 
@@ -149,7 +150,7 @@
                 }
 
                 alert("ลงทะเบียนร้านค้าสำเร็จ! ระบบจะพาไปหน้าจัดการร้านค้า");
-                window.location.href = "dashboard.html"; // เปลี่ยนจากปิดหน้าต่างเป็นเด้งไป Dashboard เลย
+                window.location.href = "dashboard.html"; 
             }
         }
 
