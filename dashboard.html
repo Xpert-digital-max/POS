@@ -142,7 +142,10 @@
             loadMenuItems(); 
         }
 
-        // 5. ฟังก์ชันเพิ่มเมนูใหม่
+        // ตัวแปรสำหรับจำว่ากำลังแก้ไขเมนูไหนอยู่
+        let editingMenuId = null; 
+
+        // 5. ฟังก์ชันเพิ่ม และ แก้ไขเมนู (ใช้ปุ่มเดียวกัน)
         async function addNewMenu() {
             const name = document.getElementById('menuName').value;
             const price = document.getElementById('menuPrice').value;
@@ -159,60 +162,70 @@
 
             let imageUrl = null;
 
-            // ถ้ามีการอัปโหลดรูปภาพ
+            // 5.1 ถ้ามีการอัปโหลดรูปภาพใหม่
             if (fileInput.files.length > 0) {
                 const file = fileInput.files[0];
                 const fileExt = file.name.split('.').pop();
-                const fileName = `${vendorData.id}-${Date.now()}.${fileExt}`; // ตั้งชื่อไฟล์ไม่ให้ซ้ำกัน
+                const fileName = `${vendorData.id}-${Date.now()}.${fileExt}`; 
 
-                // อัปโหลดรูปขึ้น Supabase Storage
                 const { data: uploadData, error: uploadError } = await supabaseClient.storage
                     .from('menu-images')
                     .upload(fileName, file);
 
                 if (uploadError) {
                     alert("อัปโหลดรูปภาพไม่สำเร็จ: " + uploadError.message);
-                    btn.innerText = "💾 บันทึกเมนูใหม่";
-                    btn.disabled = false;
+                    resetFormState();
                     return;
                 }
 
-                // ดึง URL ของรูปภาพมาเก็บไว้
                 const { data: publicUrlData } = supabaseClient.storage
                     .from('menu-images')
                     .getPublicUrl(fileName);
                 imageUrl = publicUrlData.publicUrl;
             }
 
-            // บันทึกข้อมูลลงตาราง menu_items
-            const { error: insertError } = await supabaseClient
-                .from('menu_items')
-                .insert([
-                    {
-                        vendor_id: vendorData.id,
-                        name: name,
-                        price: price,
-                        image_url: imageUrl,
-                        is_available: true
-                    }
-                ]);
+            // 5.2 เช็คว่าเป็นการ "เพิ่มใหม่" หรือ "แก้ไข"
+            if (editingMenuId) {
+                // --- โหมดแก้ไขเมนู ---
+                const updateData = { name: name, price: price };
+                if (imageUrl) updateData.image_url = imageUrl; // ถ้ามีรูปใหม่ ค่อยอัปเดตรูป
 
-            if (insertError) {
-                alert("บันทึกเมนูไม่สำเร็จ: " + insertError.message);
+                const { error: updateError } = await supabaseClient
+                    .from('menu_items')
+                    .update(updateData)
+                    .eq('id', editingMenuId);
+
+                if (updateError) alert("อัปเดตไม่สำเร็จ: " + updateError.message);
+                else alert("อัปเดตเมนูสำเร็จ!");
+
             } else {
-                alert("เพิ่มเมนูสำเร็จ!");
-                // เคลียร์ค่าฟอร์ม
-                document.getElementById('menuName').value = '';
-                document.getElementById('menuPrice').value = '';
-                document.getElementById('menuImage').value = '';
-                loadMenuItems(); // โหลดรายการเมนูใหม่มาแสดง
+                // --- โหมดเพิ่มเมนูใหม่ ---
+                const { error: insertError } = await supabaseClient
+                    .from('menu_items')
+                    .insert([{ vendor_id: vendorData.id, name: name, price: price, image_url: imageUrl, is_available: true }]);
+
+                if (insertError) alert("บันทึกเมนูไม่สำเร็จ: " + insertError.message);
+                else alert("เพิ่มเมนูสำเร็จ!");
             }
 
+            // 5.3 เคลียร์ค่าฟอร์มและดึงข้อมูลใหม่
+            resetFormState();
+            loadMenuItems(); 
+        }
+
+        // ฟังก์ชันรีเซ็ตหน้าตาฟอร์มกลับเป็นโหมดเพิ่มเมนู
+        function resetFormState() {
+            document.getElementById('menuName').value = '';
+            document.getElementById('menuPrice').value = '';
+            document.getElementById('menuImage').value = '';
+            editingMenuId = null;
+            const btn = document.getElementById('saveMenuBtn');
             btn.innerText = "💾 บันทึกเมนูใหม่";
+            btn.style.background = "#06C755";
             btn.disabled = false;
         }
 
-        // 6. ฟังก์ชันดึงรายการอาหาร (เวอร์ชันอัปเดตมีปุ่มลบ/แก้ไข)
+        // 6. ฟังก์ชันดึงรายการอาหาร (เพิ่มปุ่มแก้ไขสีฟ้า)
         async function loadMenuItems() {
             if (!vendorData) return;
 
@@ -245,9 +258,10 @@
                             <p style="margin: 5px 0 0 0; color: #06C755; font-weight: bold;">฿${item.price}</p>
                             <span style="font-size: 12px; color: ${statusColor};">${statusText}</span>
                         </div>
-                        
-                        <!-- จุดสำคัญ: ส่วนนี้คือปุ่มที่เพิ่มเข้ามา ตรวจสอบว่าในไฟล์มีโค้ดส่วนนี้ไหม -->
                         <div style="display: flex; flex-direction: column; gap: 5px;">
+                            <button onclick="editMenu('${item.id}', '${item.name}', ${item.price})" style="background: #2196F3; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                                ✏️ แก้ไข
+                            </button>
                             <button onclick="toggleMenuStatus('${item.id}', ${item.is_available})" style="background: ${toggleBtnColor}; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
                                 ${toggleBtnText}
                             </button>
@@ -255,49 +269,42 @@
                                 🗑️ ลบ
                             </button>
                         </div>
-                        <!-- สิ้นสุดส่วนของปุ่ม -->
-
                     </div>
                 `;
             });
             menuListDiv.innerHTML = html;
         }
 
-        // 7. ฟังก์ชันลบเมนู
+        // 7. ฟังก์ชันเตรียมแก้ไขเมนู (เมื่อกดปุ่ม ✏️ แก้ไข)
+        function editMenu(id, name, price) {
+            editingMenuId = id; 
+            document.getElementById('menuName').value = name;
+            document.getElementById('menuPrice').value = price;
+            
+            // เปลี่ยนปุ่มเป็นสีฟ้าให้รู้ว่ากำลังแก้ไข
+            const btn = document.getElementById('saveMenuBtn');
+            btn.innerText = "💾 อัปเดตเมนู";
+            btn.style.background = "#2196F3"; 
+            
+            // เลื่อนหน้าจอขึ้นไปบนสุดอัตโนมัติ
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // 8. ฟังก์ชันลบเมนู
         async function deleteMenu(menuId, menuName) {
-            // แจ้งเตือนให้แม่ค้ายืนยันก่อนลบ
-            if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบเมนู "${menuName}" ทิ้ง?`)) {
-                return; // ถ้ากดยกเลิก ให้หยุดการทำงาน
-            }
-
-            const { error } = await supabaseClient
-                .from('menu_items')
-                .delete()
-                .eq('id', menuId);
-
-            if (error) {
-                alert("เกิดข้อผิดพลาดในการลบ: " + error.message);
-            } else {
-                alert("ลบเมนูเรียบร้อยแล้ว");
-                loadMenuItems(); // โหลดหน้าจอใหม่ให้เมนูหายไปทันที
-            }
+            if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบ "${menuName}"?`)) return;
+            const { error } = await supabaseClient.from('menu_items').delete().eq('id', menuId);
+            if (error) alert("ลบไม่สำเร็จ: " + error.message);
+            else loadMenuItems(); 
         }
 
-        // 8. ฟังก์ชันสลับสถานะ ของหมด/พร้อมขาย
+        // 9. ฟังก์ชันสลับสถานะ ของหมด/พร้อมขาย
         async function toggleMenuStatus(menuId, currentStatus) {
-            const newStatus = !currentStatus; // สลับค่าจาก true เป็น false หรือ false เป็น true
-
-            const { error } = await supabaseClient
-                .from('menu_items')
-                .update({ is_available: newStatus })
-                .eq('id', menuId);
-
-            if (error) {
-                alert("อัปเดตสถานะไม่สำเร็จ: " + error.message);
-            } else {
-                loadMenuItems(); // โหลดหน้าจอใหม่เพื่ออัปเดตสีปุ่ม
-            }
+            const { error } = await supabaseClient.from('menu_items').update({ is_available: !currentStatus }).eq('id', menuId);
+            if (error) alert("อัปเดตสถานะไม่สำเร็จ: " + error.message);
+            else loadMenuItems(); 
         }
+    }
         window.onload = initDashboard;
     </script>
 </body>
