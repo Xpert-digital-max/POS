@@ -59,9 +59,17 @@
         <!-- หน้าจัดการเมนู -->
         <div id="menu" class="tab-content">
             <h2>จัดการเมนูอาหาร</h2>
-            <button style="background: #06C755; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px;">+ เพิ่มเมนูใหม่</button>
+            
+            <!-- กล่องฟอร์มเพิ่มเมนู -->
+            <div class="card" style="background: #f9f9f9; border: 1px dashed #ccc;">
+                <input type="text" id="menuName" placeholder="ชื่อเมนู (เช่น ข้าวกะเพราหมูสับ)" style="width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box;">
+                <input type="number" id="menuPrice" placeholder="ราคา (บาท)" style="width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box;">
+                <input type="file" id="menuImage" accept="image/*" style="margin-bottom: 10px;">
+                <button onclick="addNewMenu()" id="saveMenuBtn" style="background: #06C755; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px;">💾 บันทึกเมนูใหม่</button>
+            </div>
+
             <div id="menuList" style="margin-top: 15px;">
-                <!-- รายการอาหารจะมาโชว์ที่นี่ -->
+                <p style="text-align: center; color: #888;">กำลังโหลดเมนู...</p>
             </div>
         </div>
 
