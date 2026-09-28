@@ -137,6 +137,9 @@
             if(vendorData.line_picture_url) {
                 document.getElementById('storeLogo').src = vendorData.line_picture_url;
             }
+
+            // 👇 จุดที่เพิ่มเข้ามา: สั่งให้ดึงเมนูอาหารทันทีที่โหลดข้อมูลร้านเสร็จ
+            loadMenuItems(); 
         }
 
         // 5. ฟังก์ชันเพิ่มเมนูใหม่
