@@ -7,6 +7,7 @@
     <!-- นำเข้า LIFF และ Supabase -->
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
     <style>
         body { font-family: sans-serif; margin: 0; background-color: #f4f6f8; padding-bottom: 80px; }
         
@@ -93,10 +94,11 @@
     </div>
 
     <script>
-        // 1. ใส่ Key ของ Supabase (ไม่ต้องใส่ LIFF ID ตอนนี้ เพราะแค่ดูเมนู)
-        const supabaseUrl = 'https://bbceqmoibwlnltgpkdsf.supabase.co';
-        const supabaseKey = 'sb_publishable_Tm2NO4vvT938VdnT4ZG_cQ_DFdh-r-5';
-        const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+        const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
+     const urlParams = new URLSearchParams(window.location.search);
+     const vendorId = urlParams.get('vid');
+
+     let vendorData = null; // เพิ่มบรรทัดนี้เพื่อเก็บข้อมูลร้านค้าทั้งหมดไว้ใช้
 
         // ดึง Vendor ID (vid) จาก URL (เช่น customer.html?vid=1234)
         const urlParams = new URLSearchParams(window.location.search);
@@ -117,16 +119,10 @@
 
         // 3. โหลดข้อมูลร้านค้าและเช็คว่าร้านเปิดอยู่ไหม
         async function loadVendorInfo() {
-            const { data, error } = await supabaseClient
-                .from('vendors')
-                .select('*')
-                .eq('id', vendorId)
-                .single();
+         const { data, error } = await supabaseClient.from('vendors').select('*').eq('id', vendorId).single();
+         if (error || !data) return;
 
-            if (error || !data) {
-                alert("ไม่พบข้อมูลร้านค้านี้");
-                return;
-            }
+         vendorData = data; // เก็บข้อมูลร้านไว้ (รวมถึงเบอร์พร้อมเพย์ด้วย)
 
             document.getElementById('storeName').innerText = data.name;
             if(data.line_picture_url) document.getElementById('storeLogo').src = data.line_picture_url;
@@ -231,18 +227,13 @@
         }
 
         // 7. เปิดหน้าต่างชำระเงิน พร้อมสร้าง QR พร้อมเพย์
-        function goToCheckout() {
-            const summaryDiv = document.getElementById('checkoutSummary');
-            let summaryHtml = '';
-            
-            for (let id in cart) {
-                summaryHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                    <span>${cart[id].qty}x ${cart[id].name}</span>
-                    <span>฿${cart[id].qty * cart[id].price}</span>
-                </div>`;
-            }
-            
-            summaryDiv.innerHTML = summaryHtml;
+        const promptpayNumber = vendorData.promptpay_number; 
+
+         if (promptpayNumber) {
+             document.getElementById('qrCodeImage').src = `https://promptpay.io/${promptpayNumber}/${totalAmount}.png`;
+         } else {
+             alert("ร้านค้านี้ยังไม่ได้ตั้งค่าพร้อมเพย์");
+         }
             
             // ดึงยอดรวมทั้งหมด
             const totalAmount = document.getElementById('totalPrice').innerText;
