@@ -7,6 +7,7 @@
     <!-- นำเข้า LIFF และ Supabase -->
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
     <style>
         body { font-family: sans-serif; margin: 0; background-color: #f4f6f8; }
         /* Header */
@@ -87,10 +88,8 @@
 
     <!-- ส่วนของ JavaScript -->
     <script>
-        // 1. ใส่ Key และ LIFF ID
-        const supabaseUrl = 'https://bbceqmoibwlnltgpkdsf.supabase.co';
-        const supabaseKey = 'sb_publishable_Tm2NO4vvT938VdnT4ZG_cQ_DFdh-r-5';
-        const liffId = '2011781647-rkokpjId'; // ใส่ LIFF ID ตัวใหม่ที่เพิ่งสร้าง
+        CONFIG.supabaseUrl
+        CONFIG.liffIdDashboard
 
         const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
         let vendorData = null; // เก็บข้อมูลร้านค้าของแม่ค้าคนนี้
