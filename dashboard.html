@@ -232,7 +232,6 @@
             let html = '';
             data.forEach(item => {
                 const imgSrc = item.image_url ? item.image_url : 'https://via.placeholder.com/60?text=No+Image';
-                // เช็คสถานะเพื่อเปลี่ยนสีปุ่ม
                 const statusColor = item.is_available ? 'green' : 'red';
                 const statusText = item.is_available ? '✅ พร้อมขาย' : '❌ ของหมด';
                 const toggleBtnText = item.is_available ? '⏸️ พักการขาย' : '▶️ เปิดขาย';
@@ -246,16 +245,18 @@
                             <p style="margin: 5px 0 0 0; color: #06C755; font-weight: bold;">฿${item.price}</p>
                             <span style="font-size: 12px; color: ${statusColor};">${statusText}</span>
                         </div>
+                        
+                        <!-- จุดสำคัญ: ส่วนนี้คือปุ่มที่เพิ่มเข้ามา ตรวจสอบว่าในไฟล์มีโค้ดส่วนนี้ไหม -->
                         <div style="display: flex; flex-direction: column; gap: 5px;">
-                            <!-- ปุ่มพักการขาย / เปิดขาย -->
                             <button onclick="toggleMenuStatus('${item.id}', ${item.is_available})" style="background: ${toggleBtnColor}; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
                                 ${toggleBtnText}
                             </button>
-                            <!-- ปุ่มลบเมนู -->
                             <button onclick="deleteMenu('${item.id}', '${item.name}')" style="background: #ff4d4f; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
                                 🗑️ ลบ
                             </button>
                         </div>
+                        <!-- สิ้นสุดส่วนของปุ่ม -->
+
                     </div>
                 `;
             });
