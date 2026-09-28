@@ -44,7 +44,7 @@
         const supabaseKey = 'sb_publishable_Tm2NO4vvT938VdnT4ZG_cQ_DFdh-r-5';
         const liffId = '2011781647-1GTbZ2gJ';
 
-        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+        const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
         let lineData = {};
 
         // --- 2. เริ่มต้น LIFF ---
@@ -87,8 +87,8 @@
             btn.innerText = "กำลังสร้างร้านค้า...";
             btn.disabled = true;
 
-            const { data, error } = await supabase
-                .from('vendors')
+            const { data, error } = await supabaseClient
+    .from('vendors')
                 .insert([
                     { 
                         line_owner_uid: lineData.uid, 
