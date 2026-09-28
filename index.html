@@ -46,12 +46,12 @@
 
     <script>
         // ใช้ตัวแปรจาก CONFIG แทน
-     const supabase = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
-     let lineData = {};
+        const supabase = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
+        let lineData = {};
 
-     async function initializeLiff() {
-         try {
-             await liff.init({ liffId: CONFIG.liffIdRegister });
+        async function initializeLiff() {
+            try {
+                await liff.init({ liffId: CONFIG.liffIdRegister });
                 
                 if (liff.isLoggedIn()) {
                     const profile = await liff.getProfile();
@@ -76,22 +76,33 @@
 
         // --- 3. บันทึกข้อมูล ---
         async function registerVendor() {
-         const storeName = document.getElementById('storeName').value.trim();
-         const phoneNumber = document.getElementById('phoneNumber').value.trim();
-         const promptpay = document.getElementById('promptpayNumber').value.trim(); // เพิ่มบรรทัดนี้
+            const storeName = document.getElementById('storeName').value.trim();
+            const phoneNumber = document.getElementById('phoneNumber').value.trim();
+            const promptpay = document.getElementById('promptpayNumber').value.trim(); 
 
-         // ... (โค้ดเช็คข้อมูล) ...
+            // เช็คว่ากรอกข้อมูลครบไหม
+            if(!storeName || !phoneNumber || !promptpay) {
+                alert("กรุณากรอกข้อมูลให้ครบถ้วน");
+                return;
+            }
 
-         const { data, error } = await supabase
-             .from('vendors')
-             .insert([
-                 { 
-                     // ... ข้อมูลเดิม ...
-                     phone: phoneNumber,
-                     promptpay_number: promptpay, // ส่งเข้าฐานข้อมูล
-                     is_open: false
-                 }
-             ]);
+            const btn = document.getElementById('registerBtn');
+            btn.innerText = "กำลังสร้างร้านค้า...";
+            btn.disabled = true;
+
+            const { data, error } = await supabase
+                .from('vendors')
+                .insert([
+                    { 
+                        line_owner_uid: lineData.uid, 
+                        line_display_name: lineData.name,
+                        line_picture_url: lineData.pic,
+                        name: storeName,
+                        phone: phoneNumber,
+                        promptpay_number: promptpay, // บันทึกเบอร์พร้อมเพย์
+                        is_open: false
+                    }
+                ]);
 
             if (error) {
                 console.error(error);
