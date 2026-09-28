@@ -43,7 +43,29 @@
     </style>
 </head>
 <body>
+    
+<!-- หน้าต่างชำระเงิน (Modal) -->
+    <div id="checkoutModal" style="display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 300; justify-content: center; align-items: flex-end;">
+        <div style="background: white; width: 100%; max-height: 80vh; border-radius: 20px 20px 0 0; padding: 20px; box-sizing: border-box; overflow-y: auto;">
+            <h3 style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px;">สรุปรายการสั่งซื้อ</h3>
+            <div id="checkoutSummary" style="margin-bottom: 15px; font-size: 14px;"></div>
+            <h3 style="text-align: right; color: #06C755;">ยอดโอน: <span id="checkoutTotal">0</span> บาท</h3>
+            
+            <div style="background: #f9f9f9; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 15px;">
+                <p style="margin: 0 0 10px 0; font-weight: bold;">สแกนจ่ายผ่าน QR Code</p>
+                <!-- ใช้รูป QR Code ชั่วคราวไปก่อน เดี๋ยวเราค่อยมาทำระบบ Generate PromptPay -->
+                <img src="https://via.placeholder.com/150?text=PromptPay+QR" style="width: 150px; height: 150px; margin-bottom: 10px;">
+                <p style="margin: 0; font-size: 12px; color: #555;">กรุณาแนบสลิปหลังชำระเงินเพื่อยืนยันออเดอร์</p>
+            </div>
 
+            <input type="file" id="slipImage" accept="image/*" style="width: 100%; margin-bottom: 15px; padding: 10px; border: 1px solid #ccc; border-radius: 8px;">
+            
+            <div style="display: flex; gap: 10px;">
+                <button onclick="closeCheckout()" style="flex: 1; padding: 12px; border: none; border-radius: 8px; background: #eee; font-weight: bold; cursor: pointer;">ยกเลิก</button>
+                <button id="confirmOrderBtn" onclick="submitOrder()" style="flex: 2; padding: 12px; border: none; border-radius: 8px; background: #06C755; color: white; font-weight: bold; cursor: pointer;">ยืนยันการสั่งซื้อ</button>
+            </div>
+        </div>
+    </div>
     <!-- แถบข้อมูลร้าน -->
     <div class="header">
         <img id="storeLogo" src="https://via.placeholder.com/80" alt="Store Logo">
@@ -208,11 +230,83 @@
             }
         }
 
-        // 7. เมื่อกดปุ่มชำระเงิน
+        // 7. เปิดหน้าต่างชำระเงิน
         function goToCheckout() {
-            // เดี๋ยวเราจะเขียนฟังก์ชันรับชำระเงินในสเต็ปต่อไป
-            console.log("ข้อมูลตะกร้า:", cart);
-            alert("ยอดรวมทั้งหมด " + document.getElementById('totalPrice').innerText + " บาท \nกำลังพาสู่หน้าชำระเงิน...");
+            const summaryDiv = document.getElementById('checkoutSummary');
+            let summaryHtml = '';
+            
+            for (let id in cart) {
+                summaryHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span>${cart[id].qty}x ${cart[id].name}</span>
+                    <span>฿${cart[id].qty * cart[id].price}</span>
+                </div>`;
+            }
+            
+            summaryDiv.innerHTML = summaryHtml;
+            document.getElementById('checkoutTotal').innerText = document.getElementById('totalPrice').innerText;
+            document.getElementById('checkoutModal').style.display = 'flex';
+        }
+
+        // ปิดหน้าต่างชำระเงิน
+        function closeCheckout() {
+            document.getElementById('checkoutModal').style.display = 'none';
+        }
+
+        // 8. ส่งออเดอร์เข้าฐานข้อมูล
+        async function submitOrder() {
+            const fileInput = document.getElementById('slipImage');
+            const btn = document.getElementById('confirmOrderBtn');
+            const total = document.getElementById('totalPrice').innerText;
+
+            if (fileInput.files.length === 0) {
+                alert("กรุณาแนบสลิปโอนเงินก่อนยืนยันออเดอร์");
+                return;
+            }
+
+            btn.innerText = "กำลังส่งออเดอร์...";
+            btn.disabled = true;
+
+            const file = fileInput.files[0];
+            const fileExt = file.name.split('.').pop();
+            const fileName = `slip-${Date.now()}.${fileExt}`;
+            let slipUrl = null;
+
+            // อัปโหลดสลิป
+            const { error: uploadError } = await supabaseClient.storage
+                .from('slip-images')
+                .upload(fileName, file);
+
+            if (uploadError) {
+                alert("อัปโหลดสลิปไม่สำเร็จ: " + uploadError.message);
+                btn.innerText = "ยืนยันการสั่งซื้อ";
+                btn.disabled = false;
+                return;
+            }
+
+            // ดึง URL สลิป
+            const { data: publicUrlData } = supabaseClient.storage.from('slip-images').getPublicUrl(fileName);
+            slipUrl = publicUrlData.publicUrl;
+
+            // บันทึกออเดอร์ลงตาราง orders
+            const { error: orderError } = await supabaseClient
+                .from('orders')
+                .insert([{
+                    vendor_id: vendorId,
+                    items: cart,
+                    total_price: parseFloat(total),
+                    slip_image_url: slipUrl,
+                    status: 'pending'
+                }]);
+
+            if (orderError) {
+                alert("บันทึกออเดอร์ไม่สำเร็จ: " + orderError.message);
+            } else {
+                alert("ส่งออเดอร์เรียบร้อยแล้ว! ร้านค้ากำลังตรวจสอบสลิป");
+                window.location.reload(); // รีเฟรชหน้าเว็บเพื่อเคลียร์ตะกร้า
+            }
+
+            btn.innerText = "ยืนยันการสั่งซื้อ";
+            btn.disabled = false;
         }
 
         window.onload = initCustomerApp;
