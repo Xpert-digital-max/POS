@@ -45,7 +45,7 @@
 </head>
 <body>
     
-<!-- หน้าต่างชำระเงิน (Modal) -->
+    <!-- หน้าต่างชำระเงิน (Modal) -->
     <div id="checkoutModal" style="display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 300; justify-content: center; align-items: flex-end;">
         <div style="background: white; width: 100%; max-height: 80vh; border-radius: 20px 20px 0 0; padding: 20px; box-sizing: border-box; overflow-y: auto;">
             <h3 style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px;">สรุปรายการสั่งซื้อ</h3>
@@ -55,7 +55,7 @@
             <div style="background: #f9f9f9; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 15px;">
                 <p style="margin: 0 0 10px 0; font-weight: bold;">สแกนจ่ายผ่าน QR Code</p>
                 <!-- กล่องแสดง QR Code พร้อมเพย์ -->
-                <img id="qrCodeImage" src="" style="width: 150px; height: 150px; margin-bottom: 10px; border: 1px solid #ddd; padding: 5px; border-radius: 8px;">
+                <img id="qrCodeImage" src="" style="width: 150px; height: 150px; margin-bottom: 10px; border: 1px solid #ddd; padding: 5px; border-radius: 8px; display: none;">
                 <p style="margin: 0; font-size: 12px; color: #555;">กรุณาแนบสลิปหลังชำระเงินเพื่อยืนยันออเดอร์</p>
             </div>
 
@@ -67,6 +67,7 @@
             </div>
         </div>
     </div>
+
     <!-- แถบข้อมูลร้าน -->
     <div class="header">
         <img id="storeLogo" src="https://via.placeholder.com/80" alt="Store Logo">
@@ -94,18 +95,15 @@
     </div>
 
     <script>
+        // 1. ตั้งค่าพื้นฐาน
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
-     const urlParams = new URLSearchParams(window.location.search);
-     const vendorId = urlParams.get('vid');
-
-     let vendorData = null; // เพิ่มบรรทัดนี้เพื่อเก็บข้อมูลร้านค้าทั้งหมดไว้ใช้
-
-        // ดึง Vendor ID (vid) จาก URL (เช่น customer.html?vid=1234)
         const urlParams = new URLSearchParams(window.location.search);
         const vendorId = urlParams.get('vid');
 
-        let menuData = []; // เก็บข้อมูลเมนูที่ดึงมาจากฐานข้อมูล
-        let cart = {}; // เก็บตะกร้าสินค้า { 'menu_id': { quantity: 1, price: 50, name: '...' } }
+        let vendorData = null; 
+        let menuData = []; 
+        let cart = {}; 
+        let customerUid = null; // เก็บ UID ของลูกค้าที่ล็อกอิน
 
         // 2. ฟังก์ชันเริ่มทำงานเมื่อเปิดหน้าเว็บ
         async function initCustomerApp() {
@@ -113,16 +111,32 @@
                 alert("ลิงก์ไม่ถูกต้อง: ไม่พบรหัสร้านค้า");
                 return;
             }
-            await loadVendorInfo();
-            await loadMenu();
+
+            try {
+                // เรียกใช้ LIFF ฝั่งลูกค้า (อย่าลืมเติม liffIdCustomer ใน config.js นะครับ)
+                await liff.init({ liffId: CONFIG.liffIdCustomer });
+                
+                if (liff.isLoggedIn()) {
+                    const profile = await liff.getProfile();
+                    customerUid = profile.userId;
+
+                    await loadVendorInfo();
+                    await loadMenu();
+                } else {
+                    liff.login();
+                }
+            } catch (err) {
+                console.error("LIFF Init Error: ", err);
+                alert("กรุณาเปิดลิงก์นี้ผ่านแอป LINE เพื่อสั่งอาหาร");
+            }
         }
 
         // 3. โหลดข้อมูลร้านค้าและเช็คว่าร้านเปิดอยู่ไหม
         async function loadVendorInfo() {
-         const { data, error } = await supabaseClient.from('vendors').select('*').eq('id', vendorId).single();
-         if (error || !data) return;
+            const { data, error } = await supabaseClient.from('vendors').select('*').eq('id', vendorId).single();
+            if (error || !data) return;
 
-         vendorData = data; // เก็บข้อมูลร้านไว้ (รวมถึงเบอร์พร้อมเพย์ด้วย)
+            vendorData = data; 
 
             document.getElementById('storeName').innerText = data.name;
             if(data.line_picture_url) document.getElementById('storeLogo').src = data.line_picture_url;
@@ -134,17 +148,17 @@
             } else {
                 statusBadge.innerText = "🔴 ปิดรับออเดอร์";
                 statusBadge.className = "status-badge status-closed";
-                document.getElementById('closedOverlay').style.display = "flex"; // โชว์หน้าจอร้านปิดทับไว้เลย
+                document.getElementById('closedOverlay').style.display = "flex"; 
             }
         }
 
-        // 4. โหลดรายการอาหาร (เฉพาะที่ is_available = true)
+        // 4. โหลดรายการอาหาร
         async function loadMenu() {
             const { data, error } = await supabaseClient
                 .from('menu_items')
                 .select('*')
                 .eq('vendor_id', vendorId)
-                .eq('is_available', true) // ดึงเฉพาะเมนูที่พร้อมขาย
+                .eq('is_available', true)
                 .order('created_at', { ascending: false });
 
             const container = document.getElementById('menuContainer');
@@ -153,7 +167,7 @@
                 return;
             }
 
-            menuData = data; // เก็บไว้ใช้ตอนคำนวณเงิน
+            menuData = data; 
             let html = '';
             
             data.forEach(item => {
@@ -179,25 +193,20 @@
 
         // 5. ระบบคำนวณตะกร้าสินค้า
         function updateCart(menuId, change) {
-            // หาเมนูที่ลูกค้ากดจาก menuData
             const menuItem = menuData.find(m => m.id === menuId);
             if (!menuItem) return;
 
-            // ถ้าไม่มีสินค้านี้ในตะกร้า ให้สร้างขึ้นมา
             if (!cart[menuId]) {
                 cart[menuId] = { name: menuItem.name, price: menuItem.price, qty: 0 };
             }
 
-            // บวกหรือลบจำนวน
             cart[menuId].qty += change;
 
-            // ถ้าจำนวนน้อยกว่าหรือเท่ากับ 0 ให้ลบออกจากตะกร้า
             if (cart[menuId].qty <= 0) {
                 cart[menuId].qty = 0;
                 delete cart[menuId];
             }
 
-            // อัปเดตตัวเลขตรงกลางปุ่ม
             const qtyText = cart[menuId] ? cart[menuId].qty : 0;
             document.getElementById(`qty-${menuId}`).innerText = qtyText;
 
@@ -217,7 +226,6 @@
             document.getElementById('totalItems').innerText = totalQty;
             document.getElementById('totalPrice').innerText = totalPrice;
 
-            // แสดงหรือซ่อนแถบตะกร้าสินค้าด้านล่าง
             const footer = document.getElementById('cartFooter');
             if (totalQty > 0) {
                 footer.classList.add('show');
@@ -240,25 +248,19 @@
             
             summaryDiv.innerHTML = summaryHtml;
 
-            // ดึงยอดรวมทั้งหมด
             const totalAmount = document.getElementById('totalPrice').innerText;
             document.getElementById('checkoutTotal').innerText = totalAmount;
 
-            // ดึงเบอร์พร้อมเพย์จากฐานข้อมูล (vendorData ที่โหลดมาเก็บไว้)
             const promptpayNumber = vendorData.promptpay_number; 
 
-            // ตรวจสอบว่าร้านค้าตั้งค่าพร้อมเพย์ไว้หรือไม่
             if (promptpayNumber) {
-                // สร้าง QR Code ผ่าน PromptPay API แบบอิงตามยอดรวมจริง
                 document.getElementById('qrCodeImage').src = `https://promptpay.io/${promptpayNumber}/${totalAmount}.png`;
                 document.getElementById('qrCodeImage').style.display = 'inline-block';
             } else {
-                // ถ้าร้านไม่ได้กรอกพร้อมเพย์ตอนลงทะเบียน
                 document.getElementById('qrCodeImage').style.display = 'none';
                 alert("ร้านค้านี้ยังไม่ได้ตั้งค่าบัญชีรับเงิน (พร้อมเพย์) กรุณาชำระด้วยเงินสด");
             }
 
-            // เปิดหน้าต่าง Modal
             document.getElementById('checkoutModal').style.display = 'flex';
         }
 
@@ -286,7 +288,6 @@
             const fileName = `slip-${Date.now()}.${fileExt}`;
             let slipUrl = null;
 
-            // อัปโหลดสลิป
             const { error: uploadError } = await supabaseClient.storage
                 .from('slip-images')
                 .upload(fileName, file);
@@ -298,15 +299,14 @@
                 return;
             }
 
-            // ดึง URL สลิป
             const { data: publicUrlData } = supabaseClient.storage.from('slip-images').getPublicUrl(fileName);
             slipUrl = publicUrlData.publicUrl;
 
-            // บันทึกออเดอร์ลงตาราง orders
             const { error: orderError } = await supabaseClient
                 .from('orders')
                 .insert([{
                     vendor_id: vendorId,
+                    customer_uid: customerUid, // บันทึก UID ของลูกค้าด้วย
                     items: cart,
                     total_price: parseFloat(total),
                     slip_image_url: slipUrl,
@@ -317,7 +317,7 @@
                 alert("บันทึกออเดอร์ไม่สำเร็จ: " + orderError.message);
             } else {
                 alert("ส่งออเดอร์เรียบร้อยแล้ว! ร้านค้ากำลังตรวจสอบสลิป");
-                window.location.reload(); // รีเฟรชหน้าเว็บเพื่อเคลียร์ตะกร้า
+                window.location.reload(); 
             }
 
             btn.innerText = "ยืนยันการสั่งซื้อ";
