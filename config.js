@@ -4,5 +4,6 @@ const CONFIG = {
     supabaseKey: 'sb_publishable_Tm2NO4vvT938VdnT4ZG_cQ_DFdh-r-5',
     liffIdRegister: '2011781647-1GTbZ2gJ',   // LIFF ID หน้าลงทะเบียน
     liffIdDashboard: '2011781647-rkokpjId',  // LIFF ID หน้าจัดการร้าน
-    liffIdCustomer: '2011781647-erlnJT8p' // LIFF ID หน้าลูกค้า
+    liffIdCustomer: '2011781647-erlnJT8p', // LIFF ID หน้าลูกค้า
+    gasWebhookUrl: 'https://script.google.com/macros/s/AKfycbz55ygFed3hzf-3xRTdd4nCQl4wZ88PsGyaAkmpfMjU4_dexgy5R1Hpo9dXDJfG4Dcp/exec' // ใส่ลื้งต์ Web App
 };
