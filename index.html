@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ลงทะเบียนเปิดร้านค้า</title>
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; text-align: center; background-color: #f4f6f8; margin: 0; }
+        .card { background: white; padding: 30px 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 400px; margin: 20px auto; }
+        img#profileImg { width: 100px; height: 100px; border-radius: 50%; margin-bottom: 10px; display: none; object-fit: cover; border: 3px solid #06C755; }
+        .input-group { text-align: left; margin-bottom: 15px; }
+        .input-group label { display: block; margin-bottom: 5px; font-size: 14px; color: #555; font-weight: bold; }
+        input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+        button { background-color: #06C755; color: white; border: none; padding: 14px 20px; font-size: 16px; font-weight: bold; border-radius: 8px; width: 100%; cursor: pointer; margin-top: 10px; }
+        button:disabled { background-color: #cccccc; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2 style="margin-top: 0; color: #333;">เปิดร้านค้ากับเรา</h2>
+        
+        <img id="profileImg" src="" alt="Profile">
+        <p id="displayName" style="font-weight: bold; color: #333;">กำลังเชื่อมต่อ LINE...</p>
+        
+        <div class="input-group">
+            <label>ชื่อร้านอาหาร (สำหรับแสดงให้ลูกค้าเห็น)</label>
+            <input type="text" id="storeName" placeholder="เช่น ก๋วยเตี๋ยวเจ๊ปุ๊ก" required>
+        </div>
+
+        <div class="input-group">
+            <label>เบอร์โทรศัพท์ (สำหรับระบบติดต่อ)</label>
+            <input type="tel" id="phoneNumber" placeholder="เช่น 0812345678" required>
+        </div>
+        
+        <button id="registerBtn" onclick="registerVendor()" disabled>ยืนยันลงทะเบียน</button>
+    </div>
+
+    <script>
+        // --- 1. ใส่ Key ของคุณตรงนี้ ---
+        const supabaseUrl = 'https://bbceqmoibwlnltgpkdsf.supabase.co';
+        const supabaseKey = 'sb_publishable_Tm2NO4vvT938VdnT4ZG_cQ_DFdh-r-5';
+        const liffId = '2011781647-1GTbZ2gJ';
+
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+        let lineData = {};
+
+        // --- 2. เริ่มต้น LIFF ---
+        async function initializeLiff() {
+            try {
+                await liff.init({ liffId: liffId });
+                
+                if (liff.isLoggedIn()) {
+                    const profile = await liff.getProfile();
+                    lineData = {
+                        uid: profile.userId,
+                        name: profile.displayName,
+                        pic: profile.pictureUrl
+                    };
+                    
+                    document.getElementById('profileImg').src = lineData.pic;
+                    document.getElementById('profileImg').style.display = 'inline-block';
+                    document.getElementById('displayName').innerText = `สวัสดีคุณ ${lineData.name}`;
+                    document.getElementById('registerBtn').disabled = false;
+                } else {
+                    liff.login();
+                }
+            } catch (err) {
+                console.error("LIFF Init Error: ", err);
+                document.getElementById('displayName').innerText = "เกิดข้อผิดพลาด กรุณาเปิดผ่านแอป LINE";
+            }
+        }
+
+        // --- 3. บันทึกข้อมูล ---
+        async function registerVendor() {
+            const storeName = document.getElementById('storeName').value.trim();
+            const phoneNumber = document.getElementById('phoneNumber').value.trim();
+
+            if(!storeName || !phoneNumber) {
+                alert("กรุณากรอกข้อมูลให้ครบถ้วน");
+                return;
+            }
+
+            const btn = document.getElementById('registerBtn');
+            btn.innerText = "กำลังสร้างร้านค้า...";
+            btn.disabled = true;
+
+            const { data, error } = await supabase
+                .from('vendors')
+                .insert([
+                    { 
+                        line_owner_uid: lineData.uid, 
+                        line_display_name: lineData.name,
+                        line_picture_url: lineData.pic,
+                        name: storeName,
+                        phone: phoneNumber,
+                        is_open: false
+                    }
+                ]);
+
+            if (error) {
+                console.error(error);
+                alert("เกิดข้อผิดพลาด: " + error.message);
+                btn.innerText = "ลองใหม่อีกครั้ง";
+                btn.disabled = false;
+            } else {
+                alert("ลงทะเบียนร้านค้าสำเร็จ! ระบบจะปิดหน้าต่างนี้อัตโนมัติ");
+                liff.closeWindow(); 
+            }
+        }
+
+        window.onload = initializeLiff;
+    </script>
+</body>
+</html>
