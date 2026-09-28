@@ -90,6 +90,7 @@
             btn.innerText = "กำลังสร้างร้านค้า...";
             btn.disabled = true;
 
+            // บันทึกลง Supabase
             const { data, error } = await supabase
                 .from('vendors')
                 .insert([
@@ -99,10 +100,11 @@
                         line_picture_url: lineData.pic,
                         name: storeName,
                         phone: phoneNumber,
-                        promptpay_number: promptpay, // บันทึกเบอร์พร้อมเพย์
+                        promptpay_number: promptpay,
                         is_open: false
                     }
-                ]);
+                ])
+                .select(); // <=== สำคัญมาก! สั่งให้ Supabase คืนค่ากลับมาเพื่อให้เรารู้ ID ร้านค้า
 
             if (error) {
                 console.error(error);
@@ -110,6 +112,26 @@
                 btn.innerText = "ลองใหม่อีกครั้ง";
                 btn.disabled = false;
             } else {
+                
+                // ดึงข้อมูลร้านที่เพิ่งสร้างสำเร็จออกมา
+                const newVendor = data[0];
+
+                // ยิงข้อมูลไปที่ Google Apps Script เพื่อบันทึกลง Sheet!
+                try {
+                    await fetch(CONFIG.gasWebhookUrl, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'register_vendor',
+                            vendor_id: newVendor.id,
+                            store_name: newVendor.name,
+                            owner_uid: newVendor.line_owner_uid,
+                            display_name: newVendor.line_display_name
+                        })
+                    });
+                } catch (e) {
+                    console.error("บันทึกลง Sheet ไม่สำเร็จ (แต่ลง DB ไปแล้ว)", e);
+                }
+
                 alert("ลงทะเบียนร้านค้าสำเร็จ! ระบบจะปิดหน้าต่างนี้อัตโนมัติ");
                 liff.closeWindow(); 
             }
