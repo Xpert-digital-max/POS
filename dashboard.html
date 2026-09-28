@@ -83,11 +83,22 @@
         <!-- หน้าตั้งค่า -->
         <div id="settings" class="tab-content">
             <h2>การตั้งค่าร้านค้า</h2>
-            <div class="card">
-                <p>ข้อมูลร้านและระบบตั้งค่าอื่นๆ จะอยู่ที่นี่</p>
+            <div class="card" style="background: #f9f9f9; border: 1px dashed #ccc;">
+                <label style="font-size: 14px; font-weight: bold; color: #555;">รูปโลโก้ร้าน (เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน)</label>
+                <input type="file" id="settingStoreLogo" accept="image/*" style="margin-bottom: 15px; width: 100%; margin-top: 5px;">
+                
+                <label style="font-size: 14px; font-weight: bold; color: #555;">ชื่อร้านอาหาร</label>
+                <input type="text" id="settingStoreName" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box;">
+                
+                <label style="font-size: 14px; font-weight: bold; color: #555;">เบอร์โทรศัพท์ติดต่อ</label>
+                <input type="tel" id="settingPhone" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box;">
+                
+                <label style="font-size: 14px; font-weight: bold; color: #555;">เบอร์พร้อมเพย์ (รับเงิน)</label>
+                <input type="text" id="settingPromptpay" style="width: 100%; padding: 10px; margin-bottom: 20px; margin-top: 5px; box-sizing: border-box;">
+                
+                <button onclick="updateStoreSettings()" id="saveSettingsBtn" style="background: #06C755; color: white; border: none; padding: 12px; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold;">💾 บันทึกการตั้งค่า</button>
             </div>
         </div>
-    </div>
 
     <!-- ส่วนของ JavaScript -->
     <script>
@@ -148,7 +159,8 @@
 
             // สั่งให้ดึงเมนูอาหารและรายการออเดอร์ทันที
             loadMenuItems(); 
-            loadOrders(); 
+            loadOrders();
+            populateSettingsForm();
         }
 
         // ตัวแปรสำหรับจำว่ากำลังแก้ไขเมนูไหนอยู่
@@ -452,6 +464,85 @@
             }
         }
 
+        // 14. ฟังก์ชันดึงข้อมูลเดิมมาแสดงในช่องตั้งค่า
+        function populateSettingsForm() {
+            if (!vendorData) return;
+            document.getElementById('settingStoreName').value = vendorData.name || '';
+            document.getElementById('settingPhone').value = vendorData.phone || '';
+            document.getElementById('settingPromptpay').value = vendorData.promptpay_number || '';
+        }
+
+        // 15. ฟังก์ชันบันทึกการตั้งค่าร้านค้า (และอัปเดตโลโก้)
+        async function updateStoreSettings() {
+            const name = document.getElementById('settingStoreName').value.trim();
+            const phone = document.getElementById('settingPhone').value.trim();
+            const promptpay = document.getElementById('settingPromptpay').value.trim();
+            const fileInput = document.getElementById('settingStoreLogo');
+            const btn = document.getElementById('saveSettingsBtn');
+
+            if (!name || !phone || !promptpay) {
+                alert("กรุณากรอกข้อมูลให้ครบถ้วน");
+                return;
+            }
+
+            btn.innerText = "กำลังบันทึก...";
+            btn.disabled = true;
+
+            // ค่าเริ่มต้นคือใช้รูปเดิม
+            let logoUrl = vendorData.line_picture_url; 
+
+            // ถ้ามีการอัปโหลดโลโก้ใหม่
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                const fileExt = file.name.split('.').pop();
+                const fileName = `logo-${vendorData.id}-${Date.now()}.${fileExt}`;
+
+                // ขออนุญาตใช้ถัง menu-images ในการเก็บโลโก้ด้วยเพื่อความสะดวก
+                const { data: uploadData, error: uploadError } = await supabaseClient.storage
+                    .from('menu-images') 
+                    .upload(fileName, file);
+
+                if (uploadError) {
+                    alert("อัปโหลดโลโก้ไม่สำเร็จ: " + uploadError.message);
+                    btn.innerText = "💾 บันทึกการตั้งค่า";
+                    btn.disabled = false;
+                    return;
+                }
+
+                const { data: publicUrlData } = supabaseClient.storage.from('menu-images').getPublicUrl(fileName);
+                logoUrl = publicUrlData.publicUrl;
+            }
+
+            // บันทึกข้อมูลใหม่ลงฐานข้อมูล
+            const { error } = await supabaseClient
+                .from('vendors')
+                .update({ 
+                    name: name, 
+                    phone: phone, 
+                    promptpay_number: promptpay,
+                    line_picture_url: logoUrl 
+                })
+                .eq('id', vendorData.id);
+
+            if (error) {
+                alert("บันทึกการตั้งค่าไม่สำเร็จ: " + error.message);
+            } else {
+                alert("อัปเดตข้อมูลร้านค้าเรียบร้อยแล้ว!");
+                
+                // อัปเดตข้อมูลในระบบแบบ Real-time โดยไม่ต้องรีเฟรชหน้า
+                vendorData.name = name;
+                vendorData.phone = phone;
+                vendorData.promptpay_number = promptpay;
+                vendorData.line_picture_url = logoUrl;
+                
+                // เปลี่ยนชื่อและรูปที่หัวเว็บทันที
+                document.getElementById('storeName').innerText = name;
+                if(logoUrl) document.getElementById('storeLogo').src = logoUrl;
+            }
+
+            btn.innerText = "💾 บันทึกการตั้งค่า";
+            btn.disabled = false;
+        }
         window.onload = initDashboard;
     </script>
 </body>
