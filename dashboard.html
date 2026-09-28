@@ -139,6 +139,115 @@
             }
         }
 
+        // 5. ฟังก์ชันเพิ่มเมนูใหม่
+        async function addNewMenu() {
+            const name = document.getElementById('menuName').value;
+            const price = document.getElementById('menuPrice').value;
+            const fileInput = document.getElementById('menuImage');
+            const btn = document.getElementById('saveMenuBtn');
+
+            if (!name || !price) {
+                alert("กรุณากรอกชื่อเมนูและราคา");
+                return;
+            }
+
+            btn.innerText = "กำลังบันทึก...";
+            btn.disabled = true;
+
+            let imageUrl = null;
+
+            // ถ้ามีการอัปโหลดรูปภาพ
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                const fileExt = file.name.split('.').pop();
+                const fileName = `${vendorData.id}-${Date.now()}.${fileExt}`; // ตั้งชื่อไฟล์ไม่ให้ซ้ำกัน
+
+                // อัปโหลดรูปขึ้น Supabase Storage
+                const { data: uploadData, error: uploadError } = await supabaseClient.storage
+                    .from('menu-images')
+                    .upload(fileName, file);
+
+                if (uploadError) {
+                    alert("อัปโหลดรูปภาพไม่สำเร็จ: " + uploadError.message);
+                    btn.innerText = "💾 บันทึกเมนูใหม่";
+                    btn.disabled = false;
+                    return;
+                }
+
+                // ดึง URL ของรูปภาพมาเก็บไว้
+                const { data: publicUrlData } = supabaseClient.storage
+                    .from('menu-images')
+                    .getPublicUrl(fileName);
+                imageUrl = publicUrlData.publicUrl;
+            }
+
+            // บันทึกข้อมูลลงตาราง menu_items
+            const { error: insertError } = await supabaseClient
+                .from('menu_items')
+                .insert([
+                    {
+                        vendor_id: vendorData.id,
+                        name: name,
+                        price: price,
+                        image_url: imageUrl,
+                        is_available: true
+                    }
+                ]);
+
+            if (insertError) {
+                alert("บันทึกเมนูไม่สำเร็จ: " + insertError.message);
+            } else {
+                alert("เพิ่มเมนูสำเร็จ!");
+                // เคลียร์ค่าฟอร์ม
+                document.getElementById('menuName').value = '';
+                document.getElementById('menuPrice').value = '';
+                document.getElementById('menuImage').value = '';
+                loadMenuItems(); // โหลดรายการเมนูใหม่มาแสดง
+            }
+
+            btn.innerText = "💾 บันทึกเมนูใหม่";
+            btn.disabled = false;
+        }
+
+        // 6. ฟังก์ชันดึงรายการอาหารของร้านนี้มาแสดง
+        async function loadMenuItems() {
+            if (!vendorData) return;
+
+            const { data, error } = await supabaseClient
+                .from('menu_items')
+                .select('*')
+                .eq('vendor_id', vendorData.id)
+                .order('created_at', { ascending: false });
+
+            const menuListDiv = document.getElementById('menuList');
+            
+            if (error || data.length === 0) {
+                menuListDiv.innerHTML = '<p style="text-align: center; color: #888;">ยังไม่มีเมนูอาหาร</p>';
+                return;
+            }
+
+            // สร้าง HTML แสดงการ์ดเมนู
+            let html = '';
+            data.forEach(item => {
+                const imgSrc = item.image_url ? item.image_url : 'https://via.placeholder.com/60?text=No+Image';
+                html += `
+                    <div class="card" style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
+                        <img src="${imgSrc}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;">
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0;">${item.name}</h4>
+                            <p style="margin: 5px 0 0 0; color: #06C755; font-weight: bold;">฿${item.price}</p>
+                        </div>
+                        <div>
+                            <!-- สวิตช์เปิดปิดของหมด -->
+                            <label style="font-size: 12px; color: ${item.is_available ? 'green' : 'red'};">
+                                ${item.is_available ? '✅ พร้อมขาย' : '❌ ของหมด'}
+                            </label>
+                        </div>
+                    </div>
+                `;
+            });
+            menuListDiv.innerHTML = html;
+        }
         window.onload = initDashboard;
     </script>
 </body>
