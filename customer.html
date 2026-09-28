@@ -227,26 +227,44 @@
         }
 
         // 7. เปิดหน้าต่างชำระเงิน พร้อมสร้าง QR พร้อมเพย์
-        const promptpayNumber = vendorData.promptpay_number; 
-
-         if (promptpayNumber) {
-             document.getElementById('qrCodeImage').src = `https://promptpay.io/${promptpayNumber}/${totalAmount}.png`;
-         } else {
-             alert("ร้านค้านี้ยังไม่ได้ตั้งค่าพร้อมเพย์");
-         }
+        function goToCheckout() {
+            const summaryDiv = document.getElementById('checkoutSummary');
+            let summaryHtml = '';
             
+            for (let id in cart) {
+                summaryHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span>${cart[id].qty}x ${cart[id].name}</span>
+                    <span>฿${cart[id].qty * cart[id].price}</span>
+                </div>`;
+            }
+            
+            summaryDiv.innerHTML = summaryHtml;
+
             // ดึงยอดรวมทั้งหมด
             const totalAmount = document.getElementById('totalPrice').innerText;
             document.getElementById('checkoutTotal').innerText = totalAmount;
 
-            // --- ตั้งค่าเบอร์พร้อมเพย์รับเงินตรงนี้ ---
-            const promptpayNumber = "0819474479"; // คุณสามารถเปลี่ยนเป็นเบอร์รับเงินของคุณได้เลย
-            
-            // สร้าง QR Code ผ่าน PromptPay API
-            document.getElementById('qrCodeImage').src = `https://promptpay.io/${promptpayNumber}/${totalAmount}.png`;
+            // ดึงเบอร์พร้อมเพย์จากฐานข้อมูล (vendorData ที่โหลดมาเก็บไว้)
+            const promptpayNumber = vendorData.promptpay_number; 
+
+            // ตรวจสอบว่าร้านค้าตั้งค่าพร้อมเพย์ไว้หรือไม่
+            if (promptpayNumber) {
+                // สร้าง QR Code ผ่าน PromptPay API แบบอิงตามยอดรวมจริง
+                document.getElementById('qrCodeImage').src = `https://promptpay.io/${promptpayNumber}/${totalAmount}.png`;
+                document.getElementById('qrCodeImage').style.display = 'inline-block';
+            } else {
+                // ถ้าร้านไม่ได้กรอกพร้อมเพย์ตอนลงทะเบียน
+                document.getElementById('qrCodeImage').style.display = 'none';
+                alert("ร้านค้านี้ยังไม่ได้ตั้งค่าบัญชีรับเงิน (พร้อมเพย์) กรุณาชำระด้วยเงินสด");
+            }
 
             // เปิดหน้าต่าง Modal
             document.getElementById('checkoutModal').style.display = 'flex';
+        }
+
+        // ปิดหน้าต่างชำระเงิน
+        function closeCheckout() {
+            document.getElementById('checkoutModal').style.display = 'none';
         }
 
         // 8. ส่งออเดอร์เข้าฐานข้อมูล
