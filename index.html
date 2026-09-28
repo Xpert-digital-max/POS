@@ -35,23 +35,23 @@
             <label>เบอร์โทรศัพท์ (สำหรับระบบติดต่อ)</label>
             <input type="tel" id="phoneNumber" placeholder="เช่น 0812345678" required>
         </div>
+
+        <div class="input-group">
+         <label>เบอร์พร้อมเพย์ (สำหรับรับเงิน)</label>
+         <input type="text" id="promptpayNumber" placeholder="เช่น 0812345678 หรือ เลขบัตร ปชช." required>
+        </div>
         
         <button id="registerBtn" onclick="registerVendor()" disabled>ยืนยันลงทะเบียน</button>
     </div>
 
     <script>
-        // --- 1. ใส่ Key ของคุณตรงนี้ ---
-        const supabaseUrl = 'https://bbceqmoibwlnltgpkdsf.supabase.co';
-        const supabaseKey = 'sb_publishable_Tm2NO4vvT938VdnT4ZG_cQ_DFdh-r-5';
-        const liffId = '2011781647-1GTbZ2gJ';
+        // ใช้ตัวแปรจาก CONFIG แทน
+     const supabase = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
+     let lineData = {};
 
-        const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
-        let lineData = {};
-
-        // --- 2. เริ่มต้น LIFF ---
-        async function initializeLiff() {
-            try {
-                await liff.init({ liffId: liffId });
+     async function initializeLiff() {
+         try {
+             await liff.init({ liffId: CONFIG.liffIdRegister });
                 
                 if (liff.isLoggedIn()) {
                     const profile = await liff.getProfile();
@@ -76,30 +76,22 @@
 
         // --- 3. บันทึกข้อมูล ---
         async function registerVendor() {
-            const storeName = document.getElementById('storeName').value.trim();
-            const phoneNumber = document.getElementById('phoneNumber').value.trim();
+         const storeName = document.getElementById('storeName').value.trim();
+         const phoneNumber = document.getElementById('phoneNumber').value.trim();
+         const promptpay = document.getElementById('promptpayNumber').value.trim(); // เพิ่มบรรทัดนี้
 
-            if(!storeName || !phoneNumber) {
-                alert("กรุณากรอกข้อมูลให้ครบถ้วน");
-                return;
-            }
+         // ... (โค้ดเช็คข้อมูล) ...
 
-            const btn = document.getElementById('registerBtn');
-            btn.innerText = "กำลังสร้างร้านค้า...";
-            btn.disabled = true;
-
-            const { data, error } = await supabaseClient
-    .from('vendors')
-                .insert([
-                    { 
-                        line_owner_uid: lineData.uid, 
-                        line_display_name: lineData.name,
-                        line_picture_url: lineData.pic,
-                        name: storeName,
-                        phone: phoneNumber,
-                        is_open: false
-                    }
-                ]);
+         const { data, error } = await supabase
+             .from('vendors')
+             .insert([
+                 { 
+                     // ... ข้อมูลเดิม ...
+                     phone: phoneNumber,
+                     promptpay_number: promptpay, // ส่งเข้าฐานข้อมูล
+                     is_open: false
+                 }
+             ]);
 
             if (error) {
                 console.error(error);
