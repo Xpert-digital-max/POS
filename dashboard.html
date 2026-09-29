@@ -544,24 +544,37 @@ document.getElementById('affiliateLink').value = `${basePath}index.html?ref=${ve
         function renderSubscriptionInfo() {
             if (!vendorData) return;
             
-            const renewSelect = document.getElementById('renewPlanSelect'); 
-            let optionsHtml = '';
+            // [NEW] เช็คสถานะการชำระเงิน
+            const badgeEl = document.getElementById('subStatusBadge');
+            if (vendorData.subscription_expires_at) {
+                const expDate = new Date(vendorData.subscription_expires_at);
+                document.getElementById('subExpiresAt').innerText = expDate.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                
+                if (!vendorData.is_subscription_active) {
+                    badgeEl.innerText = "⚠️ รอชำระเงิน/รออนุมัติ"; 
+                    badgeEl.className = "sub-badge"; 
+                    badgeEl.style.background = "#fff3cd"; badgeEl.style.color = "#856404";
+                } else if (new Date() > expDate) {
+                    badgeEl.innerText = "หมดอายุแล้ว"; badgeEl.className = "sub-badge sub-expired"; 
+                    badgeEl.style.background = ""; badgeEl.style.color = "";
+                } else {
+                    badgeEl.innerText = "ใช้งานได้ปกติ"; badgeEl.className = "sub-badge sub-active";
+                    badgeEl.style.background = ""; badgeEl.style.color = "";
+                }
+            }
+
+            const renewSelect = document.getElementById('renewPlanSelect'); let optionsHtml = '';
             if(CONFIG.pricingPlans) {
                 CONFIG.pricingPlans.filter(p => p.price > 0).forEach(p => { 
                     optionsHtml += `<option value="${p.id}" data-price="${p.price}" data-days="${p.days}" data-quota="${p.quota}">${p.name} - ฿${p.price}</option>`; 
                 });
-                renewSelect.innerHTML = optionsHtml; 
-                updateRenewQr();
+                renewSelect.innerHTML = optionsHtml; updateRenewQr();
             }
 
-            const quotaSelect = document.getElementById('quotaPlanSelect'); 
-            let qHtml = '';
+            const quotaSelect = document.getElementById('quotaPlanSelect'); let qHtml = '';
             if(CONFIG.quotaPlans) { 
-                CONFIG.quotaPlans.forEach(q => { 
-                    qHtml += `<option value="${q.id}" data-price="${q.price}" data-quota="${q.quota}">${q.name} - ฿${q.price}</option>`; 
-                }); 
-                quotaSelect.innerHTML = qHtml; 
-                updateQuotaQr();
+                CONFIG.quotaPlans.forEach(q => { qHtml += `<option value="${q.id}" data-price="${q.price}" data-quota="${q.quota}">${q.name} - ฿${q.price}</option>`; }); 
+                quotaSelect.innerHTML = qHtml; updateQuotaQr();
             }
         }
 
