@@ -363,6 +363,7 @@
             document.getElementById('checkoutModal').style.display = 'none';
         }
 
+        // 8. ส่งออเดอร์และตรวจสอบสลิปอัตโนมัติ
         async function submitOrder() {
             const fileInput = document.getElementById('slipImage');
             const btn = document.getElementById('confirmOrderBtn');
@@ -373,7 +374,7 @@
                 return;
             }
 
-            btn.innerText = "กำลังส่งออเดอร์...";
+            btn.innerText = "กำลังอัปโหลดสลิป...";
             btn.disabled = true;
 
             const file = fileInput.files[0];
@@ -381,20 +382,51 @@
             const fileName = `slip-${Date.now()}.${fileExt}`;
             let slipUrl = null;
 
-            const { error: uploadError } = await supabaseClient.storage
-                .from('slip-images')
-                .upload(fileName, file);
-
+            const { error: uploadError } = await supabaseClient.storage.from('slip-images').upload(fileName, file);
             if (uploadError) {
                 alert("อัปโหลดสลิปไม่สำเร็จ: " + uploadError.message);
-                btn.innerText = "ยืนยันการสั่งซื้อ";
-                btn.disabled = false;
-                return;
+                btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false; return;
             }
-
             const { data: publicUrlData } = supabaseClient.storage.from('slip-images').getPublicUrl(fileName);
             slipUrl = publicUrlData.publicUrl;
 
+            // --- 🤖 ระบบตรวจสลิปอัตโนมัติ (หักโควต้าแม่ค้า) ---
+            let orderStatus = 'pending'; 
+
+            if (vendorData.slip_check_mode === 'auto' && vendorData.slip_quota > 0) {
+                btn.innerText = "กำลังตรวจสอบสลิปกับธนาคาร...";
+                try {
+                    const gasRes = await fetch(CONFIG.gasWebhookUrl, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'verify_customer_slip',
+                            vendor_promptpay: vendorData.promptpay_number,
+                            slip_url: slipUrl,
+                            amount: total
+                        })
+                    });
+                    const result = await gasRes.json();
+                    
+                    if (result.status === 'success') {
+                        orderStatus = 'processing'; // สลิปแท้ ส่งเข้าครัวเลย!
+                        
+                        // หักโควต้าสลิปแม่ค้า -1
+                        const newQuota = vendorData.slip_quota - 1;
+                        await supabaseClient.from('vendors').update({ slip_quota: newQuota }).eq('id', vendorId);
+                        vendorData.slip_quota = newQuota;
+
+                    } else {
+                        alert(`❌ ตรวจสอบสลิปอัตโนมัติไม่ผ่าน:\n${result.msg || "สลิปไม่ถูกต้อง"}\n\nระบบจะส่งสลิปให้ร้านค้าตรวจสอบด้วยตนเองครับ`);
+                        orderStatus = 'pending'; // ไม่ผ่าน ก็ให้ร้านค้าดูเอง
+                    }
+                } catch (e) {
+                    console.error("Auto verify failed", e);
+                    orderStatus = 'pending'; 
+                }
+            }
+
+            // บันทึกออเดอร์ลงฐานข้อมูล
+            btn.innerText = "กำลังบันทึกออเดอร์...";
             const { error: orderError } = await supabaseClient
                 .from('orders')
                 .insert([{
@@ -403,13 +435,17 @@
                     items: cart,
                     total_price: parseFloat(total),
                     slip_image_url: slipUrl,
-                    status: 'pending'
+                    status: orderStatus
                 }]);
 
             if (orderError) {
                 alert("บันทึกออเดอร์ไม่สำเร็จ: " + orderError.message);
             } else {
-                alert("ส่งออเดอร์เรียบร้อยแล้ว! ร้านค้ากำลังตรวจสอบสลิป");
+                if (orderStatus === 'processing') {
+                    alert("✅ สลิปถูกต้อง ยอดเงินเข้าเรียบร้อย!\nร้านค้าได้รับออเดอร์และกำลังเตรียมอาหารให้คุณครับ");
+                } else {
+                    alert("ส่งออเดอร์เรียบร้อยแล้ว!\n(รอร้านค้าตรวจสอบสลิปและยืนยันรับออเดอร์สักครู่นะครับ)");
+                }
                 window.location.reload(); 
             }
 
