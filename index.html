@@ -8,32 +8,49 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 15px; text-align: center; background-color: #f4f6f8; margin: 0; }
-        .card { background: white; padding: 25px 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 440px; margin: 10px auto; }
-        img#profileImg { width: 90px; height: 90px; border-radius: 50%; margin-bottom: 10px; display: none; object-fit: cover; border: 3px solid #06C755; }
-        .input-group { text-align: left; margin-bottom: 14px; }
-        .input-group label { display: block; margin-bottom: 5px; font-size: 13px; color: #444; font-weight: bold; }
-        input { width: 100%; padding: 11px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; box-sizing: border-box; }
+        @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap');
+        body { font-family: 'Prompt', sans-serif; padding: 15px; text-align: center; background-color: #f0f2f5; margin: 0; color: #333; }
         
-        .plans-container { display: flex; flex-direction: column; gap: 9px; margin-bottom: 18px; text-align: left; }
-        .plan-card { border: 2px solid #e0e0e0; border-radius: 10px; padding: 12px 14px; cursor: pointer; transition: all 0.2s ease; background: #fafafa; }
-        .plan-card.active { border-color: #06C755; background: #f0fdf4; box-shadow: 0 2px 6px rgba(6,199,85,0.15); }
-        .plan-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
-        .plan-name { font-weight: bold; font-size: 15px; color: #222; }
-        .plan-price { font-weight: bold; font-size: 16px; color: #06C755; }
-        .plan-desc { font-size: 12px; color: #777; }
-        .plan-tag { background: #e8f5e9; color: #2e7d32; font-size: 11px; font-weight: bold; padding: 2px 7px; border-radius: 10px; margin-left: 6px; }
+        .header-title { font-weight: 600; font-size: 22px; color: #1e293b; margin-top: 10px; margin-bottom: 5px; }
+        .header-subtitle { font-size: 14px; color: #64748b; margin-bottom: 20px; }
 
-        button { background-color: #06C755; color: white; border: none; padding: 14px 20px; font-size: 16px; font-weight: bold; border-radius: 8px; width: 100%; cursor: pointer; margin-top: 10px; }
-        button:disabled { background-color: #cccccc; cursor: not-allowed; }
+        .card { background: white; padding: 30px 25px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); max-width: 440px; margin: 0 auto; }
+        
+        .profile-container { display: flex; flex-direction: column; align-items: center; margin-bottom: 25px; }
+        img#profileImg { width: 100px; height: 100px; border-radius: 50%; display: none; object-fit: cover; border: 4px solid #06C755; box-shadow: 0 4px 10px rgba(6,199,85,0.2); margin-bottom: 15px; }
+        #displayName { font-weight: 600; font-size: 16px; color: #1e293b; background: #f8fafc; padding: 8px 20px; border-radius: 20px; margin: 0; border: 1px solid #e2e8f0; }
+        
+        .input-group { text-align: left; margin-bottom: 18px; }
+        .input-group label { display: block; margin-bottom: 8px; font-size: 14px; color: #475569; font-weight: 500; }
+        input { width: 100%; padding: 12px 15px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 15px; box-sizing: border-box; transition: border-color 0.3s; font-family: 'Prompt', sans-serif; }
+        input:focus { outline: none; border-color: #06C755; box-shadow: 0 0 0 3px rgba(6,199,85,0.1); }
+        
+        .plans-container { display: flex; flex-direction: column; gap: 12px; margin-bottom: 25px; text-align: left; }
+        .plan-card { border: 2px solid #e2e8f0; border-radius: 12px; padding: 15px; cursor: pointer; transition: all 0.2s ease; background: white; position: relative; overflow: hidden; }
+        .plan-card:hover { border-color: #94a3b8; }
+        .plan-card.active { border-color: #06C755; background: #f0fdf4; box-shadow: 0 4px 15px rgba(6,199,85,0.1); }
+        .plan-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px; }
+        .plan-name { font-weight: 600; font-size: 16px; color: #1e293b; }
+        .plan-price { font-weight: 600; font-size: 18px; color: #06C755; }
+        .plan-desc { font-size: 13px; color: #64748b; margin-top: 5px; line-height: 1.4; }
+        .plan-tag { background: #1e293b; color: white; font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 12px; position: absolute; top: -2px; right: 15px; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; border-top-left-radius: 0; border-top-right-radius: 0;}
+        .plan-card.active .plan-tag { background: #06C755; }
+
+        button { background-color: #06C755; color: white; border: none; padding: 16px 20px; font-size: 16px; font-weight: 600; border-radius: 12px; width: 100%; cursor: pointer; margin-top: 10px; transition: background-color 0.3s; font-family: 'Prompt', sans-serif; box-shadow: 0 4px 10px rgba(6,199,85,0.3); }
+        button:hover { background-color: #05a044; }
+        button:disabled { background-color: #94a3b8; cursor: not-allowed; box-shadow: none; }
     </style>
 </head>
 <body>
 
     <div class="card">
-        <h2 style="margin-top: 0; color: #333; font-size: 20px;">เปิดร้านค้ากับเรา</h2>
-        <img id="profileImg" src="" alt="Profile">
-        <p id="displayName" style="font-weight: bold; color: #333; margin-bottom: 18px;">กำลังเชื่อมต่อ LINE...</p>
+        <h2 class="header-title">X-Digital Food POS</h2>
+        <p class="header-subtitle">ระบบจัดการร้านอาหารที่ง่ายที่สุด</p>
+        
+        <div class="profile-container">
+            <img id="profileImg" src="" alt="Profile">
+            <p id="displayName">⏳ กำลังเชื่อมต่อ LINE...</p>
+        </div>
         
         <div class="input-group">
             <label>ชื่อร้านอาหาร (สำหรับแสดงให้ลูกค้าเห็น)</label>
@@ -44,8 +61,8 @@
             <input type="tel" id="phoneNumber" placeholder="เช่น 0812345678" required>
         </div>
         <div class="input-group">
-            <label>เบอร์พร้อมเพย์ของร้าน (สำหรับรับเงินค่าอาหาร)</label>
-            <input type="text" id="promptpayNumber" placeholder="เช่น 0812345678 หรือ เลขบัตร ปชช." required>
+            <label>เบอร์พร้อมเพย์ หรือ เลขบัญชีรับเงิน (สามารถแก้ไขทีหลังได้)</label>
+            <input type="text" id="promptpayNumber" placeholder="เช่น 0812345678 หรือ เลขบัญชี" required>
         </div>
 
         <div class="input-group">
@@ -71,13 +88,15 @@
             CONFIG.pricingPlans.forEach((plan, index) => {
                 const isActive = index === 0 ? 'active' : '';
                 const priceText = plan.price === 0 ? 'ฟรี' : `฿${plan.price}`;
+                const tagHtml = plan.tag ? `<span class="plan-tag">${plan.tag}</span>` : '';
                 html += `
                     <div class="plan-card ${isActive}" id="plan-${plan.id}" onclick="selectPlan('${plan.id}')">
-                        <div class="plan-header">
-                            <div><span class="plan-name">${plan.name}</span><span class="plan-tag">${plan.tag}</span></div>
+                        ${tagHtml}
+                        <div class="plan-header" style="margin-top: ${plan.tag ? '10px' : '0'};">
+                            <span class="plan-name">${plan.name}</span>
                             <span class="plan-price">${priceText}</span>
                         </div>
-                        <div class="plan-desc">${plan.desc} (${plan.days} วัน)</div>
+                        <div class="plan-desc">${plan.desc} <br> <span style="color:#06C755; font-weight:500;">(อายุการใช้งาน ${plan.days} วัน)</span></div>
                     </div>
                 `;
             });
@@ -122,6 +141,36 @@
             }
         }
 
+        // ==================== ระบบสร้างรหัสร้านค้า (Vendor ID Generator) ====================
+        async function generateVendorId() {
+            const now = new Date();
+            const yearStr = (now.getFullYear() + 543).toString().slice(-2); // ปี พ.ศ. สองตัวท้าย
+            const monthStr = ('0' + (now.getMonth() + 1)).slice(-2); // เดือน สองตัว
+            const prefix = `NPX${yearStr}${monthStr}-`;
+
+            // ค้นหารหัสล่าสุดในเดือนนี้จากฐานข้อมูล
+            const { data, error } = await supabaseClient
+                .from('vendors')
+                .select('id')
+                .like('id', `${prefix}%`)
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+            let nextNumber = 1;
+            if (data && data.length > 0) {
+                // เอารหัสล่าสุดมาตัดเอาแค่ตัวเลข 4 หลักท้าย แล้ว +1
+                const lastId = data[0].id;
+                const lastNumberStr = lastId.split('-')[1];
+                if (lastNumberStr) {
+                    nextNumber = parseInt(lastNumberStr) + 1;
+                }
+            }
+
+            // จัดรูปแบบให้เป็น 0001, 0002 ...
+            const sequenceStr = ('0000' + nextNumber).slice(-4);
+            return `${prefix}${sequenceStr}`;
+        }
+
         async function registerVendor() {
             const storeName = document.getElementById('storeName').value.trim();
             const phoneNumber = document.getElementById('phoneNumber').value.trim();
@@ -132,16 +181,20 @@
             }
 
             const btn = document.getElementById('registerBtn');
-            btn.innerText = "กำลังสร้างร้านค้า..."; btn.disabled = true;
+            btn.innerText = "⏳ กำลังสร้างร้านค้า..."; btn.disabled = true;
 
             const expiresAt = new Date();
             expiresAt.setDate(expiresAt.getDate() + selectedPlan.days);
+            
+            // สร้าง ID ใหม่
+            const newVendorId = await generateVendorId();
 
-            // บันทึกลง Supabase พร้อมแพ็กเกจ วันหมดอายุ และ โควต้าสลิป!
+            // บันทึกลง Supabase พร้อมรหัสร้านแบบใหม่!
             const { data, error } = await supabaseClient
                 .from('vendors')
                 .insert([
                     { 
+                        id: newVendorId, // <=== ใช้รหัสใหม่ที่สร้างขึ้น
                         line_owner_uid: lineData.uid, 
                         line_display_name: lineData.name,
                         line_picture_url: lineData.pic,
@@ -156,7 +209,7 @@
                         is_subscription_active: true,
                         referrer_id: referrerId, 
                         wallet_balance: 0,
-                        slip_quota: selectedPlan.quota || 0 // <=== เพิ่มบรรทัดนี้ครับ!
+                        slip_quota: selectedPlan.quota || 0
                     }
                 ])
                 .select();
@@ -165,7 +218,16 @@
                 alert("เกิดข้อผิดพลาด: " + error.message);
                 btn.innerText = "ลองใหม่อีกครั้ง"; btn.disabled = false;
             } else {
-                alert(`ลงทะเบียนร้านค้าสำเร็จ! แพ็กเกจ: ${selectedPlan.name}\nใช้งานได้ถึง ${expiresAt.toLocaleDateString('th-TH')}`);
+                alert(`ลงทะเบียนร้านค้าสำเร็จ!\nรหัสร้านของคุณคือ: ${newVendorId}\nแพ็กเกจ: ${selectedPlan.name}`);
+                
+                // ยิงไปแจ้ง GAS ให้เก็บลง Google Sheet และแจ้งแอดมินด้วยรหัสใหม่
+                try {
+                    await fetch(CONFIG.gasWebhookUrl, {
+                        method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
+                        body: JSON.stringify({ action: 'register_vendor', vendor_id: newVendorId, store_name: storeName, owner_uid: lineData.uid, display_name: lineData.name, plan: selectedPlan.name, expires_at: expiresAt.toLocaleDateString('th-TH') })
+                    });
+                } catch(e) {}
+
                 window.location.href = "dashboard.html"; 
             }
         }
