@@ -9,12 +9,45 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 20px; text-align: center; background-color: #f4f6f8; margin: 0; }
-        .card { background: white; padding: 30px 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 400px; margin: 20px auto; }
-        img#profileImg { width: 100px; height: 100px; border-radius: 50%; margin-bottom: 10px; display: none; object-fit: cover; border: 3px solid #06C755; }
-        .input-group { text-align: left; margin-bottom: 15px; }
-        .input-group label { display: block; margin-bottom: 5px; font-size: 14px; color: #555; font-weight: bold; }
-        input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+        body { font-family: sans-serif; padding: 15px; text-align: center; background-color: #f4f6f8; margin: 0; }
+        .card { background: white; padding: 25px 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 440px; margin: 10px auto; }
+        img#profileImg { width: 90px; height: 90px; border-radius: 50%; margin-bottom: 10px; display: none; object-fit: cover; border: 3px solid #06C755; }
+        .input-group { text-align: left; margin-bottom: 14px; }
+        .input-group label { display: block; margin-bottom: 5px; font-size: 13px; color: #444; font-weight: bold; }
+        input { width: 100%; padding: 11px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; box-sizing: border-box; }
+        
+        /* สไตล์กล่องเลือกแพ็กเกจ */
+        .plans-container { display: flex; flex-direction: column; gap: 9px; margin-bottom: 18px; text-align: left; }
+        .plan-card { 
+            border: 2px solid #e0e0e0; 
+            border-radius: 10px; 
+            padding: 12px 14px; 
+            cursor: pointer; 
+            transition: all 0.2s ease;
+            position: relative;
+            background: #fafafa;
+        }
+        .plan-card:hover { border-color: #06C755; }
+        .plan-card.active { 
+            border-color: #06C755; 
+            background: #f0fdf4; 
+            box-shadow: 0 2px 6px rgba(6,199,85,0.15); 
+        }
+        .plan-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+        .plan-name { font-weight: bold; font-size: 15px; color: #222; }
+        .plan-price { font-weight: bold; font-size: 16px; color: #06C755; }
+        .plan-desc { font-size: 12px; color: #777; }
+        .plan-tag { 
+            background: #e8f5e9; 
+            color: #2e7d32; 
+            font-size: 11px; 
+            font-weight: bold; 
+            padding: 2px 7px; 
+            border-radius: 10px; 
+            display: inline-block; 
+            margin-left: 6px; 
+        }
+
         button { background-color: #06C755; color: white; border: none; padding: 14px 20px; font-size: 16px; font-weight: bold; border-radius: 8px; width: 100%; cursor: pointer; margin-top: 10px; }
         button:disabled { background-color: #cccccc; cursor: not-allowed; }
     </style>
@@ -22,10 +55,10 @@
 <body>
 
     <div class="card">
-        <h2 style="margin-top: 0; color: #333;">เปิดร้านค้ากับเรา</h2>
+        <h2 style="margin-top: 0; color: #333; font-size: 20px;">เปิดร้านค้ากับเรา</h2>
         
         <img id="profileImg" src="" alt="Profile">
-        <p id="displayName" style="font-weight: bold; color: #333;">กำลังเชื่อมต่อ LINE...</p>
+        <p id="displayName" style="font-weight: bold; color: #333; margin-bottom: 18px;">กำลังเชื่อมต่อ LINE...</p>
         
         <div class="input-group">
             <label>ชื่อร้านอาหาร (สำหรับแสดงให้ลูกค้าเห็น)</label>
@@ -38,19 +71,63 @@
         </div>
 
         <div class="input-group">
-            <label>เบอร์พร้อมเพย์ (สำหรับรับเงิน)</label>
+            <label>เบอร์พร้อมเพย์ของร้าน (สำหรับรับเงินค่าอาหาร)</label>
             <input type="text" id="promptpayNumber" placeholder="เช่น 0812345678 หรือ เลขบัตร ปชช." required>
+        </div>
+
+        <!-- กล่องแสดงรายการแพ็กเกจให้เลือก -->
+        <div class="input-group">
+            <label>เลือกแพ็กเกจการใช้งาน</label>
+            <div class="plans-container" id="plansContainer">
+                <!-- รายการแพ็กเกจจะถูก Render อัตโนมัติจาก config.js -->
+            </div>
         </div>
         
         <button id="registerBtn" onclick="registerVendor()" disabled>ยืนยันลงทะเบียน</button>
     </div>
 
     <script>
-        // เปลี่ยนมาใช้ชื่อ supabaseClient ป้องกันการประกาศซ้ำซ้อน
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
         let lineData = {};
+        let selectedPlan = CONFIG.pricingPlans[0]; // ค่าเริ่มต้นคือทดลองใช้ฟรี
+
+        // เรนเดอร์การ์ดแพ็กเกจจาก config.js
+        function renderPricingPlans() {
+            const container = document.getElementById('plansContainer');
+            let html = '';
+
+            CONFIG.pricingPlans.forEach((plan, index) => {
+                const isActive = index === 0 ? 'active' : '';
+                const priceText = plan.price === 0 ? 'ฟรี' : `฿${plan.price}`;
+                html += `
+                    <div class="plan-card ${isActive}" id="plan-${plan.id}" onclick="selectPlan('${plan.id}')">
+                        <div class="plan-header">
+                            <div>
+                                <span class="plan-name">${plan.name}</span>
+                                <span class="plan-tag">${plan.tag}</span>
+                            </div>
+                            <span class="plan-price">${priceText}</span>
+                        </div>
+                        <div class="plan-desc">${plan.desc} (${plan.days} วัน)</div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function selectPlan(planId) {
+            const plan = CONFIG.pricingPlans.find(p => p.id === planId);
+            if (!plan) return;
+            selectedPlan = plan;
+
+            document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('active'));
+            document.getElementById(`plan-${planId}`).classList.add('active');
+        }
 
         async function initializeLiff() {
+            renderPricingPlans();
+
             try {
                 await liff.init({ liffId: CONFIG.liffIdRegister });
                 
@@ -62,7 +139,7 @@
                         pic: profile.pictureUrl
                     };
                     
-                    // เช็คก่อนว่าเคยลงทะเบียนหรือยัง?
+                    // เช็คว่าเคยลงทะเบียนหรือยัง
                     const { data, error } = await supabaseClient
                         .from('vendors')
                         .select('id')
@@ -70,14 +147,12 @@
                         .single();
 
                     if (data) {
-                        // ถ้าเคยลงทะเบียนแล้ว ให้เด้งไปหน้า Dashboard อัตโนมัติ
                         alert("คุณเคยลงทะเบียนแล้ว ระบบจะพาไปหน้าจัดการร้านค้า");
                         window.location.href = "dashboard.html"; 
                         return;
                     }
 
-                    // ถ้ายังไม่เคยลงทะเบียน ให้โชว์รูปและเปิดปุ่มให้กดได้
-                    if(lineData.pic) {
+                    if (lineData.pic) {
                         document.getElementById('profileImg').src = lineData.pic;
                         document.getElementById('profileImg').style.display = 'inline-block';
                     }
@@ -98,7 +173,7 @@
             const phoneNumber = document.getElementById('phoneNumber').value.trim();
             const promptpay = document.getElementById('promptpayNumber').value.trim(); 
 
-            if(!storeName || !phoneNumber || !promptpay) {
+            if (!storeName || !phoneNumber || !promptpay) {
                 alert("กรุณากรอกข้อมูลให้ครบถ้วน");
                 return;
             }
@@ -107,7 +182,11 @@
             btn.innerText = "กำลังสร้างร้านค้า...";
             btn.disabled = true;
 
-            // บันทึกลง Supabase
+            // คำนวณวันหมดอายุตามแพ็กเกจที่เลือก
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + selectedPlan.days);
+
+            // บันทึกลง Supabase พร้อมแพ็กเกจและวันหมดอายุ
             const { data, error } = await supabaseClient
                 .from('vendors')
                 .insert([
@@ -119,7 +198,11 @@
                         phone: phoneNumber,
                         promptpay_number: promptpay,
                         is_open: false,
-                        slip_check_mode: 'manual' 
+                        slip_check_mode: 'manual',
+                        subscription_plan: selectedPlan.id,
+                        subscription_days: selectedPlan.days,
+                        subscription_expires_at: expiresAt.toISOString(),
+                        is_subscription_active: true
                     }
                 ])
                 .select(); 
@@ -130,10 +213,9 @@
                 btn.innerText = "ลองใหม่อีกครั้ง";
                 btn.disabled = false;
             } else {
-                
                 const newVendor = data[0];
 
-                // ยิงข้อมูลไปที่ Google Apps Script เพื่อบันทึกลง Sheet
+                // ส่งข้อมูลไปบันทึกลง Google Sheet พร้อมชื่อแพ็กเกจและวันหมดอายุ
                 try {
                     await fetch(CONFIG.gasWebhookUrl, {
                         method: 'POST',
@@ -142,14 +224,16 @@
                             vendor_id: newVendor.id,
                             store_name: newVendor.name,
                             owner_uid: newVendor.line_owner_uid,
-                            display_name: newVendor.line_display_name
+                            display_name: newVendor.line_display_name,
+                            plan: selectedPlan.name,
+                            expires_at: expiresAt.toLocaleDateString('th-TH')
                         })
                     });
                 } catch (e) {
-                    console.error("บันทึกลง Sheet ไม่สำเร็จ (แต่ลง DB ไปแล้ว)", e);
+                    console.error("บันทึกลง Sheet ไม่สำเร็จ (แต่ลง DB เรียบร้อยแล้ว)", e);
                 }
 
-                alert("ลงทะเบียนร้านค้าสำเร็จ! ระบบจะพาไปหน้าจัดการร้านค้า");
+                alert(`ลงทะเบียนร้านค้าสำเร็จ! แพ็กเกจ: ${selectedPlan.name}\nใช้งานได้ถึง ${expiresAt.toLocaleDateString('th-TH')}`);
                 window.location.href = "dashboard.html"; 
             }
         }
