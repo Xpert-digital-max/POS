@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Food POS</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background-color: #f0f2f5; color: #333; }
+        .sidebar { width: 250px; background: #1e293b; color: white; position: fixed; top: 0; bottom: 0; left: 0; padding-top: 20px; }
+        .sidebar h2 { text-align: center; color: #06C755; margin-bottom: 30px; }
+        .menu-btn { display: block; width: 100%; padding: 15px 20px; border: none; background: none; color: #cbd5e1; text-align: left; font-size: 16px; cursor: pointer; border-left: 4px solid transparent; }
+        .menu-btn:hover { background: #334155; color: white; }
+        .menu-btn.active { background: #0f172a; color: #06C755; border-left: 4px solid #06C755; }
+        
+        .main-content { margin-left: 250px; padding: 30px; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        /* สไตล์กล่องสถิติ */
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .stat-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-left: 5px solid #06C755; }
+        .stat-card h3 { margin: 0 0 10px 0; font-size: 14px; color: #64748b; }
+        .stat-card p { margin: 0; font-size: 28px; font-weight: bold; color: #0f172a; }
+        
+        /* สไตล์ตาราง */
+        .table-container { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 600px; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        th { background-color: #f8fafc; color: #475569; font-weight: bold; font-size: 14px; }
+        tr:hover { background-color: #f1f5f9; }
+        
+        .badge { padding: 5px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+        .badge.pending { background: #fef08a; color: #854d0e; }
+        .badge.completed { background: #bbf7d0; color: #166534; }
+        .badge.active { background: #dbeafe; color: #1e40af; }
+        .badge.expired { background: #fecaca; color: #991b1b; }
+
+        .btn { padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; }
+        .btn-success { background: #06C755; color: white; }
+        .btn-danger { background: #ef4444; color: white; }
+        
+        #loginScreen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #0f172a; display: flex; justify-content: center; align-items: center; z-index: 1000; flex-direction: column; }
+        #loginScreen input { padding: 15px; font-size: 18px; border-radius: 8px; border: none; text-align: center; margin-bottom: 15px; }
+        #loginScreen button { padding: 12px 30px; font-size: 16px; background: #06C755; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <!-- หน้าจอล็อกอินแอดมิน -->
+    <div id="loginScreen">
+        <h2 style="color: white; margin-bottom: 20px;">🔒 ผู้ดูแลระบบ (Admin)</h2>
+        <input type="password" id="adminPass" placeholder="ใส่รหัสผ่าน (PIN)">
+        <button onclick="checkLogin()">เข้าสู่ระบบ</button>
+    </div>
+
+    <!-- แถบเมนูด้านซ้าย -->
+    <div class="sidebar">
+        <h2>X-Digital Admin</h2>
+        <button class="menu-btn active" onclick="switchTab('dashboard', this)">📊 ภาพรวมระบบ</button>
+        <button class="menu-btn" onclick="switchTab('withdrawals', this)">💸 แจ้งถอนเงิน Affiliate</button>
+        <button class="menu-btn" onclick="switchTab('vendors', this)">🏪 จัดการร้านค้า</button>
+    </div>
+
+    <!-- พื้นที่แสดงข้อมูลด้านขวา -->
+    <div class="main-content">
+        
+        <!-- 1. หน้าภาพรวมระบบ -->
+        <div id="dashboard" class="tab-content active">
+            <h2 style="margin-top: 0;">ภาพรวมระบบแพลตฟอร์ม</h2>
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <h3>ร้านค้าในระบบทั้งหมด</h3>
+                    <p id="statTotalVendors">0</p>
+                </div>
+                <div class="stat-card" style="border-left-color: #3b82f6;">
+                    <h3>ร้านค้าที่ Active (มีแพ็กเกจ)</h3>
+                    <p id="statActiveVendors">0</p>
+                </div>
+                <div class="stat-card" style="border-left-color: #f59e0b;">
+                    <h3>จำนวนยอดออเดอร์รวม</h3>
+                    <p id="statTotalOrders">0</p>
+                </div>
+            </div>
+            
+            <div class="table-container">
+                <h3 style="margin-top: 0; color: #475569;">รายการร้านค้าสมัครใหม่ (ล่าสุด)</h3>
+                <table id="recentVendorsTable">
+                    <thead><tr><th>ชื่อร้าน</th><th>เบอร์โทร</th><th>แพ็กเกจปัจจุบัน</th><th>วันที่สมัคร</th></tr></thead>
+                    <tbody><!-- ดึงข้อมูลด้วย JS --></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 2. หน้าแจ้งถอนเงิน Affiliate -->
+        <div id="withdrawals" class="tab-content">
+            <h2 style="margin-top: 0;">จัดการการถอนเงิน Affiliate</h2>
+            <div class="table-container">
+                <table id="withdrawalsTable">
+                    <thead>
+                        <tr>
+                            <th>วันที่แจ้ง</th>
+                            <th>ร้านค้า (ผู้แนะนำ)</th>
+                            <th>พร้อมเพย์</th>
+                            <th>จำนวนเงิน</th>
+                            <th>ประเภท</th>
+                            <th>สถานะ</th>
+                            <th>จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody><!-- ดึงข้อมูลด้วย JS --></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 3. หน้าจัดการร้านค้า -->
+        <div id="vendors" class="tab-content">
+            <h2 style="margin-top: 0;">รายชื่อร้านค้าทั้งหมด</h2>
+            <div class="table-container">
+                <table id="allVendorsTable">
+                    <thead>
+                        <tr>
+                            <th>ชื่อร้าน</th>
+                            <th>แพ็กเกจ</th>
+                            <th>วันหมดอายุ</th>
+                            <th>โควต้าสลิป</th>
+                            <th>ยอดสะสม (Aff)</th>
+                            <th>จัดการร้าน</th>
+                        </tr>
+                    </thead>
+                    <tbody><!-- ดึงข้อมูลด้วย JS --></tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // รหัสผ่านเข้าหน้า Admin (คุณสามารถเปลี่ยนได้ที่นี่)
+        const ADMIN_PIN = "9999"; 
+
+        const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
+
+        // ระบบตรวจสอบรหัสผ่าน
+        function checkLogin() {
+            const pass = document.getElementById('adminPass').value;
+            if (pass === ADMIN_PIN) {
+                document.getElementById('loginScreen').style.display = 'none';
+                initAdmin();
+            } else {
+                alert("รหัสผ่านไม่ถูกต้อง!");
+            }
+        }
+
+        // เปลี่ยนหน้าเมนู
+        function switchTab(tabId, btnElement) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.menu-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            btnElement.classList.add('active');
+        }
+
+        // ฟังก์ชันเริ่มต้นโหลดข้อมูล
+        async function initAdmin() {
+            await loadDashboardStats();
+            await loadWithdrawals();
+            await loadAllVendors();
+        }
+
+        // ================= 1. โหลดข้อมูลภาพรวม =================
+        async function loadDashboardStats() {
+            // ดึงร้านค้าทั้งหมด
+            const { data: vendors, error: vError } = await supabaseClient.from('vendors').select('*').order('created_at', { ascending: false });
+            if (!vError && vendors) {
+                document.getElementById('statTotalVendors').innerText = vendors.length;
+                
+                // นับร้านค้าที่ยังไม่หมดอายุ
+                const activeCount = vendors.filter(v => new Date(v.subscription_expires_at) > new Date()).length;
+                document.getElementById('statActiveVendors').innerText = activeCount;
+
+                // ใส่ตารางร้านใหม่ล่าสุด (5 ร้าน)
+                let recentHtml = '';
+                vendors.slice(0, 5).forEach(v => {
+                    const planObj = CONFIG.pricingPlans.find(p => p.id === v.subscription_plan);
+                    const planName = planObj ? planObj.name : 'ทดลองใช้ฟรี';
+                    const date = new Date(v.created_at).toLocaleDateString('th-TH');
+                    recentHtml += `<tr><td>${v.name}</td><td>${v.phone || '-'}</td><td>${planName}</td><td>${date}</td></tr>`;
+                });
+                document.getElementById('recentVendorsTable').querySelector('tbody').innerHTML = recentHtml;
+            }
+
+            // นับจำนวนออเดอร์ทั้งหมด
+            const { count, error: oError } = await supabaseClient.from('orders').select('*', { count: 'exact', head: true });
+            if (!oError) { document.getElementById('statTotalOrders').innerText = count || 0; }
+        }
+
+        // ================= 2. จัดการถอนเงิน =================
+        async function loadWithdrawals() {
+            const { data, error } = await supabaseClient.from('withdrawals').select('*').order('created_at', { ascending: false });
+            const tbody = document.getElementById('withdrawalsTable').querySelector('tbody');
+            if (error || data.length === 0) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">ยังไม่มีรายการแจ้งถอน</td></tr>'; return; }
+
+            let html = '';
+            data.forEach(w => {
+                const date = new Date(w.created_at).toLocaleString('th-TH');
+                const typeText = w.type === 'cash' ? 'ถอนเงินสด' : 'จ่ายค่าระบบ';
+                const statusBadge = w.status === 'pending' ? '<span class="badge pending">รออนุมัติ/โอน</span>' : '<span class="badge completed">ดำเนินการแล้ว</span>';
+                
+                let actionBtn = '';
+                if (w.status === 'pending') {
+                    actionBtn = `<button class="btn btn-success" onclick="approveWithdrawal('${w.id}')">✔️ กดโอนแล้ว (อนุมัติ)</button>`;
+                } else {
+                    actionBtn = `<span style="color:#888; font-size:12px;">✅ เรียบร้อย</span>`;
+                }
+
+                html += `<tr>
+                    <td>${date}</td>
+                    <td>${w.store_name}</td>
+                    <td style="font-weight:bold; color:#06C755;">${w.promptpay}</td>
+                    <td style="font-weight:bold;">฿${w.amount}</td>
+                    <td>${typeText}</td>
+                    <td>${statusBadge}</td>
+                    <td>${actionBtn}</td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+
+        async function approveWithdrawal(id) {
+            if (!confirm("ยืนยันว่าคุณได้ทำการโอนเงิน/หักค่าระบบเรียบร้อยแล้วใช่หรือไม่?")) return;
+            await supabaseClient.from('withdrawals').update({ status: 'completed' }).eq('id', id);
+            alert("อัปเดตสถานะสำเร็จ!");
+            loadWithdrawals(); // โหลดข้อมูลใหม่
+        }
+
+        // ================= 3. จัดการร้านค้า (ระงับ/แบน) =================
+        async function loadAllVendors() {
+            const { data, error } = await supabaseClient.from('vendors').select('*').order('created_at', { ascending: false });
+            const tbody = document.getElementById('allVendorsTable').querySelector('tbody');
+            
+            let html = '';
+            data.forEach(v => {
+                const planObj = CONFIG.pricingPlans.find(p => p.id === v.subscription_plan);
+                const planName = planObj ? planObj.name : 'ทดลองใช้ฟรี';
+                
+                const expDate = new Date(v.subscription_expires_at);
+                const isExpired = expDate < new Date();
+                const expDateStr = expDate.toLocaleDateString('th-TH');
+                const expBadge = isExpired ? `<span class="badge expired">หมดอายุ</span>` : `<span class="badge active">ใช้งานได้</span>`;
+
+                html += `<tr>
+                    <td><strong>${v.name}</strong><br><span style="font-size:11px; color:#888;">โทร: ${v.phone || '-'}</span></td>
+                    <td>${planName}</td>
+                    <td>${expDateStr} ${expBadge}</td>
+                    <td><strong style="color:#06C755;">${v.slip_quota || 0}</strong> บิล</td>
+                    <td>฿${v.wallet_balance || 0}</td>
+                    <td>
+                        <button class="btn btn-danger" onclick="suspendVendor('${v.id}', '${v.name}')">🛑 ระงับร้านนี้</button>
+                    </td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+
+        // ฟังก์ชันเตะร้านค้า (แบน) ด้วยการปรับให้หมดอายุและปิดร้าน
+        async function suspendVendor(id, name) {
+            if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการ "ระงับ" ร้าน ${name}?\n(ระบบจะปรับวันหมดอายุให้เป็นอดีต และบังคับปิดร้านทันที)`)) return;
+            
+            // อัปเดตข้อมูลให้หมดอายุตั้งแต่ปี 2000 และตั้งสถานะเปิดร้านเป็น false
+            await supabaseClient.from('vendors').update({ 
+                subscription_expires_at: '2000-01-01T00:00:00Z', 
+                is_open: false,
+                slip_check_mode: 'manual'
+            }).eq('id', id);
+            
+            alert(`ระงับร้าน ${name} เรียบร้อยแล้ว`);
+            loadAllVendors();
+            loadDashboardStats();
+        }
+    </script>
+</body>
+</html>
