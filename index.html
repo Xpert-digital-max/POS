@@ -223,14 +223,18 @@
                 // ยิงไปแจ้ง GAS ให้เก็บลง Google Sheet และแจ้งแอดมินด้วยรหัสใหม่
                 try {
                     await fetch(CONFIG.gasWebhookUrl, {
-                        method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
-                        body: JSON.stringify({ action: 'register_vendor', vendor_id: newVendorId, store_name: storeName, owner_uid: lineData.uid, display_name: lineData.name, plan: selectedPlan.name, expires_at: expiresAt.toLocaleDateString('th-TH') })
-                    });
-                } catch(e) {}
-
-                window.location.href = "dashboard.html"; 
-            }
-        }
+    method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({ 
+        action: 'register_vendor', 
+        vendor_id: newVendorId, 
+        store_name: storeName, 
+        owner_uid: lineData.uid, 
+        display_name: lineData.name, 
+        plan: selectedPlan.name, 
+        expires_at: expiresAt.toLocaleDateString('th-TH'),
+        referrer_id: referrerId  // <--- เพิ่มบรรทัดนี้เข้าไปครับ!
+    })
+});
         window.onload = initializeLiff;
     </script>
 </body>
