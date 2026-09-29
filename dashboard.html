@@ -24,6 +24,8 @@
         .sub-badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; }
         .sub-active { background: #e8f5e9; color: #2e7d32; }
         .sub-expired { background: #ffebee; color: #c62828; }
+        
+        .section-divider { border-top: 1px dashed #ccc; margin: 15px 0; padding-top: 15px; }
     </style>
 </head>
 <body>
@@ -57,15 +59,13 @@
         </div>
     </div>
 
-    <!-- Modal QR Code สั่งอาหารสำหรับลูกค้า (NEW!) -->
+    <!-- Modal QR Code สั่งอาหารลูกค้า -->
     <div id="customerQrModal" style="display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 400; justify-content: center; align-items: center;">
         <div style="background: white; width: 90%; max-width: 320px; border-radius: 12px; padding: 20px; box-sizing: border-box; text-align: center;">
             <h3 style="margin-top: 0; color: #00BCD4;">🍽️ สแกนเพื่อสั่งอาหาร</h3>
             <p style="font-size: 13px; color: #666; margin-bottom: 15px;">บันทึกรูปนี้ไปปริ้นตั้งโต๊ะให้ลูกค้าสแกนได้เลย</p>
-            
             <img id="customerQrImage" src="" style="width: 200px; height: 200px; border: 1px solid #ddd; padding: 10px; border-radius: 8px; margin-bottom: 10px;">
             <p style="font-size: 11px; color: #888; margin-top: 0; margin-bottom: 15px;">(ในแอป LINE สามารถกดค้างที่รูปเพื่อบันทึกได้)</p>
-            
             <div style="display: flex; gap: 8px; margin-bottom: 10px;">
                 <button onclick="downloadCustomerQr()" style="flex: 1; padding: 12px; border: none; border-radius: 6px; background: #00BCD4; color: white; font-weight: bold; cursor: pointer;">⬇️ บันทึกรูปภาพ</button>
             </div>
@@ -133,23 +133,17 @@
         <!-- 3. หน้าตั้งค่า -->
         <div id="settings" class="tab-content">
 
-            <!-- ====== ลิงก์ร้านค้า & QR Code สำหรับให้ลูกค้าสั่งอาหาร (NEW!) ====== -->
+            <!-- ====== ลิงก์ร้านค้า & QR Code ====== -->
             <div class="card" style="border-left: 4px solid #00BCD4; background: #e0f7fa;">
                 <h3 style="margin-top: 0; color: #00838F;">🍽️ ช่องทางสั่งอาหารของร้านคุณ</h3>
                 <p style="font-size: 13px; color: #666; margin-bottom: 10px;">แชร์ลิงก์หรือปริ้น QR Code เพื่อให้ลูกค้าสแกนสั่งอาหารได้ทันที</p>
-                
                 <div style="display: flex; gap: 8px; margin-bottom: 10px;">
                     <input type="text" id="customerLinkText" readonly style="flex: 1; padding: 9px; border: 1px solid #b2ebf2; border-radius: 6px; font-size: 12px; background: #fff; color: #333;">
                     <button onclick="copyCustomerLink()" style="background: #00838F; color: white; border: none; padding: 9px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">คัดลอกลิงก์</button>
                 </div>
-
                 <div style="display: flex; gap: 8px;">
-                    <button onclick="shareCustomerFlex()" style="flex: 1; background: #00B900; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; display: flex; justify-content: center; align-items: center; gap: 5px;">
-                        📲 ส่งในแชทให้ลูกค้า
-                    </button>
-                    <button onclick="showCustomerQr()" style="flex: 1; background: #00BCD4; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; display: flex; justify-content: center; align-items: center; gap: 5px;">
-                        📷 QR Code ตั้งโต๊ะ
-                    </button>
+                    <button onclick="shareCustomerFlex()" style="flex: 1; background: #00B900; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; display: flex; justify-content: center; align-items: center; gap: 5px;">📲 ส่งในแชทให้ลูกค้า</button>
+                    <button onclick="showCustomerQr()" style="flex: 1; background: #00BCD4; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; display: flex; justify-content: center; align-items: center; gap: 5px;">📷 QR Code ตั้งโต๊ะ</button>
                 </div>
             </div>
             
@@ -157,32 +151,25 @@
             <div class="card" style="border-left: 4px solid #ff9800; background: #fff8e1;">
                 <h3 style="margin-top: 0; color: #e65100;">🤝 ศูนย์ผู้แนะนำ (Affiliate)</h3>
                 <p style="font-size: 13px; color: #666; margin-bottom: 10px;">ชวนร้านค้าอื่นมาใช้งาน รับส่วนแบ่งค่าคอมมิชชั่นทุกเดือน!</p>
-                
                 <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 15px; border: 1px solid #ffe0b2;">
                     <p style="margin: 0; font-size: 14px; color: #555;">ยอดเงินสะสมของคุณ</p>
                     <h2 style="margin: 5px 0 0 0; color: #ff9800; font-size: 28px;">฿<span id="walletBalance">0</span></h2>
                     <button onclick="openWithdrawModal()" style="background: #ff9800; color: white; border: none; padding: 8px 15px; border-radius: 20px; font-size: 13px; font-weight: bold; margin-top: 10px; cursor: pointer;">💸 แจ้งถอน / ใช้ชำระค่าระบบ</button>
                 </div>
-
                 <label style="font-size: 13px; font-weight: bold; color: #e65100;">🔗 ลิงก์แนะนำของคุณ (ส่งให้ร้านค้าสมัคร)</label>
                 <div style="display: flex; gap: 8px; margin-top: 5px; margin-bottom: 10px;">
                     <input type="text" id="affiliateLink" readonly style="flex: 1; padding: 9px; border: 1px solid #ffe0b2; border-radius: 6px; font-size: 12px; background: #fff; color: #333;">
                     <button onclick="copyAffiliateLink()" style="background: #e65100; color: white; border: none; padding: 9px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">คัดลอก</button>
                 </div>
-
                 <div style="display: flex; gap: 8px;">
-                    <button onclick="shareAffiliateFlex()" style="flex: 1; background: #00B900; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; display: flex; justify-content: center; align-items: center; gap: 5px;">
-                        📲 ส่งในแชทให้เพื่อน
-                    </button>
-                    <button onclick="showAffiliateQr()" style="flex: 1; background: #ff9800; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; display: flex; justify-content: center; align-items: center; gap: 5px;">
-                        📷 สแกน QR แนะนำ
-                    </button>
+                    <button onclick="shareAffiliateFlex()" style="flex: 1; background: #00B900; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; display: flex; justify-content: center; align-items: center; gap: 5px;">📲 ส่งในแชทให้เพื่อน</button>
+                    <button onclick="showAffiliateQr()" style="flex: 1; background: #ff9800; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; display: flex; justify-content: center; align-items: center; gap: 5px;">📷 สแกน QR แนะนำ</button>
                 </div>
             </div>
 
-            <!-- ====== ข้อมูลแพ็กเกจ SaaS ====== -->
+            <!-- ====== ข้อมูลแพ็กเกจ SaaS & โควต้าตรวจสลิป ====== -->
             <div class="card" style="border-left: 4px solid #2196F3; background: #f0f7ff;">
-                <h3 style="margin-top: 0; color: #0d47a1;">📦 แพ็กเกจระบบร้านค้า</h3>
+                <h3 style="margin-top: 0; color: #0d47a1;">📦 แพ็กเกจระบบและโควต้า</h3>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <span style="font-size: 14px; color: #555;">แพ็กเกจปัจจุบัน:</span>
                     <strong id="subPlanName" style="color: #2196F3;">กำลังตรวจสอบ...</strong>
@@ -191,25 +178,53 @@
                     <span style="font-size: 14px; color: #555;">วันหมดอายุ:</span>
                     <strong id="subExpiresAt">-</strong>
                 </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <span style="font-size: 14px; color: #555;">สถานะ:</span>
                     <span id="subStatusBadge" class="sub-badge sub-active">ใช้งานได้</span>
                 </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px dashed #bcdcff;">
+                    <span style="font-size: 14px; color: #555;">โควต้าตรวจสลิปออโต้:</span>
+                    <strong style="color: #06C755; font-size: 16px;"><span id="slipQuotaText">0</span> บิล</strong>
+                </div>
 
-                <div id="renewContainer" style="margin-top: 15px; padding-top: 12px; border-top: 1px dashed #bcdcff;">
+                <!-- 1. ต่ออายุแพ็กเกจ -->
+                <div id="renewContainer">
                     <label style="font-size: 13px; font-weight: bold; color: #333; display: block; margin-bottom: 4px;">💳 ต่ออายุแพ็กเกจ / อัปเกรดระบบ</label>
                     <select id="renewPlanSelect" onchange="updateRenewQr()" style="width: 100%; padding: 9px; margin-bottom: 10px; border: 1px solid #bcdcff; border-radius: 6px;"></select>
+                    
                     <div style="background: white; padding: 12px; border-radius: 8px; text-align: center; margin-bottom: 10px; border: 1px solid #e0e0e0;">
                         <p style="margin: 0 0 6px 0; font-size: 13px; font-weight: bold; color: #333;">สแกนชำระค่าบริการ</p>
                         <img id="adminQrImage" src="" style="width: 130px; height: 130px; border: 1px solid #ddd; padding: 4px; border-radius: 6px;">
                         <p id="renewAmountText" style="margin: 6px 0 0 0; font-size: 14px; font-weight: bold; color: #06C755;">ยอดชำระ: ฿0</p>
                     </div>
-                    <label style="font-size: 13px; font-weight: bold; color: #555;">แนบสลิปโอนเงินล่าสุดเพื่อตรวจสอบ</label>
-                    <input type="file" id="renewSlipImage" accept="image/*" style="width: 100%; margin-top: 5px; margin-bottom: 10px;">
-                    <button onclick="verifyAndRenewSubscription()" id="renewBtn" style="background: #2196F3; color: white; border: none; padding: 11px; border-radius: 6px; cursor: pointer; width: 100%; font-size: 14px; font-weight: bold;">
-                        ⚡ ตรวจสอบสลิปและต่ออายุอัตโนมัติ
-                    </button>
+                    
+                    <label style="font-size: 13px; font-weight: bold; color: #555;">แนบสลิปเพื่อต่ออายุ</label>
+                    <div style="display: flex; gap: 8px; margin-top: 5px;">
+                        <input type="file" id="renewSlipImage" accept="image/*" style="flex: 1; padding: 5px;">
+                        <button onclick="verifyAndRenewSubscription()" id="renewBtn" style="background: #2196F3; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">ยืนยัน</button>
+                    </div>
                 </div>
+
+                <div class="section-divider"></div>
+
+                <!-- 2. ซื้อโควต้าสลิปเพิ่ม (สำหรับระบบ Auto) -->
+                <div id="topupQuotaContainer">
+                    <label style="font-size: 13px; font-weight: bold; color: #06C755; display: block; margin-bottom: 4px;">➕ เติมโควต้าตรวจสลิปอัตโนมัติ</label>
+                    <select id="quotaPlanSelect" onchange="updateQuotaQr()" style="width: 100%; padding: 9px; margin-bottom: 10px; border: 1px solid #bcdcff; border-radius: 6px;"></select>
+                    
+                    <div style="background: white; padding: 12px; border-radius: 8px; text-align: center; margin-bottom: 10px; border: 1px solid #e0e0e0;">
+                        <p style="margin: 0 0 6px 0; font-size: 13px; font-weight: bold; color: #333;">สแกนชำระค่าโควต้าสลิป</p>
+                        <img id="quotaQrImage" src="" style="width: 130px; height: 130px; border: 1px solid #ddd; padding: 4px; border-radius: 6px;">
+                        <p id="quotaAmountText" style="margin: 6px 0 0 0; font-size: 14px; font-weight: bold; color: #06C755;">ยอดชำระ: ฿0</p>
+                    </div>
+                    
+                    <label style="font-size: 13px; font-weight: bold; color: #555;">แนบสลิปเพื่อเติมโควต้า</label>
+                    <div style="display: flex; gap: 8px; margin-top: 5px;">
+                        <input type="file" id="quotaSlipImage" accept="image/*" style="flex: 1; padding: 5px;">
+                        <button onclick="verifyAndTopupQuota()" id="topupBtn" style="background: #06C755; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">ยืนยัน</button>
+                    </div>
+                </div>
+
             </div>
 
             <!-- การตั้งค่าข้อมูลทั่วไปของร้านค้า -->
@@ -270,7 +285,6 @@
 
             updateStoreStatusUI(vendorData.is_open);
             
-            // สร้างลิงก์ร้านค้าให้ลูกค้าสั่งอาหาร
             const baseUrl = window.location.href.split('dashboard.html')[0];
             document.getElementById('customerLinkText').value = `${baseUrl}customer.html?vid=${vendorData.id}`;
 
@@ -278,7 +292,7 @@
             renderSubscriptionInfo(); renderAffiliateInfo();
         }
 
-        // ==================== ระบบ QR Code สำหรับลูกค้า (NEW!) ====================
+        // ==================== ระบบ QR Code สำหรับลูกค้า ====================
         function copyCustomerLink() {
             const linkInput = document.getElementById('customerLinkText');
             linkInput.select(); document.execCommand("copy");
@@ -294,22 +308,13 @@
 
         function closeCustomerQrModal() { document.getElementById('customerQrModal').style.display = 'none'; }
 
-        // ฟังก์ชันดาวน์โหลด QR Code สำหรับลูกค้า
         function downloadCustomerQr() {
             const qrUrl = document.getElementById('customerQrImage').src;
-            fetch(qrUrl)
-              .then(response => response.blob())
-              .then(blob => {
+            fetch(qrUrl).then(response => response.blob()).then(blob => {
                 const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                a.download = `QR_${vendorData.name}_สั่งอาหาร.png`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-              })
-              .catch(() => alert('อุปกรณ์ของคุณไม่รองรับการดาวน์โหลดอัตโนมัติ\nกรุณากดค้างที่รูปภาพเพื่อกดบันทึกลงเครื่องครับ'));
+                const a = document.createElement('a'); a.style.display = 'none'; a.href = url; a.download = `QR_${vendorData.name}_สั่งอาหาร.png`;
+                document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url);
+            }).catch(() => alert('อุปกรณ์ของคุณไม่รองรับการดาวน์โหลดอัตโนมัติ\nกรุณากดค้างที่รูปภาพเพื่อกดบันทึกลงเครื่องครับ'));
         }
 
         function shareCustomerFlex() {
@@ -318,8 +323,7 @@
             const storeName = vendorData.name || "ร้านของเรา";
 
             const flexMsg = {
-              "type": "flex",
-              "altText": `สั่งอาหารจากร้าน ${storeName}`,
+              "type": "flex", "altText": `สั่งอาหารจากร้าน ${storeName}`,
               "contents": {
                 "type": "bubble",
                 "header": { "type": "box", "layout": "vertical", "backgroundColor": "#00BCD4", "contents": [{ "type": "text", "text": "🍽️ เมนูอาหาร", "color": "#FFFFFF", "weight": "bold", "size": "xl" }] },
@@ -334,9 +338,7 @@
             };
 
             if (liff.isApiAvailable('shareTargetPicker')) {
-                liff.shareTargetPicker([flexMsg]).then(function (res) {
-                    if (res) alert('ส่งลิงก์ร้านให้ลูกค้าสำเร็จ! 🎉');
-                }).catch(function (error) { console.error('Error sharing:', error); });
+                liff.shareTargetPicker([flexMsg]).then(function (res) { if (res) alert('ส่งลิงก์ร้านให้ลูกค้าสำเร็จ! 🎉'); }).catch(function (error) { console.error('Error sharing:', error); });
             } else { alert('อุปกรณ์ไม่รองรับ กรุณากดคัดลอกลิงก์ส่งให้ลูกค้าแทนครับ'); }
         }
 
@@ -349,19 +351,16 @@
         }
 
         function copyAffiliateLink() {
-            const linkInput = document.getElementById('affiliateLink');
-            linkInput.select(); document.execCommand("copy");
+            const linkInput = document.getElementById('affiliateLink'); linkInput.select(); document.execCommand("copy");
             alert("คัดลอกลิงก์แนะนำเรียบร้อยแล้ว!\nส่งให้เพื่อนสมัครเพื่อรับค่าคอมมิชชั่นได้เลยครับ 🤝");
         }
 
         function shareAffiliateFlex() {
             if (!liff.isLoggedIn()) return;
-            const refLink = document.getElementById('affiliateLink').value;
-            const storeName = vendorData.name || "เพื่อนของคุณ";
+            const refLink = document.getElementById('affiliateLink').value; const storeName = vendorData.name || "เพื่อนของคุณ";
 
             const flexMsg = {
-              "type": "flex",
-              "altText": `${storeName} ชวนคุณเปิดร้านอาหารระบบใหม่ ทดลองใช้ฟรี!`,
+              "type": "flex", "altText": `${storeName} ชวนคุณเปิดร้านอาหารระบบใหม่ ทดลองใช้ฟรี!`,
               "contents": {
                 "type": "bubble",
                 "header": { "type": "box", "layout": "vertical", "backgroundColor": "#06C755", "contents": [{ "type": "text", "text": "Food POS System", "color": "#FFFFFF", "weight": "bold", "size": "xl" }] },
@@ -374,7 +373,6 @@
                 ]}
               }
             };
-
             if (liff.isApiAvailable('shareTargetPicker')) {
                 liff.shareTargetPicker([flexMsg]).then(function (res) { if (res) alert('ส่งคำชวนให้เพื่อนสำเร็จ! 🎉'); }).catch(function (error) { console.error('Error sharing:', error); });
             } else { alert('อุปกรณ์ของคุณไม่รองรับการส่งข้อความผ่านปุ่มนี้ กรุณากดคัดลอกลิงก์ส่งให้เพื่อนแทนครับ'); }
@@ -383,8 +381,7 @@
         function showAffiliateQr() {
             const refLink = document.getElementById('affiliateLink').value;
             const qrUrl = `https://quickchart.io/qr?text=${encodeURIComponent(refLink)}&size=300`;
-            document.getElementById('affiliateQrImage').src = qrUrl;
-            document.getElementById('qrModal').style.display = 'flex';
+            document.getElementById('affiliateQrImage').src = qrUrl; document.getElementById('qrModal').style.display = 'flex';
         }
         function closeQrModal() { document.getElementById('qrModal').style.display = 'none'; }
 
@@ -392,8 +389,7 @@
         function openWithdrawModal() {
             if (!vendorData) return;
             if (vendorData.wallet_balance <= 0) { alert('ยอดเงินสะสมของคุณเป็น 0 บาท ยังไม่สามารถทำรายการได้ครับ'); return; }
-            document.getElementById('withdrawModal').style.display = 'flex';
-            document.getElementById('withdrawAmount').value = ''; updateWithdrawInfo();
+            document.getElementById('withdrawModal').style.display = 'flex'; document.getElementById('withdrawAmount').value = ''; updateWithdrawInfo();
         }
         function closeWithdrawModal() { document.getElementById('withdrawModal').style.display = 'none'; }
 
@@ -431,11 +427,12 @@
             btn.innerText = "ยืนยันการทำรายการ"; btn.disabled = false;
         }
 
-        // ==================== ระบบแพ็กเกจและการต่ออายุ (SaaS) ====================
+        // ==================== ระบบแพ็กเกจ โควต้า และการต่ออายุ ====================
         function renderSubscriptionInfo() {
             if (!vendorData) return;
             const planObj = CONFIG.pricingPlans.find(p => p.id === vendorData.subscription_plan);
             document.getElementById('subPlanName').innerText = planObj ? planObj.name : 'ทดลองใช้ฟรี';
+            document.getElementById('slipQuotaText').innerText = vendorData.slip_quota || 0;
 
             if (vendorData.subscription_expires_at) {
                 const expDate = new Date(vendorData.subscription_expires_at);
@@ -446,9 +443,17 @@
                 else { badgeEl.innerText = "ใช้งานได้ปกติ"; badgeEl.className = "sub-badge sub-active"; }
             }
 
+            // ตัวเลือกต่ออายุแพ็กเกจ
             const renewSelect = document.getElementById('renewPlanSelect'); let optionsHtml = '';
-            CONFIG.pricingPlans.filter(p => p.price > 0).forEach(p => { optionsHtml += `<option value="${p.id}" data-price="${p.price}" data-days="${p.days}">${p.name} - ฿${p.price} (${p.days} วัน)</option>`; });
+            CONFIG.pricingPlans.filter(p => p.price > 0).forEach(p => { optionsHtml += `<option value="${p.id}" data-price="${p.price}" data-days="${p.days}" data-quota="${p.quota}">${p.name} - ฿${p.price}</option>`; });
             renewSelect.innerHTML = optionsHtml; updateRenewQr();
+
+            // ตัวเลือกซื้อโควต้าสลิปเพิ่ม
+            const quotaSelect = document.getElementById('quotaPlanSelect'); let qHtml = '';
+            if(CONFIG.quotaPlans) {
+                CONFIG.quotaPlans.forEach(q => { qHtml += `<option value="${q.id}" data-price="${q.price}" data-quota="${q.quota}">${q.name} - ฿${q.price}</option>`; });
+            }
+            quotaSelect.innerHTML = qHtml; updateQuotaQr();
         }
 
         function updateRenewQr() {
@@ -459,15 +464,25 @@
             document.getElementById('adminQrImage').src = `https://promptpay.io/${CONFIG.adminPromptpay || '0812345678'}/${price}.png`;
         }
 
+        function updateQuotaQr() {
+            const opt = document.getElementById('quotaPlanSelect').options[document.getElementById('quotaPlanSelect').selectedIndex];
+            if (!opt) return;
+            const price = opt.getAttribute('data-price');
+            document.getElementById('quotaAmountText').innerText = `ยอดชำระ: ฿${price}`;
+            document.getElementById('quotaQrImage').src = `https://promptpay.io/${CONFIG.adminPromptpay || '0812345678'}/${price}.png`;
+        }
+
+        // ต่ออายุแพ็กเกจ (เวลา + โควต้า)
         async function verifyAndRenewSubscription() {
             const fileInput = document.getElementById('renewSlipImage'); const select = document.getElementById('renewPlanSelect');
             const opt = select.options[select.selectedIndex]; const btn = document.getElementById('renewBtn');
 
-            if (fileInput.files.length === 0) { alert("กรุณาเลือกไฟล์รูปภาพสลิปการโอนเงินก่อนกดตรวจสอบ"); return; }
+            if (fileInput.files.length === 0) { alert("กรุณาเลือกไฟล์สลิป"); return; }
             const expectedPrice = opt.getAttribute('data-price'); const planDays = parseInt(opt.getAttribute('data-days'));
+            const addedQuota = parseInt(opt.getAttribute('data-quota') || 0);
             const planId = select.value; const selectedPlanObj = CONFIG.pricingPlans.find(p => p.id === planId);
 
-            btn.innerText = "กำลังตรวจสอบสลิปผ่าน SlipOK..."; btn.disabled = true;
+            btn.innerText = "กำลังตรวจสอบ..."; btn.disabled = true;
             try {
                 const file = fileInput.files[0]; const fileName = `sub-slip-${vendorData.id}-${Date.now()}.${file.name.split('.').pop()}`;
                 const { error: uploadError } = await supabaseClient.storage.from('slip-images').upload(fileName, file);
@@ -477,7 +492,7 @@
                 const slipUrl = publicData.publicUrl;
 
                 const gasRes = await fetch(CONFIG.gasWebhookUrl, {
-                    method: 'POST', body: JSON.stringify({ action: 'verify_subscription_slip', vendor_id: vendorData.id, slip_url: slipUrl, amount: expectedPrice, days: planDays })
+                    method: 'POST', body: JSON.stringify({ action: 'verify_subscription_slip', vendor_id: vendorData.id, slip_url: slipUrl, amount: expectedPrice })
                 });
 
                 const result = await gasRes.json();
@@ -488,9 +503,12 @@
                         if (currentExp > baseDate) baseDate = currentExp;
                     }
                     baseDate.setDate(baseDate.getDate() + planDays);
+                    
+                    const newQuota = (vendorData.slip_quota || 0) + addedQuota;
 
                     await supabaseClient.from('vendors').update({
-                        subscription_plan: planId, subscription_days: planDays, subscription_expires_at: baseDate.toISOString(), slip_check_mode: selectedPlanObj.mode, is_subscription_active: true
+                        subscription_plan: planId, subscription_days: planDays, subscription_expires_at: baseDate.toISOString(), 
+                        slip_check_mode: selectedPlanObj.mode, is_subscription_active: true, slip_quota: newQuota
                     }).eq('id', vendorData.id);
 
                     if (vendorData.referrer_id && selectedPlanObj.comm > 0) {
@@ -503,12 +521,49 @@
                         } catch (commErr) {}
                     }
 
-                    vendorData.subscription_plan = planId; vendorData.subscription_expires_at = baseDate.toISOString(); vendorData.slip_check_mode = selectedPlanObj.mode; vendorData.is_subscription_active = true;
-                    alert(`🎉 ตรวจสอบสลิปถูกต้อง!\nต่ออายุแพ็กเกจเรียบร้อยแล้ว\nใช้งานได้ถึง ${baseDate.toLocaleDateString('th-TH')}`);
+                    vendorData.subscription_plan = planId; vendorData.subscription_expires_at = baseDate.toISOString(); 
+                    vendorData.slip_check_mode = selectedPlanObj.mode; vendorData.is_subscription_active = true;
+                    vendorData.slip_quota = newQuota;
+
+                    alert(`🎉 ต่ออายุแพ็กเกจเรียบร้อยแล้ว\nใช้งานได้ถึง ${baseDate.toLocaleDateString('th-TH')}`);
                     renderSubscriptionInfo(); fileInput.value = '';
-                } else { alert("❌ ตรวจสอบไม่ผ่าน: " + (result.msg || "สลิปไม่ถูกต้อง หรือยอดเงินไม่ตรง")); }
-            } catch (err) { alert("เกิดข้อผิดพลาดในการตรวจสอบ: " + err.message); }
-            btn.innerText = "⚡ ตรวจสอบสลิปและต่ออายุอัตโนมัติ"; btn.disabled = false;
+                } else { alert("❌ ตรวจสอบไม่ผ่าน: " + (result.msg || "สลิปไม่ถูกต้อง")); }
+            } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); }
+            btn.innerText = "ยืนยัน"; btn.disabled = false;
+        }
+
+        // เติมโควต้าสลิปอย่างเดียว
+        async function verifyAndTopupQuota() {
+            const fileInput = document.getElementById('quotaSlipImage'); const select = document.getElementById('quotaPlanSelect');
+            const opt = select.options[select.selectedIndex]; const btn = document.getElementById('topupBtn');
+
+            if (fileInput.files.length === 0) { alert("กรุณาเลือกไฟล์สลิป"); return; }
+            const expectedPrice = opt.getAttribute('data-price'); const addedQuota = parseInt(opt.getAttribute('data-quota'));
+
+            btn.innerText = "กำลังตรวจสอบ..."; btn.disabled = true;
+            try {
+                const file = fileInput.files[0]; const fileName = `quota-slip-${vendorData.id}-${Date.now()}.${file.name.split('.').pop()}`;
+                const { error: uploadError } = await supabaseClient.storage.from('slip-images').upload(fileName, file);
+                if (uploadError) throw uploadError;
+
+                const { data: publicData } = supabaseClient.storage.from('slip-images').getPublicUrl(fileName);
+                const slipUrl = publicData.publicUrl;
+
+                const gasRes = await fetch(CONFIG.gasWebhookUrl, {
+                    method: 'POST', body: JSON.stringify({ action: 'verify_subscription_slip', vendor_id: vendorData.id, slip_url: slipUrl, amount: expectedPrice })
+                });
+
+                const result = await gasRes.json();
+                if (result.status === 'success') {
+                    const newQuota = (vendorData.slip_quota || 0) + addedQuota;
+                    await supabaseClient.from('vendors').update({ slip_quota: newQuota }).eq('id', vendorData.id);
+
+                    vendorData.slip_quota = newQuota;
+                    alert(`🎉 เติมโควต้าสำเร็จ ได้รับเพิ่ม ${addedQuota} บิล\nโควต้าคงเหลือ: ${newQuota} บิล`);
+                    renderSubscriptionInfo(); fileInput.value = '';
+                } else { alert("❌ ตรวจสอบไม่ผ่าน: " + (result.msg || "สลิปไม่ถูกต้อง")); }
+            } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); }
+            btn.innerText = "ยืนยัน"; btn.disabled = false;
         }
 
         // ==================== ระบบหมวดหมู่ & จัดการเมนู ====================
