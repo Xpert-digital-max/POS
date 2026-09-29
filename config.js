@@ -9,9 +9,9 @@ const CONFIG = {
     // ---------------------------------------------------------
     // 2. ข้อมูลเชื่อมต่อ LINE LIFF
     // ---------------------------------------------------------
-    liffIdRegister: '2011781647-1GTbZ2gJ',   // LIFF ID หน้าลงทะเบียน
-    liffIdDashboard: '2011781647-rkokpjId',  // LIFF ID หน้าจัดการร้าน
-    liffIdCustomer: '2011781647-erlnJT8p', // LIFF ID หน้าลูกค้า
+    liffIdRegister: '2011794866-9V2Hw2Rg',   // LIFF ID หน้าลงทะเบียน
+    liffIdDashboard: '2011794866-5xNLJ6Sa',  // LIFF ID หน้าจัดการร้าน
+    liffIdCustomer: '2011794866-KxUcfGFz', // LIFF ID หน้าลูกค้า
     
     // ---------------------------------------------------------
     // 3. ข้อมูล Webhook ของ Google Apps Script (ยิงข้อความ)
