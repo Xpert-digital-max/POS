@@ -8,12 +8,14 @@ const CONFIG = {
     gasWebhookUrl: 'https://script.google.com/macros/s/AKfycbz55ygFed3hzf-3xRTdd4nCQl4wZ88PsGyaAkmpfMjU4_dexgy5R1Hpo9dXDJfG4Dcp/exec', // ใส่ลื้งต์ Web App
         
     // --- ตั้งค่าระบบแพ็กเกจ (สามารถปรับราคาและจำนวนวันได้เองตลอดเวลา) ---
-    trialDaysDefault: 7, 
-    adminPromptpay: '0812345678', 
+    trialDaysDefault: 10, 
+    adminPromptpay: '0812345678', // พร้อมเพย์สำหรับรับค่าแพ็กเกจเข้าบัญชีคุณ
 
-    // โครงสร้างแพ็กเกจและค่าแนะนำ (Affiliate)
+    // ---------------------------------------------------------
+    // 5. โครงสร้างแพ็กเกจ (Pricing Plans)
+    // ---------------------------------------------------------
     pricingPlans: [
-        { id: 'trial', name: 'ทดลองใช้ฟรี', days: 7, price: 0, tag: 'เริ่มต้น', mode: 'auto', comm: 0, quota: 20, desc: 'ฟรีตรวจสลิปอัตโนมัติ 20 บิล' }
+        { id: 'trial', name: 'ทดลองใช้ฟรี', days: 7, price: 0, tag: 'เริ่มต้น', mode: 'manual', comm: 0, quota: 0, desc: 'ระบบสั่งอาหาร ตรวจสลิปเอง' },
 
         // --- กลุ่ม Basic (ตรวจสลิปเอง) ---
         { id: 'manual_1m', name: 'Basic (1 เดือน)', days: 30, price: 390, tag: 'สุดคุ้ม', mode: 'manual', comm: 100, quota: 0, desc: 'ตรวจสลิปเอง' },
@@ -28,7 +30,9 @@ const CONFIG = {
         { id: 'auto_12m', name: 'Pro (รายปี)', days: 365, price: 5990, tag: 'คุ้มสุด 👑', mode: 'auto', comm: 1800, quota: 3600, desc: 'ฟรีตรวจสลิป 3,600 บิล' }
     ],
 
-    // แพ็กเกจเติมโควต้าตรวจสลิปออโต้ (ขายเพิ่ม)
+    // ---------------------------------------------------------
+    // 6. แพ็กเกจเติมโควต้าตรวจสลิปออโต้ (Top-up Quota)
+    // ---------------------------------------------------------
     quotaPlans: [
         { id: 'q100', name: 'โควต้า 100 บิล', quota: 100, price: 100 },
         { id: 'q300', name: 'โควต้า 300 บิล', quota: 300, price: 250 },
