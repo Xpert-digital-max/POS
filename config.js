@@ -26,4 +26,11 @@ const CONFIG = {
         { id: 'auto_6m', name: 'Pro (6 เดือน)', days: 180, price: 3290, tag: 'ครึ่งปี', mode: 'auto', comm: 900, quota: 1800, desc: 'ฟรีตรวจสลิป 1,800 บิล' },
         { id: 'auto_12m', name: 'Pro (รายปี)', days: 365, price: 5990, tag: 'คุ้มสุด 👑', mode: 'auto', comm: 1800, quota: 3600, desc: 'ฟรีตรวจสลิป 3,600 บิล' }
     ]
+
+    // --- แพ็กเกจเติมโควต้าตรวจสลิปออโต้ (ขายเพิ่ม) ---
+    quotaPlans: [
+        { id: 'q100', name: 'โควต้า 100 บิล', quota: 100, price: 100 },
+        { id: 'q300', name: 'โควต้า 300 บิล', quota: 300, price: 250 }, // ซื้อเยอะ ลดราคาให้
+        { id: 'q500', name: 'โควต้า 500 บิล', quota: 500, price: 400 }
+    ]
 };
