@@ -50,10 +50,26 @@
     <!-- Modal QR Code Affiliate -->
     <div id="qrModal" style="display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 400; justify-content: center; align-items: center;">
         <div style="background: white; width: 90%; max-width: 320px; border-radius: 12px; padding: 20px; box-sizing: border-box; text-align: center;">
-            <h3 style="margin-top: 0; color: #06C755;">📷 ให้เพื่อนสแกน QR นี้</h3>
+            <h3 style="margin-top: 0; color: #06C755;">🤝 ให้เพื่อนสแกน QR นี้</h3>
             <p style="font-size: 13px; color: #666; margin-bottom: 15px;">เมื่อเพื่อนสมัครใช้งาน คุณจะได้รับค่าแนะนำ</p>
             <img id="affiliateQrImage" src="" style="width: 200px; height: 200px; border: 1px solid #ddd; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
             <button onclick="closeQrModal()" style="width: 100%; padding: 12px; border: none; border-radius: 6px; background: #eee; font-weight: bold; cursor: pointer; color: #555;">ปิดหน้าต่าง</button>
+        </div>
+    </div>
+
+    <!-- Modal QR Code สั่งอาหารสำหรับลูกค้า (NEW!) -->
+    <div id="customerQrModal" style="display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 400; justify-content: center; align-items: center;">
+        <div style="background: white; width: 90%; max-width: 320px; border-radius: 12px; padding: 20px; box-sizing: border-box; text-align: center;">
+            <h3 style="margin-top: 0; color: #00BCD4;">🍽️ สแกนเพื่อสั่งอาหาร</h3>
+            <p style="font-size: 13px; color: #666; margin-bottom: 15px;">บันทึกรูปนี้ไปปริ้นตั้งโต๊ะให้ลูกค้าสแกนได้เลย</p>
+            
+            <img id="customerQrImage" src="" style="width: 200px; height: 200px; border: 1px solid #ddd; padding: 10px; border-radius: 8px; margin-bottom: 10px;">
+            <p style="font-size: 11px; color: #888; margin-top: 0; margin-bottom: 15px;">(ในแอป LINE สามารถกดค้างที่รูปเพื่อบันทึกได้)</p>
+            
+            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                <button onclick="downloadCustomerQr()" style="flex: 1; padding: 12px; border: none; border-radius: 6px; background: #00BCD4; color: white; font-weight: bold; cursor: pointer;">⬇️ บันทึกรูปภาพ</button>
+            </div>
+            <button onclick="closeCustomerQrModal()" style="width: 100%; padding: 10px; border: none; border-radius: 6px; background: #eee; font-weight: bold; cursor: pointer; color: #555;">ปิดหน้าต่าง</button>
         </div>
     </div>
 
@@ -116,6 +132,26 @@
 
         <!-- 3. หน้าตั้งค่า -->
         <div id="settings" class="tab-content">
+
+            <!-- ====== ลิงก์ร้านค้า & QR Code สำหรับให้ลูกค้าสั่งอาหาร (NEW!) ====== -->
+            <div class="card" style="border-left: 4px solid #00BCD4; background: #e0f7fa;">
+                <h3 style="margin-top: 0; color: #00838F;">🍽️ ช่องทางสั่งอาหารของร้านคุณ</h3>
+                <p style="font-size: 13px; color: #666; margin-bottom: 10px;">แชร์ลิงก์หรือปริ้น QR Code เพื่อให้ลูกค้าสแกนสั่งอาหารได้ทันที</p>
+                
+                <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                    <input type="text" id="customerLinkText" readonly style="flex: 1; padding: 9px; border: 1px solid #b2ebf2; border-radius: 6px; font-size: 12px; background: #fff; color: #333;">
+                    <button onclick="copyCustomerLink()" style="background: #00838F; color: white; border: none; padding: 9px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">คัดลอกลิงก์</button>
+                </div>
+
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="shareCustomerFlex()" style="flex: 1; background: #00B900; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; display: flex; justify-content: center; align-items: center; gap: 5px;">
+                        📲 ส่งในแชทให้ลูกค้า
+                    </button>
+                    <button onclick="showCustomerQr()" style="flex: 1; background: #00BCD4; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; display: flex; justify-content: center; align-items: center; gap: 5px;">
+                        📷 QR Code ตั้งโต๊ะ
+                    </button>
+                </div>
+            </div>
             
             <!-- ====== ศูนย์ผู้แนะนำ Affiliate ====== -->
             <div class="card" style="border-left: 4px solid #ff9800; background: #fff8e1;">
@@ -134,13 +170,12 @@
                     <button onclick="copyAffiliateLink()" style="background: #e65100; color: white; border: none; padding: 9px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">คัดลอก</button>
                 </div>
 
-                <!-- เพิ่มปุ่มใหม่: แชร์ Flex Message และสร้าง QR Code -->
                 <div style="display: flex; gap: 8px;">
                     <button onclick="shareAffiliateFlex()" style="flex: 1; background: #00B900; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; display: flex; justify-content: center; align-items: center; gap: 5px;">
-                        📲 ส่งในแชท
+                        📲 ส่งในแชทให้เพื่อน
                     </button>
-                    <button onclick="showAffiliateQr()" style="flex: 1; background: #06C755; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; display: flex; justify-content: center; align-items: center; gap: 5px;">
-                        📷 สแกน QR
+                    <button onclick="showAffiliateQr()" style="flex: 1; background: #ff9800; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; display: flex; justify-content: center; align-items: center; gap: 5px;">
+                        📷 สแกน QR แนะนำ
                     </button>
                 </div>
             </div>
@@ -161,12 +196,9 @@
                     <span id="subStatusBadge" class="sub-badge sub-active">ใช้งานได้</span>
                 </div>
 
-                <!-- กล่องต่ออายุแพ็กเกจ -->
                 <div id="renewContainer" style="margin-top: 15px; padding-top: 12px; border-top: 1px dashed #bcdcff;">
                     <label style="font-size: 13px; font-weight: bold; color: #333; display: block; margin-bottom: 4px;">💳 ต่ออายุแพ็กเกจ / อัปเกรดระบบ</label>
-                    <select id="renewPlanSelect" onchange="updateRenewQr()" style="width: 100%; padding: 9px; margin-bottom: 10px; border: 1px solid #bcdcff; border-radius: 6px;">
-                        <!-- เติมรายการแพ็กเกจจาก config.js -->
-                    </select>
+                    <select id="renewPlanSelect" onchange="updateRenewQr()" style="width: 100%; padding: 9px; margin-bottom: 10px; border: 1px solid #bcdcff; border-radius: 6px;"></select>
                     <div style="background: white; padding: 12px; border-radius: 8px; text-align: center; margin-bottom: 10px; border: 1px solid #e0e0e0;">
                         <p style="margin: 0 0 6px 0; font-size: 13px; font-weight: bold; color: #333;">สแกนชำระค่าบริการ</p>
                         <img id="adminQrImage" src="" style="width: 130px; height: 130px; border: 1px solid #ddd; padding: 4px; border-radius: 6px;">
@@ -237,8 +269,75 @@
             if (vendorData.line_picture_url) document.getElementById('storeLogo').src = vendorData.line_picture_url;
 
             updateStoreStatusUI(vendorData.is_open);
+            
+            // สร้างลิงก์ร้านค้าให้ลูกค้าสั่งอาหาร
+            const baseUrl = window.location.href.split('dashboard.html')[0];
+            document.getElementById('customerLinkText').value = `${baseUrl}customer.html?vid=${vendorData.id}`;
+
             await loadCategories(); loadMenuItems(); loadOrders(); populateSettingsForm();
             renderSubscriptionInfo(); renderAffiliateInfo();
+        }
+
+        // ==================== ระบบ QR Code สำหรับลูกค้า (NEW!) ====================
+        function copyCustomerLink() {
+            const linkInput = document.getElementById('customerLinkText');
+            linkInput.select(); document.execCommand("copy");
+            alert("คัดลอกลิงก์ร้านค้าเรียบร้อยแล้ว!\nสามารถนำไปแปะในหน้าเพจ หรือส่งให้ลูกค้าได้เลยครับ");
+        }
+
+        function showCustomerQr() {
+            const customerLink = document.getElementById('customerLinkText').value;
+            const qrUrl = `https://quickchart.io/qr?text=${encodeURIComponent(customerLink)}&size=300`;
+            document.getElementById('customerQrImage').src = qrUrl;
+            document.getElementById('customerQrModal').style.display = 'flex';
+        }
+
+        function closeCustomerQrModal() { document.getElementById('customerQrModal').style.display = 'none'; }
+
+        // ฟังก์ชันดาวน์โหลด QR Code สำหรับลูกค้า
+        function downloadCustomerQr() {
+            const qrUrl = document.getElementById('customerQrImage').src;
+            fetch(qrUrl)
+              .then(response => response.blob())
+              .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `QR_${vendorData.name}_สั่งอาหาร.png`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+              })
+              .catch(() => alert('อุปกรณ์ของคุณไม่รองรับการดาวน์โหลดอัตโนมัติ\nกรุณากดค้างที่รูปภาพเพื่อกดบันทึกลงเครื่องครับ'));
+        }
+
+        function shareCustomerFlex() {
+            if (!liff.isLoggedIn()) return;
+            const refLink = document.getElementById('customerLinkText').value;
+            const storeName = vendorData.name || "ร้านของเรา";
+
+            const flexMsg = {
+              "type": "flex",
+              "altText": `สั่งอาหารจากร้าน ${storeName}`,
+              "contents": {
+                "type": "bubble",
+                "header": { "type": "box", "layout": "vertical", "backgroundColor": "#00BCD4", "contents": [{ "type": "text", "text": "🍽️ เมนูอาหาร", "color": "#FFFFFF", "weight": "bold", "size": "xl" }] },
+                "body": { "type": "box", "layout": "vertical", "spacing": "md", "contents": [
+                    { "type": "text", "text": `ร้าน ${storeName}`, "weight": "bold", "color": "#333333", "size": "md" },
+                    { "type": "text", "text": "หิวแล้วใช่ไหม? สั่งอาหารออนไลน์ได้ง่ายๆ ไม่ต้องรอคิว กดดูเมนูเลย!", "wrap": true, "color": "#666666", "size": "sm" }
+                ]},
+                "footer": { "type": "box", "layout": "vertical", "contents": [
+                    { "type": "button", "style": "primary", "color": "#00BCD4", "action": { "type": "uri", "label": "คลิกสั่งอาหารตรงนี้", "uri": refLink } }
+                ]}
+              }
+            };
+
+            if (liff.isApiAvailable('shareTargetPicker')) {
+                liff.shareTargetPicker([flexMsg]).then(function (res) {
+                    if (res) alert('ส่งลิงก์ร้านให้ลูกค้าสำเร็จ! 🎉');
+                }).catch(function (error) { console.error('Error sharing:', error); });
+            } else { alert('อุปกรณ์ไม่รองรับ กรุณากดคัดลอกลิงก์ส่งให้ลูกค้าแทนครับ'); }
         }
 
         // ==================== ระบบ Affiliate & QR & Flex ====================
@@ -255,7 +354,6 @@
             alert("คัดลอกลิงก์แนะนำเรียบร้อยแล้ว!\nส่งให้เพื่อนสมัครเพื่อรับค่าคอมมิชชั่นได้เลยครับ 🤝");
         }
 
-        // --- ใหม่: แชร์ Flex Message ---
         function shareAffiliateFlex() {
             if (!liff.isLoggedIn()) return;
             const refLink = document.getElementById('affiliateLink').value;
@@ -266,58 +364,28 @@
               "altText": `${storeName} ชวนคุณเปิดร้านอาหารระบบใหม่ ทดลองใช้ฟรี!`,
               "contents": {
                 "type": "bubble",
-                "header": {
-                  "type": "box",
-                  "layout": "vertical",
-                  "backgroundColor": "#06C755",
-                  "contents": [
-                    { "type": "text", "text": "Food POS System", "color": "#FFFFFF", "weight": "bold", "size": "xl" }
-                  ]
-                },
-                "body": {
-                  "type": "box",
-                  "layout": "vertical",
-                  "spacing": "md",
-                  "contents": [
+                "header": { "type": "box", "layout": "vertical", "backgroundColor": "#06C755", "contents": [{ "type": "text", "text": "Food POS System", "color": "#FFFFFF", "weight": "bold", "size": "xl" }] },
+                "body": { "type": "box", "layout": "vertical", "spacing": "md", "contents": [
                     { "type": "text", "text": `คำชวนจาก: ${storeName}`, "weight": "bold", "color": "#333333", "size": "md" },
                     { "type": "text", "text": "จัดการออเดอร์ร้านอาหารง่ายๆ ผ่าน LINE พร้อมระบบตรวจสลิปอัตโนมัติ ทดลองใช้ฟรี!", "wrap": true, "color": "#666666", "size": "sm" }
-                  ]
-                },
-                "footer": {
-                  "type": "box",
-                  "layout": "vertical",
-                  "contents": [
-                    {
-                      "type": "button",
-                      "style": "primary",
-                      "color": "#06C755",
-                      "action": { "type": "uri", "label": "เปิดร้านค้าเลย (ฟรี)", "uri": refLink }
-                    }
-                  ]
-                }
+                ]},
+                "footer": { "type": "box", "layout": "vertical", "contents": [
+                    { "type": "button", "style": "primary", "color": "#06C755", "action": { "type": "uri", "label": "เปิดร้านค้าเลย (ฟรี)", "uri": refLink } }
+                ]}
               }
             };
 
             if (liff.isApiAvailable('shareTargetPicker')) {
-                liff.shareTargetPicker([flexMsg]).then(function (res) {
-                    if (res) alert('ส่งคำชวนให้เพื่อนสำเร็จ! 🎉');
-                }).catch(function (error) {
-                    console.error('Error sharing:', error);
-                });
-            } else {
-                alert('อุปกรณ์ของคุณไม่รองรับการส่งข้อความผ่านปุ่มนี้ กรุณากดคัดลอกลิงก์ส่งให้เพื่อนแทนครับ');
-            }
+                liff.shareTargetPicker([flexMsg]).then(function (res) { if (res) alert('ส่งคำชวนให้เพื่อนสำเร็จ! 🎉'); }).catch(function (error) { console.error('Error sharing:', error); });
+            } else { alert('อุปกรณ์ของคุณไม่รองรับการส่งข้อความผ่านปุ่มนี้ กรุณากดคัดลอกลิงก์ส่งให้เพื่อนแทนครับ'); }
         }
 
-        // --- ใหม่: สร้าง QR Code ให้สแกน ---
         function showAffiliateQr() {
             const refLink = document.getElementById('affiliateLink').value;
-            // ใช้บริการ QuickChart สร้าง QR แบบเร็วๆ
             const qrUrl = `https://quickchart.io/qr?text=${encodeURIComponent(refLink)}&size=300`;
             document.getElementById('affiliateQrImage').src = qrUrl;
             document.getElementById('qrModal').style.display = 'flex';
         }
-
         function closeQrModal() { document.getElementById('qrModal').style.display = 'none'; }
 
         // --- ระบบถอนเงิน ---
@@ -327,36 +395,25 @@
             document.getElementById('withdrawModal').style.display = 'flex';
             document.getElementById('withdrawAmount').value = ''; updateWithdrawInfo();
         }
-
         function closeWithdrawModal() { document.getElementById('withdrawModal').style.display = 'none'; }
 
         function updateWithdrawInfo() {
-            const type = document.getElementById('withdrawType').value;
-            const balance = vendorData.wallet_balance || 0;
-            const infoDiv = document.getElementById('withdrawInfo');
-
+            const type = document.getElementById('withdrawType').value; const balance = vendorData.wallet_balance || 0; const infoDiv = document.getElementById('withdrawInfo');
             if (type === 'cash') {
                 const maxCash = Math.max(0, balance - 100);
                 infoDiv.innerHTML = `* ถอนเงินสด: ต้องเหลือเงินติดกระเป๋าขั้นต่ำ 100 บาท<br>(ถอนได้สูงสุด: <b>฿${maxCash}</b>)`;
-            } else {
-                infoDiv.innerHTML = `* ชำระค่าแพ็กเกจ: สามารถใช้ยอดเงินได้ 100%<br>(ใช้ได้สูงสุด: <b>฿${balance}</b>)`;
-            }
+            } else { infoDiv.innerHTML = `* ชำระค่าแพ็กเกจ: สามารถใช้ยอดเงินได้ 100%<br>(ใช้ได้สูงสุด: <b>฿${balance}</b>)`; }
         }
 
         async function submitWithdraw() {
-            const type = document.getElementById('withdrawType').value;
-            const amount = parseFloat(document.getElementById('withdrawAmount').value);
-            const balance = vendorData.wallet_balance || 0;
-            const btn = document.getElementById('submitWithdrawBtn');
+            const type = document.getElementById('withdrawType').value; const amount = parseFloat(document.getElementById('withdrawAmount').value);
+            const balance = vendorData.wallet_balance || 0; const btn = document.getElementById('submitWithdrawBtn');
 
             if (!amount || amount <= 0) { alert('กรุณาระบุจำนวนเงินให้ถูกต้อง'); return; }
-
             if (type === 'cash') {
                 if (balance < 100) return alert('ไม่สามารถถอนเงินสดได้ (ต้องมียอดสะสมมากกว่า 100 บาท)');
                 if (amount > balance - 100) return alert(`ถอนเงินสดได้สูงสุด ${balance - 100} บาท (ต้องเหลือขั้นต่ำ 100 บาท)`);
-            } else {
-                if (amount > balance) return alert(`ยอดเงินไม่พอ (ใช้ชำระแพ็กเกจได้สูงสุด ${balance} บาท)`);
-            }
+            } else { if (amount > balance) return alert(`ยอดเงินไม่พอ (ใช้ชำระแพ็กเกจได้สูงสุด ${balance} บาท)`); }
 
             btn.innerText = "กำลังประมวลผล..."; btn.disabled = true;
             try {
@@ -365,11 +422,7 @@
                 vendorData.wallet_balance = newBalance; document.getElementById('walletBalance').innerText = newBalance;
 
                 await fetch(CONFIG.gasWebhookUrl, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        action: 'withdraw_request', vendor_id: vendorData.id, store_name: vendorData.name, 
-                        phone: vendorData.phone, promptpay: vendorData.promptpay_number, type: type, amount: amount
-                    })
+                    method: 'POST', body: JSON.stringify({ action: 'withdraw_request', vendor_id: vendorData.id, store_name: vendorData.name, phone: vendorData.phone, promptpay: vendorData.promptpay_number, type: type, amount: amount })
                 });
 
                 alert('ส่งคำร้องเรียบร้อยแล้ว แอดมินจะตรวจสอบและดำเนินการให้เร็วที่สุดครับ!');
@@ -407,10 +460,8 @@
         }
 
         async function verifyAndRenewSubscription() {
-            const fileInput = document.getElementById('renewSlipImage');
-            const select = document.getElementById('renewPlanSelect');
-            const opt = select.options[select.selectedIndex];
-            const btn = document.getElementById('renewBtn');
+            const fileInput = document.getElementById('renewSlipImage'); const select = document.getElementById('renewPlanSelect');
+            const opt = select.options[select.selectedIndex]; const btn = document.getElementById('renewBtn');
 
             if (fileInput.files.length === 0) { alert("กรุณาเลือกไฟล์รูปภาพสลิปการโอนเงินก่อนกดตรวจสอบ"); return; }
             const expectedPrice = opt.getAttribute('data-price'); const planDays = parseInt(opt.getAttribute('data-days'));
