@@ -446,7 +446,13 @@
                 } else {
                     alert("ส่งออเดอร์เรียบร้อยแล้ว!\n(รอร้านค้าตรวจสอบสลิปและยืนยันรับออเดอร์สักครู่นะครับ)");
                 }
-                window.location.reload(); 
+                
+                // ปิดหน้าต่าง LIFF กลับสู่หน้าแชทอัตโนมัติ (NEW!)
+                if (liff.isInClient()) {
+                    liff.closeWindow();
+                } else {
+                    window.location.reload(); 
+                }
             }
 
             btn.innerText = "ยืนยันการสั่งซื้อ";
