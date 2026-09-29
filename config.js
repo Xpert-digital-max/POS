@@ -36,7 +36,7 @@ const CONFIG = {
     // 5. โครงสร้างแพ็กเกจ (Pricing Plans)
     // ---------------------------------------------------------
     pricingPlans: [
-        { id: 'trial', name: 'ทดลองใช้ฟรี', days: 7, price: 0, tag: 'เริ่มต้น', mode: 'manual', comm: 0, quota: 0, desc: 'ระบบสั่งอาหาร ตรวจสลิปเอง' },
+        { id: 'trial', name: 'ทดลองใช้ฟรี', days: 10, price: 0, tag: 'เริ่มต้น', mode: 'auto', comm: 0, quota: 20, desc: 'ระบบสั่งอาหาร ฟรีตรวจสลิป 20 บิล' },
 
         // --- กลุ่ม Basic (ตรวจสลิปเอง) ---
         { id: 'manual_1m', name: 'Basic (1 เดือน)', days: 30, price: 390, tag: 'สุดคุ้ม', mode: 'manual', comm: 100, quota: 0, desc: 'ตรวจสลิปเอง' },
