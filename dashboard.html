@@ -204,7 +204,7 @@
 
                 <div class="section-divider"></div>
 
-                <!-- 2. ซื้อโควต้าสลิปเพิ่ม (สำหรับระบบ Auto) -->
+                <!-- 2. ซื้อโควต้าสลิปเพิ่ม -->
                 <div id="topupQuotaContainer">
                     <label style="font-size: 13px; font-weight: bold; color: #06C755; display: block; margin-bottom: 4px;">➕ เติมโควต้าตรวจสลิปอัตโนมัติ</label>
                     <select id="quotaPlanSelect" onchange="updateQuotaQr()" style="width: 100%; padding: 9px; margin-bottom: 10px; border: 1px solid #bcdcff; border-radius: 6px;"></select>
@@ -336,7 +336,7 @@
             } else { alert('อุปกรณ์ไม่รองรับ กรุณากดคัดลอกลิงก์ส่งให้ลูกค้าแทนครับ'); }
         }
 
-        // ==================== ระบบ Affiliate & ถอนเงิน ====================
+        // ==================== ระบบ Affiliate ====================
         function renderAffiliateInfo() {
             if (!vendorData) return;
             document.getElementById('walletBalance').innerText = vendorData.wallet_balance || 0;
@@ -378,6 +378,7 @@
         }
         function closeQrModal() { document.getElementById('qrModal').style.display = 'none'; }
 
+        // --- ระบบถอนเงิน ---
         function openWithdrawModal() {
             if (!vendorData) return;
             if (vendorData.wallet_balance <= 0) { alert('ยอดเงินสะสมของคุณเป็น 0 บาท ยังไม่สามารถทำรายการได้ครับ'); return; }
@@ -412,6 +413,7 @@
                 await fetch(CONFIG.gasWebhookUrl, {
                     method: 'POST', body: JSON.stringify({ action: 'withdraw_request', vendor_id: vendorData.id, store_name: vendorData.name, phone: vendorData.phone, promptpay: vendorData.promptpay_number, type: type, amount: amount })
                 });
+
                 alert('ส่งคำร้องเรียบร้อยแล้ว แอดมินจะตรวจสอบและดำเนินการให้เร็วที่สุดครับ!');
                 closeWithdrawModal();
             } catch (error) { alert('เกิดข้อผิดพลาด: ' + error.message); }
@@ -619,7 +621,7 @@
         async function deleteMenu(menuId, menuName) { if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบ "${menuName}"?`)) return; await supabaseClient.from('menu_items').delete().eq('id', menuId); loadMenuItems(); }
         async function toggleMenuStatus(menuId, currentStatus) { await supabaseClient.from('menu_items').update({ is_available: !currentStatus }).eq('id', menuId); loadMenuItems(); }
 
-        // ==================== ระบบออเดอร์ & ลำดับคิว (NEW!) ====================
+        // ==================== ระบบออเดอร์ & อัปเดตสถานะด้วย Flex Message ====================
         async function toggleStoreStatus() {
             if (!vendorData) return;
             if (vendorData.subscription_expires_at && new Date() > new Date(vendorData.subscription_expires_at)) { alert("⚠️ ไม่สามารถเปิดร้านได้: แพ็กเกจของคุณหมดอายุแล้ว\nกรุณาต่ออายุที่แท็บ 'ตั้งค่า'"); return; }
@@ -644,13 +646,11 @@
                 let itemsHtml = ''; 
                 for (let key in items) itemsHtml += `<li style="font-size: 14px; margin-bottom: 3px;">${items[key].qty}x ${items[key].name}</li>`;
                 
-                // --- สร้างเลขคิว และ หมายเลขอ้างอิงออเดอร์ ---
                 const d = new Date(order.created_at);
                 const orderTime = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }); 
                 const orderDateTh = d.toLocaleDateString('th-TH');
-                
                 const dateStr = d.getFullYear().toString().slice(-2) + ('0' + (d.getMonth()+1)).slice(-2) + ('0' + d.getDate()).slice(-2);
-                const orderRef = `${dateStr}-${order.id.substring(0,4).toUpperCase()}`; // เช่น 261029-A1B2
+                const orderRef = `${dateStr}-${order.id.substring(0,4).toUpperCase()}`; 
                 const queueNum = index + 1;
                 const custUid = order.customer_uid || '';
                 
@@ -683,28 +683,97 @@
             orderListDiv.innerHTML = html;
         }
 
+        // --- NEW: ฟังก์ชันเปลี่ยนสถานะและส่ง Flex Message ไปหาลูกค้า ---
         async function updateOrderStatus(orderId, newStatus, customerUid, orderRef, queueNum, orderDateTh) {
-            let confirmMsg = ""; let notifyMsg = "";
+            let confirmMsg = ""; 
+            let flexMessageObj = null;
             
-            // --- จัดรูปแบบข้อความแจ้งเตือนลูกค้าให้สวยงาม มีเลขคิวและอ้างอิง ---
+            // 1. สร้างก้อน Flex Message ตามสถานะ
             if (newStatus === 'processing') { 
                 confirmMsg = "ตรวจสอบสลิปถูกต้อง และรับคิวนี้ใช่หรือไม่?"; 
-                notifyMsg = `ร้าน ${vendorData.name} รับออเดอร์แล้ว! 🎉\n📅 วันที่: ${orderDateTh}\n🏷️ หมายเลขอ้างอิง: ${orderRef}\n📌 คิวรอทำ: ลำดับที่ ${queueNum}\n👨‍🍳 กำลังเร่งเตรียมอาหารให้ครับ!`; 
+                flexMessageObj = {
+                  "type": "flex", "altText": `ร้านรับออเดอร์แล้ว (คิวที่ ${queueNum})`,
+                  "contents": {
+                    "type": "bubble",
+                    "header": { "type": "box", "layout": "vertical", "backgroundColor": "#06C755", "contents": [{ "type": "text", "text": "👨‍🍳 ร้านรับออเดอร์แล้ว!", "color": "#FFFFFF", "weight": "bold", "size": "lg" }] },
+                    "body": { "type": "box", "layout": "vertical", "spacing": "sm", "contents": [
+                        { "type": "text", "text": vendorData.name, "weight": "bold", "size": "xl", "color": "#333333" },
+                        { "type": "text", "text": `วันที่: ${orderDateTh}`, "size": "xs", "color": "#aaaaaa" },
+                        { "type": "separator", "margin": "md" },
+                        { "type": "box", "layout": "vertical", "margin": "md", "spacing": "sm", "contents": [
+                            { "type": "box", "layout": "horizontal", "contents": [
+                                { "type": "text", "text": "หมายเลขอ้างอิง", "size": "sm", "color": "#555555", "flex": 1 },
+                                { "type": "text", "text": orderRef, "size": "sm", "color": "#111111", "align": "end", "weight": "bold" }
+                            ]},
+                            { "type": "box", "layout": "horizontal", "margin": "md", "contents": [
+                                { "type": "text", "text": "คิวที่", "size": "md", "color": "#555555", "flex": 1, "gravity": "center" },
+                                { "type": "text", "text": String(queueNum), "size": "4xl", "color": "#06C755", "align": "end", "weight": "bold" }
+                            ]}
+                        ]},
+                        { "type": "separator", "margin": "md" },
+                        { "type": "text", "text": "กำลังเร่งเตรียมอาหารให้ครับ กรุณารอสักครู่", "size": "sm", "color": "#666666", "wrap": true, "margin": "md" }
+                    ]}
+                  }
+                };
             }
             if (newStatus === 'rejected') { 
                 confirmMsg = "ต้องการยกเลิกออเดอร์นี้ใช่หรือไม่?"; 
-                notifyMsg = `ขออภัยครับ ออเดอร์ของคุณถูกยกเลิก ❌\n🏷️ หมายเลขอ้างอิง: ${orderRef}\nกรุณาติดต่อร้าน ${vendorData.name} เพื่อตรวจสอบหรือรับเงินคืนครับ`; 
+                flexMessageObj = {
+                  "type": "flex", "altText": `ออเดอร์ถูกยกเลิก (อ้างอิง: ${orderRef})`,
+                  "contents": {
+                    "type": "bubble",
+                    "header": { "type": "box", "layout": "vertical", "backgroundColor": "#ff4d4f", "contents": [{ "type": "text", "text": "❌ ยกเลิกออเดอร์", "color": "#FFFFFF", "weight": "bold", "size": "lg" }] },
+                    "body": { "type": "box", "layout": "vertical", "spacing": "sm", "contents": [
+                        { "type": "text", "text": vendorData.name, "weight": "bold", "size": "xl", "color": "#333333" },
+                        { "type": "separator", "margin": "md" },
+                        { "type": "box", "layout": "horizontal", "margin": "md", "contents": [
+                            { "type": "text", "text": "หมายเลขอ้างอิง", "size": "sm", "color": "#555555" },
+                            { "type": "text", "text": orderRef, "size": "sm", "color": "#111111", "align": "end", "weight": "bold" }
+                        ]},
+                        { "type": "text", "text": "ขออภัยครับ ออเดอร์ของคุณถูกยกเลิก กรุณาติดต่อร้านเพื่อตรวจสอบหรือรับเงินคืน", "size": "sm", "color": "#ff4d4f", "wrap": true, "margin": "md" }
+                    ]}
+                  }
+                };
             }
             if (newStatus === 'completed') { 
                 confirmMsg = "อาหารเสร็จแล้ว ส่งมอบเรียบร้อยใช่หรือไม่?"; 
-                notifyMsg = `🔔 อาหารเสร็จแล้วคร้าบ!\n🏷️ หมายเลขอ้างอิง: ${orderRef}\n📌 คิวรอทำ: ลำดับที่ ${queueNum}\nมารับที่ร้าน ${vendorData.name} ได้เลยครับ 🏁\nขอบคุณที่ใช้บริการครับ`; 
+                flexMessageObj = {
+                  "type": "flex", "altText": `อาหารเสร็จแล้ว! (คิวที่ ${queueNum})`,
+                  "contents": {
+                    "type": "bubble",
+                    "header": { "type": "box", "layout": "vertical", "backgroundColor": "#2196F3", "contents": [{ "type": "text", "text": "🏁 อาหารเสร็จแล้ว!", "color": "#FFFFFF", "weight": "bold", "size": "lg" }] },
+                    "body": { "type": "box", "layout": "vertical", "spacing": "sm", "contents": [
+                        { "type": "text", "text": "คิวที่", "size": "md", "color": "#555555", "align": "center", "margin": "md" },
+                        { "type": "text", "text": String(queueNum), "size": "5xl", "color": "#2196F3", "align": "center", "weight": "bold" },
+                        { "type": "separator", "margin": "lg" },
+                        { "type": "box", "layout": "horizontal", "margin": "md", "contents": [
+                            { "type": "text", "text": "หมายเลขอ้างอิง", "size": "sm", "color": "#555555" },
+                            { "type": "text", "text": orderRef, "size": "sm", "color": "#111111", "align": "end", "weight": "bold" }
+                        ]},
+                        { "type": "text", "text": `มารับอาหารที่ร้าน ${vendorData.name} ได้เลยครับ ขอบคุณที่ใช้บริการ!`, "size": "sm", "color": "#666666", "wrap": true, "margin": "md", "align": "center" }
+                    ]}
+                  }
+                };
             }
 
             if (!confirm(confirmMsg)) return;
+
+            // 2. อัปเดตสถานะใน Supabase
             await supabaseClient.from('orders').update({ status: newStatus }).eq('id', orderId);
             
+            // 3. ส่งข้อมูล Flex ไปให้ GAS จัดการยิงเข้า LINE ลูกค้า
             if (customerUid && customerUid !== '') { 
-                try { await fetch(CONFIG.gasWebhookUrl, { method: 'POST', body: JSON.stringify({ action: 'notify_customer', vendor_id: vendorData.id, uid: customerUid, message: notifyMsg }) }); } catch (e) {} 
+                try { 
+                    await fetch(CONFIG.gasWebhookUrl, { 
+                        method: 'POST', 
+                        body: JSON.stringify({ 
+                            action: 'notify_customer', 
+                            vendor_id: vendorData.id, 
+                            uid: customerUid, 
+                            flexMessage: flexMessageObj 
+                        }) 
+                    }); 
+                } catch (e) {} 
             }
             loadOrders(); 
         }
