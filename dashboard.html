@@ -4,25 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ระบบจัดการร้านค้า</title>
-    <!-- นำเข้า LIFF, Supabase และ config.js -->
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <style>
         body { font-family: sans-serif; margin: 0; background-color: #f4f6f8; }
-        /* Header */
         .header { background: #06C755; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
         .store-info { display: flex; align-items: center; gap: 10px; }
         .store-info img { width: 40px; height: 40px; border-radius: 50%; border: 2px solid white; object-fit: cover;}
-        /* Tab Menu */
         .tab-menu { display: flex; background: white; border-bottom: 1px solid #ddd; }
-        .tab-btn { flex: 1; padding: 15px; border: none; background: none; cursor: pointer; font-size: 16px; font-weight: bold; color: #777; }
+        .tab-btn { flex: 1; padding: 15px; border: none; background: none; cursor: pointer; font-size: 15px; font-weight: bold; color: #777; }
         .tab-btn.active { color: #06C755; border-bottom: 3px solid #06C755; }
-        /* Content */
         .content { padding: 20px; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 15px;}
+        .cat-chip { display: inline-flex; align-items: center; gap: 6px; background: #e8f5e9; color: #2e7d32; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: bold; margin: 4px; border: 1px solid #c8e6c9; }
+        .cat-chip button { background: none; border: none; cursor: pointer; font-size: 12px; color: #666; padding: 0 2px; }
     </style>
 </head>
 <body>
@@ -35,7 +33,6 @@
         </div>
         <div style="text-align: right;">
             <label style="font-size: 12px; display: block; margin-bottom: 3px;">สถานะร้าน</label>
-            <!-- ปุ่มสวิตช์เปิด-ปิดร้าน -->
             <button id="storeStatusBtn" onclick="toggleStoreStatus()" style="background: #ff4d4f; color: white; border: none; padding: 6px 15px; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                 🔴 ปิดร้าน
             </button>
@@ -49,9 +46,8 @@
         <button class="tab-btn" onclick="switchTab('settings')">⚙️ ตั้งค่า</button>
     </div>
 
-    <!-- พื้นที่แสดงเนื้อหา -->
     <div class="content">
-        <!-- หน้าออเดอร์ -->
+        <!-- 1. หน้าออเดอร์ -->
         <div id="orders" class="tab-content active">
             <h2 style="display: flex; justify-content: space-between; align-items: center;">
                 คิวรอทำ 
@@ -59,20 +55,35 @@
             </h2>
             <div id="orderList">
                 <p style="text-align: center; color: #888;">กำลังโหลด...</p>
-                <!-- การ์ดออเดอร์จะถูกดึงมาแทรกตรงนี้ -->
             </div>
         </div>
 
-        <!-- หน้าจัดการเมนู -->
+        <!-- 2. หน้าจัดการเมนูและหมวดหมู่ -->
         <div id="menu" class="tab-content">
-            <h2>จัดการเมนูอาหาร</h2>
-            
-            <!-- กล่องฟอร์มเพิ่มเมนู -->
+            <!-- จัดการหมวดหมู่สินค้า -->
+            <div class="card" style="border-left: 4px solid #06C755;">
+                <h3 style="margin-top: 0;">🏷️ จัดการหมวดหมู่สินค้า</h3>
+                <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                    <input type="text" id="newCategoryName" placeholder="เช่น อาหารจานด่วน, เครื่องดื่ม, ของหวาน" style="flex: 1; padding: 9px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+                    <button onclick="saveCategory()" id="saveCatBtn" style="background: #06C755; color: white; border: none; padding: 9px 15px; border-radius: 6px; cursor: pointer; font-weight: bold;">+ เพิ่ม</button>
+                </div>
+                <div id="categoryChips">กำลังโหลดหมวดหมู่...</div>
+            </div>
+
+            <!-- กล่องฟอร์มเพิ่ม/แก้ไขเมนู -->
             <div class="card" style="background: #f9f9f9; border: 1px dashed #ccc;">
-                <input type="text" id="menuName" placeholder="ชื่อเมนู (เช่น ข้าวกะเพราหมูสับ)" style="width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box;">
-                <input type="number" id="menuPrice" placeholder="ราคา (บาท)" style="width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box;">
+                <h3 style="margin-top: 0;" id="formTitle">🍔 เพิ่มเมนูใหม่</h3>
+                <input type="text" id="menuName" placeholder="ชื่อเมนู (เช่น ข้าวกะเพราหมูสับ)" style="width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
+                
+                <label style="font-size: 13px; font-weight: bold; color: #555;">หมวดหมู่อาหาร</label>
+                <select id="menuCategorySelect" style="width: 100%; padding: 10px; margin-bottom: 10px; margin-top: 4px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
+                    <option value="">-- ไม่ระบุหมวดหมู่ --</option>
+                </select>
+
+                <input type="number" id="menuPrice" placeholder="ราคา (บาท)" style="width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
                 <input type="file" id="menuImage" accept="image/*" style="margin-bottom: 10px;">
-                <button onclick="addNewMenu()" id="saveMenuBtn" style="background: #06C755; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px;">💾 บันทึกเมนูใหม่</button>
+                <button onclick="addNewMenu()" id="saveMenuBtn" style="background: #06C755; color: white; border: none; padding: 11px; border-radius: 6px; cursor: pointer; width: 100%; font-size: 15px; font-weight: bold;">💾 บันทึกเมนูใหม่</button>
+                <button onclick="resetFormState()" id="cancelEditBtn" style="display: none; background: #eee; color: #555; border: none; padding: 8px; border-radius: 6px; cursor: pointer; width: 100%; font-size: 14px; margin-top: 6px;">ยกเลิกการแก้ไข</button>
             </div>
 
             <div id="menuList" style="margin-top: 15px;">
@@ -80,7 +91,7 @@
             </div>
         </div>
 
-        <!-- หน้าตั้งค่า -->
+        <!-- 3. หน้าตั้งค่า -->
         <div id="settings" class="tab-content">
             <h2>การตั้งค่าร้านค้า</h2>
             <div class="card" style="background: #f9f9f9; border: 1px dashed #ccc;">
@@ -88,15 +99,14 @@
                 <input type="file" id="settingStoreLogo" accept="image/*" style="margin-bottom: 15px; width: 100%; margin-top: 5px;">
                 
                 <label style="font-size: 14px; font-weight: bold; color: #555;">ชื่อร้านอาหาร</label>
-                <input type="text" id="settingStoreName" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box;">
+                <input type="text" id="settingStoreName" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
                 
                 <label style="font-size: 14px; font-weight: bold; color: #555;">เบอร์โทรศัพท์ติดต่อ</label>
-                <input type="tel" id="settingPhone" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box;">
+                <input type="tel" id="settingPhone" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
                 
                 <label style="font-size: 14px; font-weight: bold; color: #555;">เบอร์พร้อมเพย์ (รับเงิน)</label>
-                <input type="text" id="settingPromptpay" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box;">
+                <input type="text" id="settingPromptpay" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
 
-                <!-- เพิ่มเมนูเลือกระบบตรวจสอบสลิป -->
                 <label style="font-size: 14px; font-weight: bold; color: #555;">ระบบตรวจสอบสลิป</label>
                 <select id="settingSlipMode" style="width: 100%; padding: 10px; margin-bottom: 20px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 8px;">
                     <option value="manual">ตรวจสอบด้วยตัวเอง (Manual)</option>
@@ -108,26 +118,23 @@
         </div>
     </div>
 
-    <!-- ส่วนของ JavaScript -->
     <script>
-        // เรียกใช้ตัวแปรจากไฟล์ config.js
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
-        let vendorData = null; // เก็บข้อมูลร้านค้าของแม่ค้าคนนี้
+        let vendorData = null;
+        let categories = [];
+        let editingMenuId = null;
+        let editingCategoryId = null;
 
-        // 2. ฟังก์ชันสลับ Tab
         function switchTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-            
             document.getElementById(tabId).classList.add('active');
             event.target.classList.add('active');
         }
 
-        // 3. เริ่มต้น LIFF และดึงข้อมูลร้าน
         async function initDashboard() {
             try {
                 await liff.init({ liffId: CONFIG.liffIdDashboard });
-                
                 if (liff.isLoggedIn()) {
                     const profile = await liff.getProfile();
                     loadVendorData(profile.userId);
@@ -140,7 +147,6 @@
             }
         }
 
-        // 4. ค้นหาร้านค้าจาก LINE UID
         async function loadVendorData(uid) {
             const { data, error } = await supabaseClient
                 .from('vendors')
@@ -156,23 +162,106 @@
 
             vendorData = data;
             document.getElementById('storeName').innerText = vendorData.name;
-            if(vendorData.line_picture_url) {
+            if (vendorData.line_picture_url) {
                 document.getElementById('storeLogo').src = vendorData.line_picture_url;
             }
 
             updateStoreStatusUI(vendorData.is_open);
 
+            await loadCategories();
             loadMenuItems(); 
             loadOrders();
             populateSettingsForm();
         }
 
-        let editingMenuId = null; 
+        // ==================== ระบบหมวดหมู่ ====================
+        async function loadCategories() {
+            if (!vendorData) return;
+            const { data, error } = await supabaseClient
+                .from('categories')
+                .select('*')
+                .eq('vendor_id', vendorData.id)
+                .order('created_at', { ascending: true });
 
-        // 5. ฟังก์ชันเพิ่ม และ แก้ไขเมนู
+            categories = data || [];
+
+            // 1. เรนเดอร์ Chips หมวดหมู่ด้านบน
+            const chipsDiv = document.getElementById('categoryChips');
+            if (categories.length === 0) {
+                chipsDiv.innerHTML = '<span style="font-size: 13px; color: #888;">ยังไม่มีหมวดหมู่ (กดเพิ่มด้านบนได้เลย)</span>';
+            } else {
+                let html = '';
+                categories.forEach(cat => {
+                    html += `
+                        <span class="cat-chip">
+                            ${cat.name}
+                            <button onclick="editCategory('${cat.id}', '${cat.name}')" title="แก้ไข">✏️</button>
+                            <button onclick="deleteCategory('${cat.id}', '${cat.name}')" title="ลบ" style="color: #d32f2f;">✕</button>
+                        </span>
+                    `;
+                });
+                chipsDiv.innerHTML = html;
+            }
+
+            // 2. เติมตัวเลือกใน Dropdown ของฟอร์มเพิ่มเมนู
+            const selectEl = document.getElementById('menuCategorySelect');
+            selectEl.innerHTML = '<option value="">-- ไม่ระบุหมวดหมู่ --</option>';
+            categories.forEach(cat => {
+                selectEl.innerHTML += `<option value="${cat.id}">${cat.name}</option>`;
+            });
+        }
+
+        async function saveCategory() {
+            const input = document.getElementById('newCategoryName');
+            const name = input.value.trim();
+            if (!name) {
+                alert("กรุณากรอกชื่อหมวดหมู่");
+                return;
+            }
+
+            if (editingCategoryId) {
+                const { error } = await supabaseClient
+                    .from('categories')
+                    .update({ name: name })
+                    .eq('id', editingCategoryId);
+                if (error) alert("แก้ไขหมวดหมู่ไม่สำเร็จ: " + error.message);
+                editingCategoryId = null;
+                document.getElementById('saveCatBtn').innerText = "+ เพิ่ม";
+            } else {
+                const { error } = await supabaseClient
+                    .from('categories')
+                    .insert([{ vendor_id: vendorData.id, name: name }]);
+                if (error) alert("เพิ่มหมวดหมู่ไม่สำเร็จ: " + error.message);
+            }
+
+            input.value = '';
+            await loadCategories();
+            loadMenuItems();
+        }
+
+        function editCategory(id, currentName) {
+            editingCategoryId = id;
+            const input = document.getElementById('newCategoryName');
+            input.value = currentName;
+            input.focus();
+            document.getElementById('saveCatBtn').innerText = "💾 แก้ไข";
+        }
+
+        async function deleteCategory(id, name) {
+            if (!confirm(`ยืนยันการลบหมวดหมู่ "${name}"?\n(เมนูในหมวดนี้จะไม่ถูกลบ แต่จะกลายเป็นไม่มีหมวดหมู่)`)) return;
+            const { error } = await supabaseClient.from('categories').delete().eq('id', id);
+            if (error) alert("ลบไม่สำเร็จ: " + error.message);
+            else {
+                await loadCategories();
+                loadMenuItems();
+            }
+        }
+
+        // ==================== ระบบจัดการเมนูอาหาร ====================
         async function addNewMenu() {
-            const name = document.getElementById('menuName').value;
+            const name = document.getElementById('menuName').value.trim();
             const price = document.getElementById('menuPrice').value;
+            const categoryId = document.getElementById('menuCategorySelect').value || null;
             const fileInput = document.getElementById('menuImage');
             const btn = document.getElementById('saveMenuBtn');
 
@@ -206,7 +295,7 @@
             }
 
             if (editingMenuId) {
-                const updateData = { name: name, price: price };
+                const updateData = { name: name, price: price, category_id: categoryId };
                 if (imageUrl) updateData.image_url = imageUrl; 
 
                 const { error: updateError } = await supabaseClient.from('menu_items').update(updateData).eq('id', editingMenuId);
@@ -214,7 +303,14 @@
                 else alert("อัปเดตเมนูสำเร็จ!");
             } else {
                 const { error: insertError } = await supabaseClient.from('menu_items')
-                    .insert([{ vendor_id: vendorData.id, name: name, price: price, image_url: imageUrl, is_available: true }]);
+                    .insert([{ 
+                        vendor_id: vendorData.id, 
+                        name: name, 
+                        price: price, 
+                        category_id: categoryId,
+                        image_url: imageUrl, 
+                        is_available: true 
+                    }]);
                 if (insertError) alert("บันทึกเมนูไม่สำเร็จ: " + insertError.message);
                 else alert("เพิ่มเมนูสำเร็จ!");
             }
@@ -223,25 +319,26 @@
             loadMenuItems(); 
         }
 
-        // ฟังก์ชันรีเซ็ตฟอร์ม
         function resetFormState() {
             document.getElementById('menuName').value = '';
             document.getElementById('menuPrice').value = '';
             document.getElementById('menuImage').value = '';
+            document.getElementById('menuCategorySelect').value = '';
             editingMenuId = null;
+            document.getElementById('formTitle').innerText = "🍔 เพิ่มเมนูใหม่";
             const btn = document.getElementById('saveMenuBtn');
             btn.innerText = "💾 บันทึกเมนูใหม่";
             btn.style.background = "#06C755";
             btn.disabled = false;
+            document.getElementById('cancelEditBtn').style.display = 'none';
         }
 
-        // 6. ฟังก์ชันดึงรายการอาหาร
         async function loadMenuItems() {
             if (!vendorData) return;
 
             const { data, error } = await supabaseClient
                 .from('menu_items')
-                .select('*')
+                .select('*, categories(name)')
                 .eq('vendor_id', vendorData.id)
                 .order('created_at', { ascending: false });
 
@@ -259,17 +356,18 @@
                 const statusText = item.is_available ? '✅ พร้อมขาย' : '❌ ของหมด';
                 const toggleBtnText = item.is_available ? '⏸️ พักการขาย' : '▶️ เปิดขาย';
                 const toggleBtnColor = item.is_available ? '#ff9800' : '#06C755';
+                const catBadge = item.categories?.name ? `<span style="background: #eef2ff; color: #4338ca; padding: 2px 7px; border-radius: 10px; font-size: 11px; margin-left: 6px;">🏷️ ${item.categories.name}</span>` : '';
 
                 html += `
                     <div class="card" style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
                         <img src="${imgSrc}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;">
                         <div style="flex: 1;">
-                            <h4 style="margin: 0;">${item.name}</h4>
+                            <h4 style="margin: 0;">${item.name} ${catBadge}</h4>
                             <p style="margin: 5px 0 0 0; color: #06C755; font-weight: bold;">฿${item.price}</p>
                             <span style="font-size: 12px; color: ${statusColor};">${statusText}</span>
                         </div>
                         <div style="display: flex; flex-direction: column; gap: 5px;">
-                            <button onclick="editMenu('${item.id}', '${item.name}', ${item.price})" style="background: #2196F3; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">✏️ แก้ไข</button>
+                            <button onclick="editMenu('${item.id}', '${item.name}', ${item.price}, '${item.category_id || ''}')" style="background: #2196F3; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">✏️ แก้ไข</button>
                             <button onclick="toggleMenuStatus('${item.id}', ${item.is_available})" style="background: ${toggleBtnColor}; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">${toggleBtnText}</button>
                             <button onclick="deleteMenu('${item.id}', '${item.name}')" style="background: #ff4d4f; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🗑️ ลบ</button>
                         </div>
@@ -279,19 +377,20 @@
             menuListDiv.innerHTML = html;
         }
 
-        // 7. ฟังก์ชันเตรียมแก้ไขเมนู
-        function editMenu(id, name, price) {
+        function editMenu(id, name, price, categoryId) {
             editingMenuId = id; 
             document.getElementById('menuName').value = name;
             document.getElementById('menuPrice').value = price;
+            document.getElementById('menuCategorySelect').value = categoryId || '';
+            document.getElementById('formTitle').innerText = "✏️ แก้ไขเมนู";
             
             const btn = document.getElementById('saveMenuBtn');
             btn.innerText = "💾 อัปเดตเมนู";
             btn.style.background = "#2196F3"; 
+            document.getElementById('cancelEditBtn').style.display = 'block';
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // 8. ลบเมนู
         async function deleteMenu(menuId, menuName) {
             if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบ "${menuName}"?`)) return;
             const { error } = await supabaseClient.from('menu_items').delete().eq('id', menuId);
@@ -299,14 +398,12 @@
             else loadMenuItems(); 
         }
 
-        // 9. สลับสถานะของหมด
         async function toggleMenuStatus(menuId, currentStatus) {
             const { error } = await supabaseClient.from('menu_items').update({ is_available: !currentStatus }).eq('id', menuId);
             if (error) alert("อัปเดตสถานะไม่สำเร็จ: " + error.message);
             else loadMenuItems(); 
         }
 
-        // 10. สลับสถานะร้าน
         async function toggleStoreStatus() {
             if (!vendorData) return;
             const newStatus = !vendorData.is_open; 
@@ -321,7 +418,6 @@
             }
         }
 
-        // 11. เปลี่ยนสีปุ่มสถานะร้าน
         function updateStoreStatusUI(isOpen) {
             const btn = document.getElementById('storeStatusBtn');
             if (isOpen) {
@@ -335,7 +431,7 @@
             }
         }
 
-        // 12. ดึงออเดอร์ของร้าน
+        // ==================== ระบบออเดอร์ ====================
         async function loadOrders() {
             if (!vendorData) return;
 
@@ -363,12 +459,11 @@
                 }
 
                 const orderTime = new Date(order.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-                const custUid = order.customer_uid || ''; // ป้องกันค่าว่าง
+                const custUid = order.customer_uid || '';
 
                 let statusBadge = '';
                 let actionButtons = '';
 
-                // --- จุดที่ส่ง UID ลูกค้าไปพร้อมกับปุ่มกด ---
                 if (order.status === 'pending') {
                     statusBadge = '<span style="background: #fff3cd; color: #856404; padding: 3px 8px; border-radius: 12px; font-size: 12px;">รอยืนยันสลิป</span>';
                     actionButtons = `
@@ -409,7 +504,6 @@
             orderListDiv.innerHTML = html;
         }
 
-        // 13. ฟังก์ชันอัปเดตสถานะออเดอร์ พร้อมแจ้งเตือนลูกค้า!
         async function updateOrderStatus(orderId, newStatus, customerUid) {
             let confirmMsg = "";
             let notifyMsg = "";
@@ -437,7 +531,6 @@
             if (error) {
                 alert("อัปเดตไม่สำเร็จ: " + error.message);
             } else {
-                // --- จุดยิง API ไป GAS ---
                 if (customerUid && customerUid !== '') {
                     try {
                         await fetch(CONFIG.gasWebhookUrl, {
@@ -457,21 +550,20 @@
             }
         }
 
-        // 14. ฟังก์ชันดึงข้อมูลเดิมมาแสดงในช่องตั้งค่า
+        // ==================== ระบบตั้งค่า ====================
         function populateSettingsForm() {
             if (!vendorData) return;
             document.getElementById('settingStoreName').value = vendorData.name || '';
             document.getElementById('settingPhone').value = vendorData.phone || '';
             document.getElementById('settingPromptpay').value = vendorData.promptpay_number || '';
-            document.getElementById('settingSlipMode').value = vendorData.slip_check_mode || 'manual'; // ดึงสถานะตรวจสลิป
+            document.getElementById('settingSlipMode').value = vendorData.slip_check_mode || 'manual';
         }
 
-        // 15. ฟังก์ชันบันทึกการตั้งค่าร้านค้า
         async function updateStoreSettings() {
             const name = document.getElementById('settingStoreName').value.trim();
             const phone = document.getElementById('settingPhone').value.trim();
             const promptpay = document.getElementById('settingPromptpay').value.trim();
-            const slipMode = document.getElementById('settingSlipMode').value; // ค่า Manual หรือ Auto
+            const slipMode = document.getElementById('settingSlipMode').value;
             const fileInput = document.getElementById('settingStoreLogo');
             const btn = document.getElementById('saveSettingsBtn');
 
@@ -510,7 +602,7 @@
                     phone: phone, 
                     promptpay_number: promptpay,
                     line_picture_url: logoUrl,
-                    slip_check_mode: slipMode // บันทึกสถานะตรวจสลิปลงฐานข้อมูล
+                    slip_check_mode: slipMode
                 })
                 .eq('id', vendorData.id);
 
@@ -518,7 +610,6 @@
                 alert("บันทึกการตั้งค่าไม่สำเร็จ: " + error.message);
             } else {
                 alert("อัปเดตข้อมูลร้านค้าเรียบร้อยแล้ว!");
-                
                 vendorData.name = name;
                 vendorData.phone = phone;
                 vendorData.promptpay_number = promptpay;
