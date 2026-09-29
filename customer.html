@@ -11,11 +11,47 @@
     <style>
         body { font-family: sans-serif; margin: 0; background-color: #f4f6f8; padding-bottom: 80px; }
         
-        /* ส่วนหัวร้านค้า */
-        .header { background: white; padding: 20px; text-align: center; border-bottom: 1px solid #ddd; }
-        .header img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #06C755; margin-bottom: 10px; }
-        .header h2 { margin: 0; color: #333; }
-        .status-badge { display: inline-block; padding: 5px 10px; border-radius: 15px; font-size: 12px; font-weight: bold; margin-top: 5px; }
+        /* ปรับส่วนหัวร้านค้าให้อยู่แนวนอนแถวเดียว กะทัดรัด ประหยัดพื้นที่ */
+        .header { 
+            background: white; 
+            padding: 12px 16px; 
+            display: flex; 
+            align-items: center; 
+            gap: 14px; 
+            border-bottom: 1px solid #e0e0e0; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05); 
+        }
+        .header img { 
+            width: 52px; 
+            height: 52px; 
+            border-radius: 50%; 
+            object-fit: cover; 
+            border: 2px solid #06C755; 
+            flex-shrink: 0; 
+        }
+        .header-info { 
+            flex: 1; 
+            min-width: 0; 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .header h2 { 
+            margin: 0 0 3px 0; 
+            font-size: 17px; 
+            color: #333; 
+            white-space: nowrap; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+        }
+        .status-badge { 
+            display: inline-block; 
+            width: fit-content;
+            padding: 2px 8px; 
+            border-radius: 12px; 
+            font-size: 11px; 
+            font-weight: bold; 
+        }
         .status-open { background: #e8f5e9; color: #4caf50; }
         .status-closed { background: #ffebee; color: #f44336; }
 
@@ -68,11 +104,13 @@
         </div>
     </div>
 
-    <!-- แถบข้อมูลร้าน -->
+    <!-- แถบข้อมูลร้าน (โลโก้ + ชื่อร้าน + สถานะ แถวเดียวกัน) -->
     <div class="header">
-        <img id="storeLogo" src="https://via.placeholder.com/80" alt="Store Logo">
-        <h2 id="storeName">กำลังโหลด...</h2>
-        <div id="storeStatus" class="status-badge status-open">กำลังตรวจสอบสถานะ...</div>
+        <img id="storeLogo" src="https://via.placeholder.com/52" alt="Store Logo">
+        <div class="header-info">
+            <h2 id="storeName">กำลังโหลด...</h2>
+            <div id="storeStatus" class="status-badge status-open">กำลังตรวจสอบสถานะ...</div>
+        </div>
     </div>
 
     <!-- รายการอาหาร -->
@@ -113,7 +151,7 @@
             }
 
             try {
-                // เรียกใช้ LIFF ฝั่งลูกค้า (อย่าลืมเติม liffIdCustomer ใน config.js นะครับ)
+                // เรียกใช้ LIFF ฝั่งลูกค้า
                 await liff.init({ liffId: CONFIG.liffIdCustomer });
                 
                 if (liff.isLoggedIn()) {
@@ -306,7 +344,7 @@
                 .from('orders')
                 .insert([{
                     vendor_id: vendorId,
-                    customer_uid: customerUid, // บันทึก UID ของลูกค้าด้วย
+                    customer_uid: customerUid, 
                     items: cart,
                     total_price: parseFloat(total),
                     slip_image_url: slipUrl,
