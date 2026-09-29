@@ -24,7 +24,6 @@
         .sub-badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; }
         .sub-active { background: #e8f5e9; color: #2e7d32; }
         .sub-expired { background: #ffebee; color: #c62828; }
-        
         .section-divider { border-top: 1px dashed #ccc; margin: 15px 0; padding-top: 15px; }
     </style>
 </head>
@@ -191,13 +190,11 @@
                 <div id="renewContainer">
                     <label style="font-size: 13px; font-weight: bold; color: #333; display: block; margin-bottom: 4px;">💳 ต่ออายุแพ็กเกจ / อัปเกรดระบบ</label>
                     <select id="renewPlanSelect" onchange="updateRenewQr()" style="width: 100%; padding: 9px; margin-bottom: 10px; border: 1px solid #bcdcff; border-radius: 6px;"></select>
-                    
                     <div style="background: white; padding: 12px; border-radius: 8px; text-align: center; margin-bottom: 10px; border: 1px solid #e0e0e0;">
                         <p style="margin: 0 0 6px 0; font-size: 13px; font-weight: bold; color: #333;">สแกนชำระค่าบริการ</p>
                         <img id="adminQrImage" src="" style="width: 130px; height: 130px; border: 1px solid #ddd; padding: 4px; border-radius: 6px;">
                         <p id="renewAmountText" style="margin: 6px 0 0 0; font-size: 14px; font-weight: bold; color: #06C755;">ยอดชำระ: ฿0</p>
                     </div>
-                    
                     <label style="font-size: 13px; font-weight: bold; color: #555;">แนบสลิปเพื่อต่ออายุ</label>
                     <div style="display: flex; gap: 8px; margin-top: 5px;">
                         <input type="file" id="renewSlipImage" accept="image/*" style="flex: 1; padding: 5px;">
@@ -211,20 +208,17 @@
                 <div id="topupQuotaContainer">
                     <label style="font-size: 13px; font-weight: bold; color: #06C755; display: block; margin-bottom: 4px;">➕ เติมโควต้าตรวจสลิปอัตโนมัติ</label>
                     <select id="quotaPlanSelect" onchange="updateQuotaQr()" style="width: 100%; padding: 9px; margin-bottom: 10px; border: 1px solid #bcdcff; border-radius: 6px;"></select>
-                    
                     <div style="background: white; padding: 12px; border-radius: 8px; text-align: center; margin-bottom: 10px; border: 1px solid #e0e0e0;">
                         <p style="margin: 0 0 6px 0; font-size: 13px; font-weight: bold; color: #333;">สแกนชำระค่าโควต้าสลิป</p>
                         <img id="quotaQrImage" src="" style="width: 130px; height: 130px; border: 1px solid #ddd; padding: 4px; border-radius: 6px;">
                         <p id="quotaAmountText" style="margin: 6px 0 0 0; font-size: 14px; font-weight: bold; color: #06C755;">ยอดชำระ: ฿0</p>
                     </div>
-                    
                     <label style="font-size: 13px; font-weight: bold; color: #555;">แนบสลิปเพื่อเติมโควต้า</label>
                     <div style="display: flex; gap: 8px; margin-top: 5px;">
                         <input type="file" id="quotaSlipImage" accept="image/*" style="flex: 1; padding: 5px;">
                         <button onclick="verifyAndTopupQuota()" id="topupBtn" style="background: #06C755; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">ยืนยัน</button>
                     </div>
                 </div>
-
             </div>
 
             <!-- การตั้งค่าข้อมูลทั่วไปของร้านค้า -->
@@ -342,7 +336,7 @@
             } else { alert('อุปกรณ์ไม่รองรับ กรุณากดคัดลอกลิงก์ส่งให้ลูกค้าแทนครับ'); }
         }
 
-        // ==================== ระบบ Affiliate & QR & Flex ====================
+        // ==================== ระบบ Affiliate & ถอนเงิน ====================
         function renderAffiliateInfo() {
             if (!vendorData) return;
             document.getElementById('walletBalance').innerText = vendorData.wallet_balance || 0;
@@ -358,7 +352,6 @@
         function shareAffiliateFlex() {
             if (!liff.isLoggedIn()) return;
             const refLink = document.getElementById('affiliateLink').value; const storeName = vendorData.name || "เพื่อนของคุณ";
-
             const flexMsg = {
               "type": "flex", "altText": `${storeName} ชวนคุณเปิดร้านอาหารระบบใหม่ ทดลองใช้ฟรี!`,
               "contents": {
@@ -374,7 +367,7 @@
               }
             };
             if (liff.isApiAvailable('shareTargetPicker')) {
-                liff.shareTargetPicker([flexMsg]).then(function (res) { if (res) alert('ส่งคำชวนให้เพื่อนสำเร็จ! 🎉'); }).catch(function (error) { console.error('Error sharing:', error); });
+                liff.shareTargetPicker([flexMsg]).then(function (res) { if (res) alert('ส่งคำชวนให้เพื่อนสำเร็จ! 🎉'); }).catch(function (error) {});
             } else { alert('อุปกรณ์ของคุณไม่รองรับการส่งข้อความผ่านปุ่มนี้ กรุณากดคัดลอกลิงก์ส่งให้เพื่อนแทนครับ'); }
         }
 
@@ -385,7 +378,6 @@
         }
         function closeQrModal() { document.getElementById('qrModal').style.display = 'none'; }
 
-        // --- ระบบถอนเงิน ---
         function openWithdrawModal() {
             if (!vendorData) return;
             if (vendorData.wallet_balance <= 0) { alert('ยอดเงินสะสมของคุณเป็น 0 บาท ยังไม่สามารถทำรายการได้ครับ'); return; }
@@ -420,7 +412,6 @@
                 await fetch(CONFIG.gasWebhookUrl, {
                     method: 'POST', body: JSON.stringify({ action: 'withdraw_request', vendor_id: vendorData.id, store_name: vendorData.name, phone: vendorData.phone, promptpay: vendorData.promptpay_number, type: type, amount: amount })
                 });
-
                 alert('ส่งคำร้องเรียบร้อยแล้ว แอดมินจะตรวจสอบและดำเนินการให้เร็วที่สุดครับ!');
                 closeWithdrawModal();
             } catch (error) { alert('เกิดข้อผิดพลาด: ' + error.message); }
@@ -443,16 +434,12 @@
                 else { badgeEl.innerText = "ใช้งานได้ปกติ"; badgeEl.className = "sub-badge sub-active"; }
             }
 
-            // ตัวเลือกต่ออายุแพ็กเกจ
             const renewSelect = document.getElementById('renewPlanSelect'); let optionsHtml = '';
             CONFIG.pricingPlans.filter(p => p.price > 0).forEach(p => { optionsHtml += `<option value="${p.id}" data-price="${p.price}" data-days="${p.days}" data-quota="${p.quota}">${p.name} - ฿${p.price}</option>`; });
             renewSelect.innerHTML = optionsHtml; updateRenewQr();
 
-            // ตัวเลือกซื้อโควต้าสลิปเพิ่ม
             const quotaSelect = document.getElementById('quotaPlanSelect'); let qHtml = '';
-            if(CONFIG.quotaPlans) {
-                CONFIG.quotaPlans.forEach(q => { qHtml += `<option value="${q.id}" data-price="${q.price}" data-quota="${q.quota}">${q.name} - ฿${q.price}</option>`; });
-            }
+            if(CONFIG.quotaPlans) { CONFIG.quotaPlans.forEach(q => { qHtml += `<option value="${q.id}" data-price="${q.price}" data-quota="${q.quota}">${q.name} - ฿${q.price}</option>`; }); }
             quotaSelect.innerHTML = qHtml; updateQuotaQr();
         }
 
@@ -472,7 +459,6 @@
             document.getElementById('quotaQrImage').src = `https://promptpay.io/${CONFIG.adminPromptpay || '0812345678'}/${price}.png`;
         }
 
-        // ต่ออายุแพ็กเกจ (เวลา + โควต้า)
         async function verifyAndRenewSubscription() {
             const fileInput = document.getElementById('renewSlipImage'); const select = document.getElementById('renewPlanSelect');
             const opt = select.options[select.selectedIndex]; const btn = document.getElementById('renewBtn');
@@ -503,7 +489,6 @@
                         if (currentExp > baseDate) baseDate = currentExp;
                     }
                     baseDate.setDate(baseDate.getDate() + planDays);
-                    
                     const newQuota = (vendorData.slip_quota || 0) + addedQuota;
 
                     await supabaseClient.from('vendors').update({
@@ -522,8 +507,7 @@
                     }
 
                     vendorData.subscription_plan = planId; vendorData.subscription_expires_at = baseDate.toISOString(); 
-                    vendorData.slip_check_mode = selectedPlanObj.mode; vendorData.is_subscription_active = true;
-                    vendorData.slip_quota = newQuota;
+                    vendorData.slip_check_mode = selectedPlanObj.mode; vendorData.is_subscription_active = true; vendorData.slip_quota = newQuota;
 
                     alert(`🎉 ต่ออายุแพ็กเกจเรียบร้อยแล้ว\nใช้งานได้ถึง ${baseDate.toLocaleDateString('th-TH')}`);
                     renderSubscriptionInfo(); fileInput.value = '';
@@ -532,7 +516,6 @@
             btn.innerText = "ยืนยัน"; btn.disabled = false;
         }
 
-        // เติมโควต้าสลิปอย่างเดียว
         async function verifyAndTopupQuota() {
             const fileInput = document.getElementById('quotaSlipImage'); const select = document.getElementById('quotaPlanSelect');
             const opt = select.options[select.selectedIndex]; const btn = document.getElementById('topupBtn');
@@ -557,7 +540,6 @@
                 if (result.status === 'success') {
                     const newQuota = (vendorData.slip_quota || 0) + addedQuota;
                     await supabaseClient.from('vendors').update({ slip_quota: newQuota }).eq('id', vendorData.id);
-
                     vendorData.slip_quota = newQuota;
                     alert(`🎉 เติมโควต้าสำเร็จ ได้รับเพิ่ม ${addedQuota} บิล\nโควต้าคงเหลือ: ${newQuota} บิล`);
                     renderSubscriptionInfo(); fileInput.value = '';
@@ -637,7 +619,7 @@
         async function deleteMenu(menuId, menuName) { if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบ "${menuName}"?`)) return; await supabaseClient.from('menu_items').delete().eq('id', menuId); loadMenuItems(); }
         async function toggleMenuStatus(menuId, currentStatus) { await supabaseClient.from('menu_items').update({ is_available: !currentStatus }).eq('id', menuId); loadMenuItems(); }
 
-        // ==================== ระบบออเดอร์ & สถานะร้าน ====================
+        // ==================== ระบบออเดอร์ & ลำดับคิว (NEW!) ====================
         async function toggleStoreStatus() {
             if (!vendorData) return;
             if (vendorData.subscription_expires_at && new Date() > new Date(vendorData.subscription_expires_at)) { alert("⚠️ ไม่สามารถเปิดร้านได้: แพ็กเกจของคุณหมดอายุแล้ว\nกรุณาต่ออายุที่แท็บ 'ตั้งค่า'"); return; }
@@ -655,25 +637,75 @@
             if (!vendorData) return; const orderListDiv = document.getElementById('orderList'); orderListDiv.innerHTML = '<p style="text-align: center; color: #888;">กำลังโหลด...</p>';
             const { data, error } = await supabaseClient.from('orders').select('*').eq('vendor_id', vendorData.id).in('status', ['pending', 'processing']).order('created_at', { ascending: true });
             if (error || data.length === 0) { orderListDiv.innerHTML = '<p style="text-align: center; color: #888;">ยังไม่มีออเดอร์เข้าในขณะนี้</p>'; return; }
+            
             let html = '';
             data.forEach((order, index) => {
-                const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items; let itemsHtml = ''; for (let key in items) itemsHtml += `<li style="font-size: 14px; margin-bottom: 3px;">${items[key].qty}x ${items[key].name}</li>`;
-                const orderTime = new Date(order.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }); const custUid = order.customer_uid || '';
+                const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items; 
+                let itemsHtml = ''; 
+                for (let key in items) itemsHtml += `<li style="font-size: 14px; margin-bottom: 3px;">${items[key].qty}x ${items[key].name}</li>`;
+                
+                // --- สร้างเลขคิว และ หมายเลขอ้างอิงออเดอร์ ---
+                const d = new Date(order.created_at);
+                const orderTime = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }); 
+                const orderDateTh = d.toLocaleDateString('th-TH');
+                
+                const dateStr = d.getFullYear().toString().slice(-2) + ('0' + (d.getMonth()+1)).slice(-2) + ('0' + d.getDate()).slice(-2);
+                const orderRef = `${dateStr}-${order.id.substring(0,4).toUpperCase()}`; // เช่น 261029-A1B2
+                const queueNum = index + 1;
+                const custUid = order.customer_uid || '';
+                
                 let statusBadge = ''; let actionButtons = '';
-                if (order.status === 'pending') { statusBadge = '<span style="background: #fff3cd; color: #856404; padding: 3px 8px; border-radius: 12px; font-size: 12px;">รอยืนยันสลิป</span>'; actionButtons = `<button onclick="updateOrderStatus('${order.id}', 'processing', '${custUid}')" style="background: #06C755; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; flex: 1;">✅ รับออเดอร์</button> <button onclick="updateOrderStatus('${order.id}', 'rejected', '${custUid}')" style="background: #ff4d4f; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; flex: 1;">❌ ปฏิเสธ</button>`; } 
-                else if (order.status === 'processing') { statusBadge = '<span style="background: #cce5ff; color: #004085; padding: 3px 8px; border-radius: 12px; font-size: 12px;">กำลังทำอาหาร 🍳</span>'; actionButtons = `<button onclick="updateOrderStatus('${order.id}', 'completed', '${custUid}')" style="background: #2196F3; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%;">🏁 อาหารเสร็จแล้ว</button>`; }
-                html += `<div class="card" style="border-left: 4px solid #06C755;"><div style="display: flex; justify-content: space-between; margin-bottom: 10px;"><h3 style="margin: 0;">คิวที่ ${index + 1} <span style="font-size: 12px; color: #888; font-weight: normal;">(เวลา ${orderTime})</span></h3>${statusBadge}</div><div style="display: flex; gap: 15px; margin-bottom: 15px; background: #f9f9f9; padding: 10px; border-radius: 8px;"><div style="flex: 1;"><ul style="margin: 0; padding-left: 20px; color: #333;">${itemsHtml}</ul><p style="margin: 10px 0 0 0; font-weight: bold; color: #06C755;">ยอดโอน: ฿${order.total_price}</p></div><div style="text-align: center;"><a href="${order.slip_image_url}" target="_blank"><img src="${order.slip_image_url}" style="width: 70px; height: 100px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd;"></a></div></div><div style="display: flex; gap: 10px;">${actionButtons}</div></div>`;
-            }); orderListDiv.innerHTML = html;
+                if (order.status === 'pending') { 
+                    statusBadge = '<span style="background: #fff3cd; color: #856404; padding: 3px 8px; border-radius: 12px; font-size: 12px;">รอยืนยันสลิป</span>'; 
+                    actionButtons = `<button onclick="updateOrderStatus('${order.id}', 'processing', '${custUid}', '${orderRef}', ${queueNum}, '${orderDateTh}')" style="background: #06C755; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; flex: 1;">✅ รับออเดอร์</button> <button onclick="updateOrderStatus('${order.id}', 'rejected', '${custUid}', '${orderRef}', ${queueNum}, '${orderDateTh}')" style="background: #ff4d4f; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; flex: 1;">❌ ปฏิเสธ</button>`; 
+                } 
+                else if (order.status === 'processing') { 
+                    statusBadge = '<span style="background: #cce5ff; color: #004085; padding: 3px 8px; border-radius: 12px; font-size: 12px;">กำลังทำอาหาร 🍳</span>'; 
+                    actionButtons = `<button onclick="updateOrderStatus('${order.id}', 'completed', '${custUid}', '${orderRef}', ${queueNum}, '${orderDateTh}')" style="background: #2196F3; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%;">🏁 อาหารเสร็จแล้ว</button>`; 
+                }
+                
+                html += `
+                    <div class="card" style="border-left: 4px solid #06C755;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                            <h3 style="margin: 0; display:flex; flex-direction:column;">
+                                คิวที่ ${queueNum} 
+                                <span style="font-size: 12px; color: #888; font-weight: normal; margin-top:3px;">อ้างอิง: ${orderRef} • ${orderTime}</span>
+                            </h3>
+                            <div>${statusBadge}</div>
+                        </div>
+                        <div style="display: flex; gap: 15px; margin-bottom: 15px; background: #f9f9f9; padding: 10px; border-radius: 8px;">
+                            <div style="flex: 1;"><ul style="margin: 0; padding-left: 20px; color: #333;">${itemsHtml}</ul><p style="margin: 10px 0 0 0; font-weight: bold; color: #06C755;">ยอดโอน: ฿${order.total_price}</p></div>
+                            <div style="text-align: center;"><a href="${order.slip_image_url}" target="_blank"><img src="${order.slip_image_url}" style="width: 70px; height: 100px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd;"></a></div>
+                        </div>
+                        <div style="display: flex; gap: 10px;">${actionButtons}</div>
+                    </div>`;
+            }); 
+            orderListDiv.innerHTML = html;
         }
 
-        async function updateOrderStatus(orderId, newStatus, customerUid) {
+        async function updateOrderStatus(orderId, newStatus, customerUid, orderRef, queueNum, orderDateTh) {
             let confirmMsg = ""; let notifyMsg = "";
-            if (newStatus === 'processing') { confirmMsg = "ตรวจสอบสลิปถูกต้อง และรับคิวนี้ใช่หรือไม่?"; notifyMsg = `ร้าน ${vendorData.name} ได้รับออเดอร์ของคุณแล้ว 👨‍🍳 กำลังเตรียมอาหารให้ครับ!`; }
-            if (newStatus === 'rejected') { confirmMsg = "ต้องการยกเลิกออเดอร์นี้ใช่หรือไม่?"; notifyMsg = `ขออภัยครับ ออเดอร์ของคุณถูกยกเลิก กรุณาติดต่อร้าน ${vendorData.name} เพื่อรับเงินคืนครับ`; }
-            if (newStatus === 'completed') { confirmMsg = "อาหารเสร็จแล้ว ส่งมอบเรียบร้อยใช่หรือไม่?"; notifyMsg = `อาหารจากร้าน ${vendorData.name} เสร็จเรียบร้อยแล้วครับ 🏁 ขอบคุณที่ใช้บริการครับ!`; }
+            
+            // --- จัดรูปแบบข้อความแจ้งเตือนลูกค้าให้สวยงาม มีเลขคิวและอ้างอิง ---
+            if (newStatus === 'processing') { 
+                confirmMsg = "ตรวจสอบสลิปถูกต้อง และรับคิวนี้ใช่หรือไม่?"; 
+                notifyMsg = `ร้าน ${vendorData.name} รับออเดอร์แล้ว! 🎉\n📅 วันที่: ${orderDateTh}\n🏷️ หมายเลขอ้างอิง: ${orderRef}\n📌 คิวรอทำ: ลำดับที่ ${queueNum}\n👨‍🍳 กำลังเร่งเตรียมอาหารให้ครับ!`; 
+            }
+            if (newStatus === 'rejected') { 
+                confirmMsg = "ต้องการยกเลิกออเดอร์นี้ใช่หรือไม่?"; 
+                notifyMsg = `ขออภัยครับ ออเดอร์ของคุณถูกยกเลิก ❌\n🏷️ หมายเลขอ้างอิง: ${orderRef}\nกรุณาติดต่อร้าน ${vendorData.name} เพื่อตรวจสอบหรือรับเงินคืนครับ`; 
+            }
+            if (newStatus === 'completed') { 
+                confirmMsg = "อาหารเสร็จแล้ว ส่งมอบเรียบร้อยใช่หรือไม่?"; 
+                notifyMsg = `🔔 อาหารเสร็จแล้วคร้าบ!\n🏷️ หมายเลขอ้างอิง: ${orderRef}\n📌 คิวรอทำ: ลำดับที่ ${queueNum}\nมารับที่ร้าน ${vendorData.name} ได้เลยครับ 🏁\nขอบคุณที่ใช้บริการครับ`; 
+            }
+
             if (!confirm(confirmMsg)) return;
             await supabaseClient.from('orders').update({ status: newStatus }).eq('id', orderId);
-            if (customerUid && customerUid !== '') { try { await fetch(CONFIG.gasWebhookUrl, { method: 'POST', body: JSON.stringify({ action: 'notify_customer', vendor_id: vendorData.id, uid: customerUid, message: notifyMsg }) }); } catch (e) {} }
+            
+            if (customerUid && customerUid !== '') { 
+                try { await fetch(CONFIG.gasWebhookUrl, { method: 'POST', body: JSON.stringify({ action: 'notify_customer', vendor_id: vendorData.id, uid: customerUid, message: notifyMsg }) }); } catch (e) {} 
+            }
             loadOrders(); 
         }
 
