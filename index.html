@@ -137,23 +137,29 @@
             const expiresAt = new Date();
             expiresAt.setDate(expiresAt.getDate() + selectedPlan.days);
 
-            const { data, error } = await supabaseClient.from('vendors')
-                .insert([{ 
-                    line_owner_uid: lineData.uid, 
-                    line_display_name: lineData.name,
-                    line_picture_url: lineData.pic,
-                    name: storeName,
-                    phone: phoneNumber,
-                    promptpay_number: promptpay,
-                    is_open: false,
-                    slip_check_mode: selectedPlan.mode,
-                    subscription_plan: selectedPlan.id,
-                    subscription_days: selectedPlan.days,
-                    subscription_expires_at: expiresAt.toISOString(),
-                    is_subscription_active: true,
-                    referrer_id: referrerId, // บันทึกคนแนะนำ!
-                    wallet_balance: 0
-                }]).select(); 
+            // บันทึกลง Supabase พร้อมแพ็กเกจ วันหมดอายุ และ โควต้าสลิป!
+            const { data, error } = await supabaseClient
+                .from('vendors')
+                .insert([
+                    { 
+                        line_owner_uid: lineData.uid, 
+                        line_display_name: lineData.name,
+                        line_picture_url: lineData.pic,
+                        name: storeName,
+                        phone: phoneNumber,
+                        promptpay_number: promptpay,
+                        is_open: false,
+                        slip_check_mode: selectedPlan.mode,
+                        subscription_plan: selectedPlan.id,
+                        subscription_days: selectedPlan.days,
+                        subscription_expires_at: expiresAt.toISOString(),
+                        is_subscription_active: true,
+                        referrer_id: referrerId, 
+                        wallet_balance: 0,
+                        slip_quota: selectedPlan.quota || 0 // <=== เพิ่มบรรทัดนี้ครับ!
+                    }
+                ])
+                .select();
 
             if (error) {
                 alert("เกิดข้อผิดพลาด: " + error.message);
