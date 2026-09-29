@@ -345,8 +345,9 @@
 
                 updateStoreStatusUI(vendorData.is_open);
                 
-                const baseUrl = window.location.href.split('dashboard.html')[0];
-                document.getElementById('customerLinkText').value = `${baseUrl}customer.html?vid=${vendorData.id}`;
+                let basePath = window.location.origin + window.location.pathname.replace(/dashboard\.html$/, '');
+if(!basePath.endsWith('/')) basePath += '/';
+document.getElementById('customerLinkText').value = `${basePath}customer.html?vid=${vendorData.id}`;
 
                 populateSettingsForm();
                 renderAffiliateInfo();
@@ -454,8 +455,9 @@
         function renderAffiliateInfo() {
             if (!vendorData) return;
             document.getElementById('walletBalance').innerText = vendorData.wallet_balance || 0;
-            const baseUrl = window.location.href.split('dashboard.html')[0];
-            document.getElementById('affiliateLink').value = `${baseUrl}index.html?ref=${vendorData.id}`;
+            let basePath = window.location.origin + window.location.pathname.replace(/dashboard\.html$/, '');
+if(!basePath.endsWith('/')) basePath += '/';
+document.getElementById('affiliateLink').value = `${basePath}index.html?ref=${vendorData.id}`;
         }
 
         function copyAffiliateLink() {
