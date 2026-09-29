@@ -119,7 +119,7 @@
                     const profile = await liff.getProfile();
                     lineData = { uid: profile.userId, name: profile.displayName, pic: profile.pictureUrl };
                     
-                    const { data } = await supabaseClient.from('vendors').select('id').eq('line_owner_uid', lineData.uid).single();
+                    const { data } = await supabaseClient.from('vendors').select('id').eq('line_owner_uid', lineData.uid).maybeSingle();
                     if (data) {
                         alert("คุณเคยลงทะเบียนแล้ว ระบบจะพาไปหน้าจัดการร้านค้า");
                         window.location.href = "dashboard.html"; 
@@ -210,7 +210,7 @@
                 subscription_plan: selectedPlan.id,
                 subscription_days: selectedPlan.days,
                 subscription_expires_at: expiresAt.toISOString(),
-                is_subscription_active: isActive, // <--- ใช้สถานะที่เช็คไว้
+                is_subscription_active: isActive, 
                 referrer_id: referrerId, 
                 wallet_balance: 0,
                 slip_quota: selectedPlan.quota || 0
@@ -238,7 +238,7 @@
                             plan: selectedPlan.name, 
                             expires_at: expiresAt.toLocaleDateString('th-TH'),
                             referrer_id: referrerId,
-                            status: statusText // <--- ส่งสถานะไปให้ GAS
+                            status: statusText
                         })
                     });
                 } catch(e) {}
@@ -246,8 +246,7 @@
                 window.location.href = "dashboard.html"; 
             }
         }
-            }
-        }
+        
         window.onload = initializeLiff;
     </script>
 </body>
