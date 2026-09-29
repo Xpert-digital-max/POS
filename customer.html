@@ -150,7 +150,6 @@
             const totalAmount = document.getElementById('totalPrice').innerText;
             document.getElementById('checkoutTotal').innerText = totalAmount;
 
-            // (NEW) ตรวจสอบช่องทางชำระเงิน
             if (vendorData.payment_type === 'bank') {
                 document.getElementById('paymentQRContainer').style.display = 'none';
                 document.getElementById('paymentBankContainer').style.display = 'block';
@@ -170,46 +169,74 @@
         function updateCartItem(index, change) { cart[index].qty += change; if (cart[index].qty <= 0) { cart.splice(index, 1); } calculateTotal(); renderMenuList(); if (cart.length === 0) { closeCheckout(); } else { goToCheckout(); } }
         function closeCheckout() { document.getElementById('checkoutModal').style.display = 'none'; }
 
-        // ==================== ระบบส่งออเดอร์ ====================
+        // ==================== ระบบส่งออเดอร์ (เวอร์ชัน Fire & Forget ตัดรอ LINE) ====================
         async function submitOrder() {
-            const fileInput = document.getElementById('slipImage'); const btn = document.getElementById('confirmOrderBtn'); const total = document.getElementById('totalPrice').innerText;
-            if (fileInput.files.length === 0) { alert("กรุณาแนบสลิปโอนเงินก่อนยืนยันออเดอร์"); return; }
-            btn.innerText = "⏳ กำลังอัปโหลดสลิป..."; btn.disabled = true;
+            const fileInput = document.getElementById('slipImage');
+            const btn = document.getElementById('confirmOrderBtn');
+            const total = document.getElementById('totalPrice').innerText;
 
+            if (fileInput.files.length === 0) { alert("กรุณาแนบสลิปโอนเงินก่อนยืนยันออเดอร์"); return; }
+            btn.innerText = "⏳ กำลังบันทึกออเดอร์..."; btn.disabled = true;
+
+            // 1. อัปโหลดสลิป
             const file = fileInput.files[0]; const fileName = `slip-${Date.now()}.${file.name.split('.').pop()}`; let slipUrl = null;
             const { error: uploadError } = await supabaseClient.storage.from('slip-images').upload(fileName, file);
             if (uploadError) { alert("อัปโหลดสลิปไม่สำเร็จ: " + uploadError.message); btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false; return; }
             const { data: publicUrlData } = supabaseClient.storage.from('slip-images').getPublicUrl(fileName); slipUrl = publicUrlData.publicUrl;
 
             let orderStatus = 'pending'; 
+            
+            // 2. ตรวจสลิปออโต้ (ถ้าเปิดไว้)
             if (vendorData.slip_check_mode === 'auto' && vendorData.slip_quota > 0) {
-                btn.innerText = "🏦 กำลังตรวจสอบสลิปกับธนาคาร...";
                 try {
                     const gasRes = await fetch(CONFIG.gasWebhookUrl, {
                         method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
                         body: JSON.stringify({ action: 'verify_customer_slip', vendor_promptpay: vendorData.promptpay_number, slip_url: slipUrl, amount: total, vendor_id: vendorId })
                     });
                     const result = await gasRes.json();
-                    if (result.status === 'success') { orderStatus = 'processing'; const newQuota = vendorData.slip_quota - 1; await supabaseClient.from('vendors').update({ slip_quota: newQuota }).eq('id', vendorId); } 
-                    else { alert(`❌ ตรวจสอบสลิปอัตโนมัติไม่ผ่าน:\n${result.msg || "สลิปไม่ถูกต้อง"}\n\nระบบจะส่งสลิปให้ร้านค้าตรวจสอบด้วยตนเองครับ`); orderStatus = 'pending'; }
-                } catch (e) { orderStatus = 'pending'; }
+                    if (result.status === 'success') {
+                        orderStatus = 'processing'; 
+                        await supabaseClient.from('vendors').update({ slip_quota: vendorData.slip_quota - 1 }).eq('id', vendorId);
+                    } else {
+                        alert(`❌ ตรวจสลิปออโต้ไม่ผ่าน:\n${result.msg}\nระบบจะส่งให้ร้านตรวจด้วยตนเองครับ`);
+                    }
+                } catch (e) {}
             }
 
-            btn.innerText = "🚀 กำลังส่งออเดอร์ให้ร้านค้า...";
-            const { error: orderError } = await supabaseClient.from('orders').insert([{ vendor_id: vendorId, customer_uid: customerUid, items: cart, total_price: parseFloat(total), slip_image_url: slipUrl, status: orderStatus }]);
+            // 3. บันทึกลง Supabase (แล้วดึง ID กลับมาทำเลขอ้างอิง)
+            const { data: newOrder, error: orderError } = await supabaseClient.from('orders')
+                .insert([{ vendor_id: vendorId, customer_uid: customerUid, items: cart, total_price: parseFloat(total), slip_image_url: slipUrl, status: orderStatus }])
+                .select().single();
 
-            if (!orderError) {
-                // (NEW) ยิง Webhook ไปหา GAS เพื่อให้ LINE แจ้งลูกค้าว่ารับออเดอร์แล้ว! (แก้ CORS)
+            if (!orderError && newOrder) {
+                // แจ้งลูกค้าทันทีที่บันทึกเสร็จ ไม่ต้องรอส่ง LINE
+                alert(orderStatus === 'processing' ? "✅ รับออเดอร์เรียบร้อย กำลังเตรียมอาหาร!" : "ส่งออเดอร์เรียบร้อยแล้ว!\n(รอร้านตรวจสอบสลิปสักครู่นะครับ)");
+                
+                // 4. สั่ง GAS ให้ส่ง Flex LINE แบบ Fire & Forget (ไม่ใส่ await และส่ง data ครบถ้วน)
                 if (customerUid) {
-                    try {
-                        let msgText = orderStatus === 'processing' ? `✅ ร้านได้รับออเดอร์ของคุณแล้ว!\nยอดโอน: ฿${total}\nกรุณารอสักครู่ ทางร้านกำลังทำอาหารให้ครับ 🍳` : `⏳ ระบบส่งออเดอร์ให้ร้านแล้ว!\nยอดโอน: ฿${total}\nกรุณารอร้านค้าตรวจสอบสลิปสักครู่ครับ`;
-                        await fetch(CONFIG.gasWebhookUrl, { method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: 'notify_customer', vendor_id: vendorId, uid: customerUid, message: msgText }) });
-                    } catch (e) { } 
+                    const d = new Date();
+                    const dateStr = d.getFullYear().toString().slice(-2) + ('0' + (d.getMonth()+1)).slice(-2) + ('0' + d.getDate()).slice(-2);
+                    const orderRef = `${dateStr}-${newOrder.id.substring(0,4).toUpperCase()}`;
+
+                    fetch(CONFIG.gasWebhookUrl, {
+                        method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
+                        body: JSON.stringify({ 
+                            action: 'notify_customer', 
+                            vendor_id: vendorId, 
+                            uid: customerUid, 
+                            order_status: orderStatus, 
+                            store_name: vendorData.name, 
+                            order_ref: orderRef, 
+                            queue_num: "-" // ออเดอร์ใหม่ยังไม่รู้คิวเป๊ะๆ ให้โชว์ขีดไปก่อน
+                        })
+                    }).catch(e => console.log(e)); // ปล่อยมันทำงานหลังบ้านไป
                 }
 
-                alert(orderStatus === 'processing' ? "✅ ยอดเงินเข้าเรียบร้อย!\nร้านค้าได้รับออเดอร์และกำลังเตรียมอาหารให้คุณครับ" : "ส่งออเดอร์เรียบร้อยแล้ว!\n(รอร้านค้าตรวจสอบสลิปและยืนยันรับออเดอร์สักครู่นะครับ)");
                 if (liff.isInClient()) { liff.closeWindow(); } else { window.location.reload(); }
-            } else { alert("บันทึกออเดอร์ไม่สำเร็จ: " + orderError.message); btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false; }
+            } else {
+                alert("บันทึกออเดอร์ไม่สำเร็จ: " + orderError.message);
+                btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
+            }
         }
         window.onload = initCustomerApp;
     </script>
