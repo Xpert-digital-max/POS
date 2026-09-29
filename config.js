@@ -8,13 +8,61 @@ const CONFIG = {
     gasWebhookUrl: 'https://script.google.com/macros/s/AKfycbz55ygFed3hzf-3xRTdd4nCQl4wZ88PsGyaAkmpfMjU4_dexgy5R1Hpo9dXDJfG4Dcp/exec', // ใส่ลื้งต์ Web App
         
     // --- ตั้งค่าระบบแพ็กเกจ (สามารถปรับราคาและจำนวนวันได้เองตลอดเวลา) ---
-    trialDaysDefault: 7, 
-    adminPromptpay: '0819474479', // เบอร์พร้อมเพย์รับเงินแอดมิน
+    trialDaysDefault: 7, // จำนวนวันทดลองใช้ฟรี
+    adminPromptpay: '0819474479', // เบอร์พร้อมเพย์ของคุณสำหรับรับค่าบริการรายเดือน (ตัดขีดออก)
 
-    // โครงสร้างแพ็กเกจใหม่ ควบรวมระบบตรวจสลิปและค่าแนะนำไว้ในตัว
+    // โครงสร้างแพ็กเกจและค่าแนะนำ (Affiliate)
     pricingPlans: [
-        { id: 'trial', name: 'ทดลองใช้ฟรี', days: 7, price: 0, tag: 'เริ่มต้น', mode: 'manual', comm: 0, desc: 'ระบบสั่งอาหาร ตรวจสลิปเอง' },
-        { id: 'manual_1m', name: 'Basic (รายเดือน)', days: 30, price: 390, tag: 'สุดคุ้ม', mode: 'manual', comm: 100, desc: 'ตรวจสลิปด้วยตนเอง' },
-        { id: 'auto_1m', name: 'Pro (รายเดือน)', days: 30, price: 790, tag: 'ยอดนิยม 🔥', mode: 'auto', comm: 200, desc: 'ตรวจสลิปอัตโนมัติ ไม่ต้องเฝ้าจอ!' }
+        { 
+            id: 'trial', 
+            name: 'ทดลองใช้ฟรี', 
+            days: 7, 
+            price: 0, 
+            tag: 'เริ่มต้น', 
+            mode: 'manual', 
+            comm: 0, 
+            desc: 'ระบบสั่งอาหาร ตรวจสลิปเอง' 
+        },
+        { 
+            id: 'manual_1m', 
+            name: 'Basic (ตรวจสลิปเอง)', 
+            days: 30, 
+            price: 390, 
+            tag: 'สุดคุ้ม', 
+            mode: 'manual', 
+            comm: 100, // <== ค่าแนะนำ 100 บาท
+            desc: 'ประหยัด เหมาะกับร้านเริ่มต้น' 
+        },
+        { 
+            id: 'auto_1m', 
+            name: 'Pro (ตรวจสลิปออโต้)', 
+            days: 30, 
+            price: 590, 
+            tag: 'ยอดนิยม 🔥', 
+            mode: 'auto', 
+            comm: 150, // <== ค่าแนะนำ 150 บาท
+            desc: 'ระบบ SlipOK ตรวจให้อัตโนมัติ' 
+        },
+        // เพิ่มตัวเลือกราย 3 เดือน เผื่อแม่ค้าอยากจ่ายทีเดียวยาวๆ (ตั้งค่าแนะนำเพิ่มเป็นแรงจูงใจ)
+        { 
+            id: 'manual_3m', 
+            name: 'Basic (ราย 3 เดือน)', 
+            days: 90, 
+            price: 1100, 
+            tag: 'ขายยาวๆ', 
+            mode: 'manual', 
+            comm: 300, 
+            desc: 'จ่ายทีเดียวอยู่ยาว 3 เดือน' 
+        },
+        { 
+            id: 'auto_3m', 
+            name: 'Pro (ราย 3 เดือน)', 
+            days: 90, 
+            price: 1690, 
+            tag: 'มืออาชีพ', 
+            mode: 'auto', 
+            comm: 450, 
+            desc: 'ออโต้คุ้มๆ เฉลี่ยเดือนละ 560 บ.' 
+        }
     ]
 };
