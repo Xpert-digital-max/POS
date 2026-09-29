@@ -4,14 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>สั่งอาหาร</title>
-    <!-- นำเข้า LIFF และ Supabase -->
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <style>
         body { font-family: sans-serif; margin: 0; background-color: #f4f6f8; padding-bottom: 80px; }
         
-        /* ปรับส่วนหัวร้านค้าให้อยู่แนวนอนแถวเดียว กะทัดรัด ประหยัดพื้นที่ */
+        /* แถบหัวร้านค้าแนวนอนแถวเดียว */
         .header { 
             background: white; 
             padding: 12px 16px; 
@@ -55,6 +54,35 @@
         .status-open { background: #e8f5e9; color: #4caf50; }
         .status-closed { background: #ffebee; color: #f44336; }
 
+        /* แถบเลือกหมวดหมู่แบบเลื่อนแนวนอน */
+        .category-bar {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            white-space: nowrap;
+            padding: 10px 15px;
+            background: white;
+            border-bottom: 1px solid #eee;
+            -webkit-overflow-scrolling: touch;
+        }
+        .category-bar::-webkit-scrollbar { display: none; }
+        .cat-btn {
+            background: #f0f0f0;
+            border: none;
+            padding: 7px 15px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: bold;
+            color: #555;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.2s;
+        }
+        .cat-btn.active {
+            background: #06C755;
+            color: white;
+        }
+
         /* รายการอาหาร */
         .menu-container { padding: 15px; }
         .menu-card { background: white; border-radius: 10px; padding: 15px; margin-bottom: 15px; display: flex; gap: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
@@ -63,19 +91,16 @@
         .menu-info h4 { margin: 0 0 5px 0; font-size: 16px; }
         .menu-info p { margin: 0; color: #06C755; font-weight: bold; font-size: 14px; }
         
-        /* ปุ่มบวกลบสินค้า */
         .qty-control { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
         .qty-btn { background: #f0f0f0; border: none; width: 28px; height: 28px; border-radius: 50%; font-size: 16px; font-weight: bold; cursor: pointer; color: #333; }
         .qty-btn.add { background: #06C755; color: white; }
         .qty-number { font-size: 16px; font-weight: bold; width: 20px; text-align: center; }
 
-        /* แถบตะกร้าสินค้าด้านล่าง (Sticky Footer) */
         .cart-footer { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 15px 20px; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; z-index: 100; transform: translateY(100%); transition: transform 0.3s; }
         .cart-footer.show { transform: translateY(0); }
         .cart-total { font-size: 18px; font-weight: bold; color: #333; }
         .checkout-btn { background: #06C755; color: white; border: none; padding: 12px 25px; border-radius: 25px; font-size: 16px; font-weight: bold; cursor: pointer; }
 
-        /* กล่องแจ้งเตือนร้านปิด */
         #closedOverlay { display: none; background: rgba(255,255,255,0.9); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 200; justify-content: center; align-items: center; flex-direction: column; }
     </style>
 </head>
@@ -90,7 +115,6 @@
             
             <div style="background: #f9f9f9; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 15px;">
                 <p style="margin: 0 0 10px 0; font-weight: bold;">สแกนจ่ายผ่าน QR Code</p>
-                <!-- กล่องแสดง QR Code พร้อมเพย์ -->
                 <img id="qrCodeImage" src="" style="width: 150px; height: 150px; margin-bottom: 10px; border: 1px solid #ddd; padding: 5px; border-radius: 8px; display: none;">
                 <p style="margin: 0; font-size: 12px; color: #555;">กรุณาแนบสลิปหลังชำระเงินเพื่อยืนยันออเดอร์</p>
             </div>
@@ -104,13 +128,18 @@
         </div>
     </div>
 
-    <!-- แถบข้อมูลร้าน (โลโก้ + ชื่อร้าน + สถานะ แถวเดียวกัน) -->
+    <!-- แถบข้อมูลร้านค้า -->
     <div class="header">
         <img id="storeLogo" src="https://via.placeholder.com/52" alt="Store Logo">
         <div class="header-info">
             <h2 id="storeName">กำลังโหลด...</h2>
             <div id="storeStatus" class="status-badge status-open">กำลังตรวจสอบสถานะ...</div>
         </div>
+    </div>
+
+    <!-- แถบเลือกหมวดหมู่ -->
+    <div class="category-bar" id="categoryBar">
+        <button class="cat-btn active" onclick="filterCategory('all', this)">ทั้งหมด</button>
     </div>
 
     <!-- รายการอาหาร -->
@@ -133,7 +162,6 @@
     </div>
 
     <script>
-        // 1. ตั้งค่าพื้นฐาน
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
         const urlParams = new URLSearchParams(window.location.search);
         const vendorId = urlParams.get('vid');
@@ -141,9 +169,9 @@
         let vendorData = null; 
         let menuData = []; 
         let cart = {}; 
-        let customerUid = null; // เก็บ UID ของลูกค้าที่ล็อกอิน
+        let customerUid = null;
+        let selectedCategory = 'all';
 
-        // 2. ฟังก์ชันเริ่มทำงานเมื่อเปิดหน้าเว็บ
         async function initCustomerApp() {
             if (!vendorId) {
                 alert("ลิงก์ไม่ถูกต้อง: ไม่พบรหัสร้านค้า");
@@ -151,14 +179,13 @@
             }
 
             try {
-                // เรียกใช้ LIFF ฝั่งลูกค้า
                 await liff.init({ liffId: CONFIG.liffIdCustomer });
-                
                 if (liff.isLoggedIn()) {
                     const profile = await liff.getProfile();
                     customerUid = profile.userId;
 
                     await loadVendorInfo();
+                    await loadCategories();
                     await loadMenu();
                 } else {
                     liff.login();
@@ -169,15 +196,13 @@
             }
         }
 
-        // 3. โหลดข้อมูลร้านค้าและเช็คว่าร้านเปิดอยู่ไหม
         async function loadVendorInfo() {
             const { data, error } = await supabaseClient.from('vendors').select('*').eq('id', vendorId).single();
             if (error || !data) return;
 
             vendorData = data; 
-
             document.getElementById('storeName').innerText = data.name;
-            if(data.line_picture_url) document.getElementById('storeLogo').src = data.line_picture_url;
+            if (data.line_picture_url) document.getElementById('storeLogo').src = data.line_picture_url;
 
             const statusBadge = document.getElementById('storeStatus');
             if (data.is_open) {
@@ -190,7 +215,30 @@
             }
         }
 
-        // 4. โหลดรายการอาหาร
+        async function loadCategories() {
+            const { data, error } = await supabaseClient
+                .from('categories')
+                .select('*')
+                .eq('vendor_id', vendorId)
+                .order('created_at', { ascending: true });
+
+            if (error || !data || data.length === 0) return;
+
+            const catBar = document.getElementById('categoryBar');
+            let html = '<button class="cat-btn active" onclick="filterCategory(\'all\', this)">ทั้งหมด</button>';
+            data.forEach(cat => {
+                html += `<button class="cat-btn" onclick="filterCategory('${cat.id}', this)">${cat.name}</button>`;
+            });
+            catBar.innerHTML = html;
+        }
+
+        function filterCategory(catId, btnElement) {
+            selectedCategory = catId;
+            document.querySelectorAll('.cat-btn').forEach(btn => btn.classList.remove('active'));
+            btnElement.classList.add('active');
+            renderMenuList();
+        }
+
         async function loadMenu() {
             const { data, error } = await supabaseClient
                 .from('menu_items')
@@ -199,17 +247,27 @@
                 .eq('is_available', true)
                 .order('created_at', { ascending: false });
 
+            menuData = data || [];
+            renderMenuList();
+        }
+
+        function renderMenuList() {
             const container = document.getElementById('menuContainer');
-            if (error || data.length === 0) {
-                container.innerHTML = '<p style="text-align: center; color: #888;">ยังไม่มีเมนูที่พร้อมขายในขณะนี้</p>';
+            
+            // กรองตามหมวดหมู่ที่เลือก
+            const filtered = selectedCategory === 'all' 
+                ? menuData 
+                : menuData.filter(m => m.category_id === selectedCategory);
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #888; padding: 20px 0;">ไม่มีเมนูในหมวดหมู่นี้</p>';
                 return;
             }
 
-            menuData = data; 
             let html = '';
-            
-            data.forEach(item => {
+            filtered.forEach(item => {
                 const imgSrc = item.image_url ? item.image_url : 'https://via.placeholder.com/80?text=No+Image';
+                const currentQty = cart[item.id] ? cart[item.id].qty : 0;
                 html += `
                     <div class="menu-card">
                         <img src="${imgSrc}" class="menu-img">
@@ -219,7 +277,7 @@
                             
                             <div class="qty-control">
                                 <button class="qty-btn" onclick="updateCart('${item.id}', -1)">-</button>
-                                <span class="qty-number" id="qty-${item.id}">0</span>
+                                <span class="qty-number" id="qty-${item.id}">${currentQty}</span>
                                 <button class="qty-btn add" onclick="updateCart('${item.id}', 1)">+</button>
                             </div>
                         </div>
@@ -229,7 +287,6 @@
             container.innerHTML = html;
         }
 
-        // 5. ระบบคำนวณตะกร้าสินค้า
         function updateCart(menuId, change) {
             const menuItem = menuData.find(m => m.id === menuId);
             if (!menuItem) return;
@@ -245,13 +302,14 @@
                 delete cart[menuId];
             }
 
-            const qtyText = cart[menuId] ? cart[menuId].qty : 0;
-            document.getElementById(`qty-${menuId}`).innerText = qtyText;
+            const qtyEl = document.getElementById(`qty-${menuId}`);
+            if (qtyEl) {
+                qtyEl.innerText = cart[menuId] ? cart[menuId].qty : 0;
+            }
 
             calculateTotal();
         }
 
-        // 6. คำนวณยอดรวมทั้งหมด
         function calculateTotal() {
             let totalQty = 0;
             let totalPrice = 0;
@@ -272,7 +330,6 @@
             }
         }
 
-        // 7. เปิดหน้าต่างชำระเงิน พร้อมสร้าง QR พร้อมเพย์
         function goToCheckout() {
             const summaryDiv = document.getElementById('checkoutSummary');
             let summaryHtml = '';
@@ -302,12 +359,10 @@
             document.getElementById('checkoutModal').style.display = 'flex';
         }
 
-        // ปิดหน้าต่างชำระเงิน
         function closeCheckout() {
             document.getElementById('checkoutModal').style.display = 'none';
         }
 
-        // 8. ส่งออเดอร์เข้าฐานข้อมูล
         async function submitOrder() {
             const fileInput = document.getElementById('slipImage');
             const btn = document.getElementById('confirmOrderBtn');
