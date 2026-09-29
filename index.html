@@ -176,51 +176,56 @@
             const phoneNumber = document.getElementById('phoneNumber').value.trim();
             const promptpay = document.getElementById('promptpayNumber').value.trim(); 
 
-            if (!storeName || !phoneNumber || !promptpay) {
-                alert("กรุณากรอกข้อมูลให้ครบถ้วน"); return;
-            }
+            if (!storeName || !phoneNumber || !promptpay) { alert("กรุณากรอกข้อมูลให้ครบถ้วน"); return; }
 
             const btn = document.getElementById('registerBtn');
             btn.innerText = "⏳ กำลังสร้างร้านค้า..."; btn.disabled = true;
 
+            // [NEW] ตรวจสอบว่าเป็นแพ็กเกจฟรี หรือ เสียเงิน
+            let isActive = true;
+            let statusText = "Active";
             const expiresAt = new Date();
-            expiresAt.setDate(expiresAt.getDate() + selectedPlan.days);
+
+            if (selectedPlan.price > 0) {
+                // ถ้าเสียเงิน -> ให้สถานะ Inactive และหมดอายุทันที เพื่อล็อคไม่ให้เปิดร้านจนกว่าจะจ่ายเงิน
+                isActive = false;
+                statusText = "Inactive";
+            } else {
+                // ถ้าฟรี -> ใช้งานได้เลย บวกวันหมดอายุเข้าไป
+                expiresAt.setDate(expiresAt.getDate() + selectedPlan.days);
+            }
             
-            // สร้าง ID ใหม่
             const newVendorId = await generateVendorId();
 
-            // บันทึกลง Supabase พร้อมรหัสร้านแบบใหม่!
-            const { data, error } = await supabaseClient
-                .from('vendors')
-                .insert([
-                    { 
-                        id: newVendorId, 
-                        line_owner_uid: lineData.uid, 
-                        line_display_name: lineData.name,
-                        line_picture_url: lineData.pic,
-                        name: storeName,
-                        phone: phoneNumber,
-                        promptpay_number: promptpay,
-                        is_open: false,
-                        slip_check_mode: selectedPlan.mode,
-                        subscription_plan: selectedPlan.id,
-                        subscription_days: selectedPlan.days,
-                        subscription_expires_at: expiresAt.toISOString(),
-                        is_subscription_active: true,
-                        referrer_id: referrerId, 
-                        wallet_balance: 0,
-                        slip_quota: selectedPlan.quota || 0
-                    }
-                ])
-                .select();
+            const { data, error } = await supabaseClient.from('vendors').insert([{ 
+                id: newVendorId, 
+                line_owner_uid: lineData.uid, 
+                line_display_name: lineData.name,
+                line_picture_url: lineData.pic,
+                name: storeName,
+                phone: phoneNumber,
+                promptpay_number: promptpay,
+                is_open: false,
+                slip_check_mode: selectedPlan.mode,
+                subscription_plan: selectedPlan.id,
+                subscription_days: selectedPlan.days,
+                subscription_expires_at: expiresAt.toISOString(),
+                is_subscription_active: isActive, // <--- ใช้สถานะที่เช็คไว้
+                referrer_id: referrerId, 
+                wallet_balance: 0,
+                slip_quota: selectedPlan.quota || 0
+            }]).select();
 
             if (error) {
                 alert("เกิดข้อผิดพลาด: " + error.message);
                 btn.innerText = "ลองใหม่อีกครั้ง"; btn.disabled = false;
             } else {
-                alert(`ลงทะเบียนร้านค้าสำเร็จ!\nรหัสร้านของคุณคือ: ${newVendorId}\nแพ็กเกจ: ${selectedPlan.name}`);
+                if(isActive) {
+                    alert(`ลงทะเบียนสำเร็จ!\nรหัสร้าน: ${newVendorId}\nแพ็กเกจ: ${selectedPlan.name}`);
+                } else {
+                    alert(`ลงทะเบียนสำเร็จ! (รหัสร้าน: ${newVendorId})\n\n⚠️ คุณเลือกแพ็กเกจ ${selectedPlan.name}\nกรุณาแนบสลิปชำระเงินในเมนู "ตั้งค่า" เพื่อเปิดใช้งานระบบครับ`);
+                }
                 
-                // ยิงไปแจ้ง GAS ให้เก็บลง Google Sheet และแจ้งแอดมินด้วยรหัสใหม่
                 try {
                     await fetch(CONFIG.gasWebhookUrl, {
                         method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -232,15 +237,15 @@
                             display_name: lineData.name, 
                             plan: selectedPlan.name, 
                             expires_at: expiresAt.toLocaleDateString('th-TH'),
-                            referrer_id: referrerId  // ส่งรหัสผู้แนะนำไปด้วย
+                            referrer_id: referrerId,
+                            status: statusText // <--- ส่งสถานะไปให้ GAS
                         })
                     });
-                } catch(e) {
-                    console.log(e);
-                }
+                } catch(e) {}
 
-                // สั่งให้เปลี่ยนหน้าไปที่ Dashboard
                 window.location.href = "dashboard.html"; 
+            }
+        }
             }
         }
         window.onload = initializeLiff;
