@@ -110,7 +110,7 @@
         <!-- 2. หน้าจัดการเมนูและหมวดหมู่ -->
         <div id="menu" class="tab-content">
             <div class="card" style="border-left: 4px solid #06C755;">
-                <h3 style="margin-top: 0;">🏷️️ จัดการหมวดหมู่สินค้า</h3>
+                <h3 style="margin-top: 0;">🏷 จัดการหมวดหมู่สินค้า</h3>
                 <div style="display: flex; gap: 8px; margin-bottom: 12px;">
                     <input type="text" id="newCategoryName" placeholder="เช่น อาหารจานด่วน, เครื่องดื่ม" style="flex: 1; padding: 9px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
                     <button onclick="saveCategory()" id="saveCatBtn" style="background: #06C755; color: white; border: none; padding: 9px 15px; border-radius: 6px; cursor: pointer; font-weight: bold;">+ เพิ่ม</button>
@@ -345,9 +345,7 @@
 
                 updateStoreStatusUI(vendorData.is_open);
                 
-                let basePath = window.location.origin + window.location.pathname.replace(/dashboard\.html$/, '');
-if(!basePath.endsWith('/')) basePath += '/';
-document.getElementById('customerLinkText').value = `${basePath}customer.html?vid=${vendorData.id}`;
+                document.getElementById('customerLinkText').value = `https://liff.line.me/${CONFIG.liffIdCustomer}?vid=${vendorData.id}`;
 
                 populateSettingsForm();
                 renderAffiliateInfo();
@@ -455,9 +453,7 @@ document.getElementById('customerLinkText').value = `${basePath}customer.html?vi
         function renderAffiliateInfo() {
             if (!vendorData) return;
             document.getElementById('walletBalance').innerText = vendorData.wallet_balance || 0;
-            let basePath = window.location.origin + window.location.pathname.replace(/dashboard\.html$/, '');
-if(!basePath.endsWith('/')) basePath += '/';
-document.getElementById('affiliateLink').value = `${basePath}index.html?ref=${vendorData.id}`;
+            document.getElementById('affiliateLink').value = `https://liff.line.me/${CONFIG.liffIdRegister}?ref=${vendorData.id}`;
         }
 
         function copyAffiliateLink() {
@@ -544,7 +540,6 @@ document.getElementById('affiliateLink').value = `${basePath}index.html?ref=${ve
         function renderSubscriptionInfo() {
             if (!vendorData) return;
             
-            // [NEW] เช็คสถานะการชำระเงิน
             const badgeEl = document.getElementById('subStatusBadge');
             if (vendorData.subscription_expires_at) {
                 const expDate = new Date(vendorData.subscription_expires_at);
@@ -616,14 +611,6 @@ document.getElementById('affiliateLink').value = `${basePath}index.html?ref=${ve
                 document.getElementById('billTotalAmount').innerText = `฿${totalEstimatedBill.toFixed(2)}`;
                 document.getElementById('slipQuotaText').innerText = vendorData.slip_quota || 0;
 
-                if (vendorData.subscription_expires_at) {
-                    const expDate = new Date(vendorData.subscription_expires_at);
-                    document.getElementById('subExpiresAt').innerText = expDate.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                    const isExpired = new Date() > expDate;
-                    const badgeEl = document.getElementById('subStatusBadge');
-                    if (isExpired) { badgeEl.innerText = "หมดอายุแล้ว"; badgeEl.className = "sub-badge sub-expired"; } 
-                    else { badgeEl.innerText = "ใช้งานได้ปกติ"; badgeEl.className = "sub-badge sub-active"; }
-                }
             } catch(e) { console.error("Billing Info Error:", e); document.getElementById('billPlanName').innerText = "โหลดล้มเหลว"; }
         }
 
@@ -879,6 +866,12 @@ document.getElementById('affiliateLink').value = `${basePath}index.html?ref=${ve
         // ==================== ระบบออเดอร์ & อัปเดตสถานะด้วย Flex Message ====================
         async function toggleStoreStatus() {
             if (!vendorData) return;
+            
+            if (!vendorData.is_subscription_active) {
+                alert("⚠️ ไม่สามารถเปิดร้านได้!\nคุณยังไม่ได้ชำระค่าแพ็กเกจ หรือกำลังรอแอดมินตรวจสอบ\n\n👉 กรุณาเลื่อนลงไปที่แท็บ 'ตั้งค่า' เพื่อสแกนจ่ายและแนบสลิปครับ");
+                return;
+            }
+
             if (vendorData.subscription_expires_at && new Date() > new Date(vendorData.subscription_expires_at)) { alert("⚠️ ไม่สามารถเปิดร้านได้: แพ็กเกจของคุณหมดอายุแล้ว\nกรุณาต่ออายุที่แท็บ 'ตั้งค่า'"); return; }
             const newStatus = !vendorData.is_open; if (!confirm(newStatus ? "ยืนยันการเปิดรับออเดอร์ใหม่?" : "ปิดรับออเดอร์ชั่วคราวใช่หรือไม่?")) return;
             await supabaseClient.from('vendors').update({ is_open: newStatus }).eq('id', vendorData.id); vendorData.is_open = newStatus; updateStoreStatusUI(newStatus); 
@@ -947,31 +940,21 @@ document.getElementById('affiliateLink').value = `${basePath}index.html?ref=${ve
             let confirmMsg = newStatus === 'processing' ? "ตรวจสอบสลิปถูกต้อง และรับคิวนี้ใช่หรือไม่?" : newStatus === 'completed' ? "อาหารเสร็จแล้ว ส่งมอบเรียบร้อยใช่หรือไม่?" : "ต้องการยกเลิกออเดอร์นี้ใช่หรือไม่?";
             if (!confirm(confirmMsg)) return;
 
-            btnElement.innerText = "⏳ อัปเดต...";
+            const originalText = btnElement.innerText;
+            btnElement.innerText = "⏳ กำลังส่งข้อมูล...";
             btnElement.disabled = true;
 
-            // 1. อัปเดตสถานะใน Supabase ทันที
             await supabaseClient.from('orders').update({ status: newStatus }).eq('id', orderId);
             
-            // 2. สั่งยิง Flex Message หลังบ้าน (Fire & Forget ตัด await ออก)
             if (customerUid && customerUid !== '') { 
                 fetch(CONFIG.gasWebhookUrl, { 
-                    method: 'POST', 
-                    body: JSON.stringify({ 
-                        action: 'notify_customer', 
-                        vendor_id: vendorData.id, 
-                        uid: customerUid, 
-                        order_status: newStatus, 
-                        store_name: vendorData.name, 
-                        order_ref: orderRef, 
-                        queue_num: queueNum 
-                    }) 
+                    method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: JSON.stringify({ action: 'notify_customer', vendor_id: vendorData.id, uid: customerUid, order_status: newStatus, store_name: vendorData.name, order_ref: orderRef, queue_num: queueNum }) 
                 }).catch(e => console.log(e)); 
             }
-            
-            // 3. โหลดออเดอร์ใหม่โชว์แม่ค้าทันที
             loadOrders(); 
         }
+
         // ==================== ระบบตั้งค่าทั่วไป ====================
         function populateSettingsForm() {
             if (!vendorData) return;
@@ -983,16 +966,14 @@ document.getElementById('affiliateLink').value = `${basePath}index.html?ref=${ve
             document.getElementById('settingBankInfo').value = vendorData.bank_info || '';
             togglePaymentInputs();
 
-            // จัดการแสดงผล LINE Token
             const tokenInput = document.getElementById('settingLineToken');
             const tokenBtn = document.getElementById('saveTokenBtn');
             if (vendorData.line_token) {
-                // ซ่อน Token จริง โชว์แค่ตัวหน้ากับตัวหลัง
                 const hiddenToken = vendorData.line_token.substring(0, 10) + '....................' + vendorData.line_token.substring(vendorData.line_token.length - 10);
                 tokenInput.placeholder = hiddenToken;
                 tokenInput.value = ''; 
                 tokenBtn.innerText = "✏️ แก้ไข Token";
-                tokenBtn.style.background = "#f59e0b"; // ปุ่มสีส้ม
+                tokenBtn.style.background = "#f59e0b";
             } else {
                 tokenInput.placeholder = "วาง Token ที่คัดลอกมาที่นี่...";
                 tokenBtn.innerText = "💾 บันทึก Token";
@@ -1032,32 +1013,22 @@ document.getElementById('affiliateLink').value = `${basePath}index.html?ref=${ve
             btn.innerText = "💾 บันทึกข้อมูลร้านค้า"; btn.disabled = false;
         }
 
-        // ==================== ระบบอัปเดต LINE Token (ใหม่) ====================
         async function updateLineToken(btn) {
             const tokenInput = document.getElementById('settingLineToken');
             const token = tokenInput.value.trim();
-            
             if (!token) return alert("กรุณาวาง LINE Token ที่ต้องการบันทึก หรือ แก้ไข");
-            
             btn.innerText = "⏳ กำลังบันทึก..."; btn.disabled = true;
-
             try {
-                // 1. อัปเดตลง Supabase (เพื่อให้หน้าเว็บจำได้ทันที)
                 const { error } = await supabaseClient.from('vendors').update({ line_token: token }).eq('id', vendorData.id);
                 if(error) throw error;
                 vendorData.line_token = token;
-
-                // 2. ส่งไปยิงลง Google Sheet ผ่าน GAS
                 await fetch(CONFIG.gasWebhookUrl, {
                     method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
                     body: JSON.stringify({ action: 'update_line_token', vendor_id: vendorData.id, line_token: token })
                 });
-
                 alert("บันทึก LINE Token เรียบร้อยแล้ว!");
-                populateSettingsForm(); // รีเฟรชโชว์ปุ่มแก้ไข และซ่อน Token จางๆ
-            } catch(e) {
-                alert("เกิดข้อผิดพลาด: " + e.message);
-            }
+                populateSettingsForm(); 
+            } catch(e) { alert("เกิดข้อผิดพลาด: " + e.message); }
             btn.disabled = false;
         }
 
