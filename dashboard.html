@@ -26,7 +26,6 @@
         .sub-expired { background: #ffebee; color: #c62828; }
         .section-divider { border-top: 1px dashed #ccc; margin: 15px 0; padding-top: 15px; }
         
-        /* เพิ่มเติมสำหรับระบบ Billing */
         .billing-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; color: #555; }
         .billing-total { display: flex; justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px dashed #bcdcff; font-weight: bold; font-size: 16px; color: #0d47a1; }
         .admin-bank-box { background: #e3f2fd; padding: 10px; border-radius: 6px; border: 1px dashed #2196F3; font-size: 13px; color: #0d47a1; margin-bottom: 10px; display: none; text-align: left;}
@@ -40,7 +39,7 @@
             <h3 style="margin-top: 0; color: #ff9800;">💸 แจ้งถอนเงิน / ชำระค่าแพ็กเกจ</h3>
             <label style="font-size: 13px; font-weight: bold; color: #555;">ประเภทการทำรายการ</label>
             <select id="withdrawType" onchange="updateWithdrawInfo()" style="width: 100%; padding: 10px; margin-bottom: 10px; margin-top: 5px; border: 1px solid #ddd; border-radius: 6px;">
-                <option value="cash">ถอนเป็นเงินสดเข้าพร้อมเพย์</option>
+                <option value="cash">ถอนเป็นเงินสดเข้าบัญชี</option>
                 <option value="package">ใช้ชำระเป็นค่าแพ็กเกจระบบ</option>
             </select>
             <div id="withdrawInfo" style="background: #fff8e1; padding: 10px; border-radius: 6px; font-size: 12px; color: #e65100; margin-bottom: 15px; border: 1px dashed #ffb74d;"></div>
@@ -111,7 +110,7 @@
         <!-- 2. หน้าจัดการเมนูและหมวดหมู่ -->
         <div id="menu" class="tab-content">
             <div class="card" style="border-left: 4px solid #06C755;">
-                <h3 style="margin-top: 0;">🏷️ จัดการหมวดหมู่สินค้า</h3>
+                <h3 style="margin-top: 0;">🏷️️ จัดการหมวดหมู่สินค้า</h3>
                 <div style="display: flex; gap: 8px; margin-bottom: 12px;">
                     <input type="text" id="newCategoryName" placeholder="เช่น อาหารจานด่วน, เครื่องดื่ม" style="flex: 1; padding: 9px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
                     <button onclick="saveCategory()" id="saveCatBtn" style="background: #06C755; color: white; border: none; padding: 9px 15px; border-radius: 6px; cursor: pointer; font-weight: bold;">+ เพิ่ม</button>
@@ -187,7 +186,8 @@
                     
                     <div class="billing-row"><span>ค่าแพ็กเกจพื้นฐาน:</span><span id="billBasePrice">฿0</span></div>
                     <div class="billing-row"><span>จำนวนสาขาที่ใช้ (<span id="billBranchCount">1</span>/<span id="billBranchIncluded">1</span>):</span><span id="billBranchExtra" style="color: #ff9800;">+ ฿0</span></div>
-                    <div class="billing-row"><span>โควต้าสลิปที่ใช้ (<span id="billSlipUsed">0</span>/<span id="billSlipIncluded">0</span> บิล):</span><span id="billSlipExtra" style="color: #ff9800;">+ ฿0</span></div>
+                    <div class="billing-row"><span>โควต้าสลิปออโต้คงเหลือ:</span><span id="slipQuotaText" style="color: #06C755; font-weight:bold;">0</span></div>
+                    <div class="billing-row"><span>สลิปที่ใช้รอบนี้ (<span id="billSlipUsed">0</span>/<span id="billSlipIncluded">0</span> บิล):</span><span id="billSlipExtra" style="color: #ff9800;">+ ฿0</span></div>
                     <div class="billing-total"><span>ยอดบิลโดยประมาณ:</span><span id="billTotalAmount">฿0</span></div>
                 </div>
 
@@ -205,7 +205,7 @@
                     
                     <label style="font-size: 13px; font-weight: bold; color: #555;">แนบสลิปเพื่อยืนยัน</label>
                     <div style="display: flex; gap: 8px; margin-top: 5px;">
-                        <input type="file" id="renewSlipImage" accept="image/*" style="flex: 1; padding: 5px;">
+                        <input type="file" id="renewSlipImage" accept="image/*" style="flex: 1; padding: 5px; border: 1px solid #ccc; border-radius:6px; box-sizing:border-box;">
                         <button onclick="verifyAndRenewSubscription(this)" id="renewBtn" style="background: #2196F3; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">ยืนยัน</button>
                     </div>
                 </div>
@@ -226,7 +226,7 @@
                     
                     <label style="font-size: 13px; font-weight: bold; color: #555;">แนบสลิปเพื่อยืนยัน</label>
                     <div style="display: flex; gap: 8px; margin-top: 5px;">
-                        <input type="file" id="quotaSlipImage" accept="image/*" style="flex: 1; padding: 5px;">
+                        <input type="file" id="quotaSlipImage" accept="image/*" style="flex: 1; padding: 5px; border: 1px solid #ccc; border-radius:6px; box-sizing:border-box;">
                         <button onclick="verifyAndTopupQuota(this)" id="topupBtn" style="background: #06C755; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">ยืนยัน</button>
                     </div>
                 </div>
@@ -266,10 +266,10 @@
                 <button onclick="updateStoreSettings(this)" id="saveSettingsBtn" style="background: #06C755; color: white; border: none; padding: 12px; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold;">💾 บันทึกข้อมูลร้านค้า</button>
             </div>
 
-            <!-- ====== จัดการสาขา (Branches) เอามาไว้ล่างสุด ====== -->
+            <!-- ====== จัดการสาขา (Branches) ====== -->
             <div class="card" style="border-left: 4px solid #9c27b0; background: #faf5ff;">
                 <h3 style="margin-top: 0; color: #6a1b9a;">🏢 จัดการสาขาย่อย (Branches)</h3>
-                <p style="font-size: 13px; color: #666; margin-bottom: 15px;">เพิ่มสาขาเพื่อแยก QR Code และพร้อมเพย์รับเงิน</p>
+                <p style="font-size: 13px; color: #666; margin-bottom: 15px;">เพิ่มสาขาเพื่อแยก QR Code และบัญชีรับเงิน</p>
                 
                 <div style="background: white; padding: 15px; border: 1px solid #e1bee7; border-radius: 8px; margin-bottom: 15px;">
                     <label style="font-size: 13px; font-weight: bold; color: #555;">ชื่อสาขา</label>
@@ -284,6 +284,17 @@
                 <div id="branchListContainer" style="background: white; border: 1px solid #e1bee7; border-radius: 8px; padding: 10px;">
                     <p style="text-align: center; color: #888; font-size: 13px; margin: 0;">กำลังโหลดสาขา...</p>
                 </div>
+            </div>
+
+            <!-- ====== [NEW] ตั้งค่า LINE TOKEN ====== -->
+            <div class="card" style="border-left: 4px solid #00B900; background: #f4fdf6;">
+                <h3 style="margin-top: 0; color: #00B900;">💬 ตั้งค่า LINE Messaging API (Token)</h3>
+                <p style="font-size: 13px; color: #666; margin-bottom: 15px;">ระบุ Channel Access Token เพื่อให้ระบบสามารถส่งข้อความแจ้งเตือนสถานะออเดอร์หาลูกค้าได้อัตโนมัติ</p>
+                
+                <label style="font-size: 13px; font-weight: bold; color: #555;">LINE Channel Access Token</label>
+                <input type="text" id="settingLineToken" placeholder="วาง Token ที่คัดลอกมาที่นี่..." style="width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 15px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
+                
+                <button onclick="updateLineToken(this)" id="saveTokenBtn" style="background: #00B900; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; font-size: 14px;">💾 บันทึก Token</button>
             </div>
 
         </div>
@@ -321,26 +332,32 @@
         }
 
         async function loadVendorData(uid) {
-            const { data, error } = await supabaseClient.from('vendors').select('*').eq('line_owner_uid', uid).single(); 
-            if (error || !data) {
-                alert("ไม่พบข้อมูลร้านค้า กรุณาลงทะเบียนก่อนใช้งาน");
-                window.location.href = "index.html"; return;
-            }
+            try {
+                const { data, error } = await supabaseClient.from('vendors').select('*').eq('line_owner_uid', uid).maybeSingle(); 
+                if (error || !data) {
+                    alert("ไม่พบข้อมูลร้านค้า กรุณาลงทะเบียนก่อนใช้งาน");
+                    window.location.href = "index.html"; return;
+                }
 
-            vendorData = data;
-            document.getElementById('storeName').innerText = vendorData.name;
-            if (vendorData.line_picture_url) document.getElementById('storeLogo').src = vendorData.line_picture_url;
+                vendorData = data;
+                document.getElementById('storeName').innerText = vendorData.name;
+                if (vendorData.line_picture_url) document.getElementById('storeLogo').src = vendorData.line_picture_url;
 
-            updateStoreStatusUI(vendorData.is_open);
-            
-            const baseUrl = window.location.href.split('dashboard.html')[0];
-            document.getElementById('customerLinkText').value = `${baseUrl}customer.html?vid=${vendorData.id}`;
+                updateStoreStatusUI(vendorData.is_open);
+                
+                const baseUrl = window.location.href.split('dashboard.html')[0];
+                document.getElementById('customerLinkText').value = `${baseUrl}customer.html?vid=${vendorData.id}`;
 
-            await loadCategories(); loadMenuItems(); loadOrders(); populateSettingsForm();
-            renderSubscriptionInfo(); renderAffiliateInfo();
-            
-            await loadBranches();
-            await loadBillingInfo();
+                populateSettingsForm();
+                renderAffiliateInfo();
+                renderSubscriptionInfo();
+                
+                await loadCategories(); 
+                await loadMenuItems(); 
+                await loadOrders(); 
+                await loadBranches();
+                await loadBillingInfo(); 
+            } catch(e) { console.error(e); }
         }
 
         // ==================== ระบบจัดการสาขา ====================
@@ -391,6 +408,7 @@
 
         function showCustomerQr() {
             const customerLink = document.getElementById('customerLinkText').value;
+            if(!customerLink) return alert("กำลังสร้างลิงก์ กรุณารอสักครู่...");
             const qrUrl = `https://quickchart.io/qr?text=${encodeURIComponent(customerLink)}&size=300`;
             document.getElementById('customerQrImage').src = qrUrl;
             document.getElementById('customerQrModal').style.display = 'flex';
@@ -428,7 +446,7 @@
             };
 
             if (liff.isApiAvailable('shareTargetPicker')) {
-                liff.shareTargetPicker([flexMsg]).then(function (res) { if (res) alert('ส่งลิงก์ร้านให้ลูกค้าสำเร็จ! 🎉'); }).catch(function (error) { console.error('Error sharing:', error); });
+                liff.shareTargetPicker([flexMsg]).then(function (res) { if (res) alert('ส่งลิงก์ร้านให้ลูกค้าสำเร็จ! 🎉'); }).catch(function (error) {});
             } else { alert('อุปกรณ์ไม่รองรับ กรุณากดคัดลอกลิงก์ส่งให้ลูกค้าแทนครับ'); }
         }
 
@@ -447,7 +465,9 @@
 
         function shareAffiliateFlex() {
             if (!liff.isLoggedIn()) return;
-            const refLink = document.getElementById('affiliateLink').value; const storeName = vendorData.name || "เพื่อนของคุณ";
+            const refLink = document.getElementById('affiliateLink').value; 
+            if(!refLink) return;
+            const storeName = vendorData.name || "เพื่อนของคุณ";
             const flexMsg = {
               "type": "flex", "altText": `${storeName} ชวนคุณเปิดร้านอาหารระบบใหม่ ทดลองใช้ฟรี!`,
               "contents": {
@@ -469,6 +489,7 @@
 
         function showAffiliateQr() {
             const refLink = document.getElementById('affiliateLink').value;
+            if(!refLink) return alert("ไม่พบลิงก์แนะนำ กรุณารอโหลดข้อมูลสักครู่");
             const qrUrl = `https://quickchart.io/qr?text=${encodeURIComponent(refLink)}&size=300`;
             document.getElementById('affiliateQrImage').src = qrUrl; document.getElementById('qrModal').style.display = 'flex';
         }
@@ -506,12 +527,9 @@
                 await supabaseClient.from('vendors').update({ wallet_balance: newBalance }).eq('id', vendorData.id);
                 vendorData.wallet_balance = newBalance; document.getElementById('walletBalance').innerText = newBalance;
 
-                await supabaseClient.from('withdrawals').insert([{
-                    vendor_id: vendorData.id, store_name: vendorData.name, promptpay: vendorData.promptpay_number, type: type, amount: amount, status: 'pending'
-                }]);
-
                 await fetch(CONFIG.gasWebhookUrl, {
-                    method: 'POST', body: JSON.stringify({ action: 'withdraw_request', vendor_id: vendorData.id, store_name: vendorData.name, phone: vendorData.phone, promptpay: vendorData.promptpay_number, type: type, amount: amount })
+                    method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: JSON.stringify({ action: 'withdraw_request', vendor_id: vendorData.id, store_name: vendorData.name, phone: vendorData.phone, promptpay: vendorData.promptpay_number, type: type, amount: amount })
                 });
 
                 alert('ส่งคำร้องเรียบร้อยแล้ว แอดมินจะตรวจสอบและดำเนินการให้เร็วที่สุดครับ!');
@@ -521,60 +539,77 @@
         }
 
         // ==================== ระบบแพ็กเกจ โควต้า และ บิลลิ่ง ====================
-        async function loadBillingInfo() {
-            const planId = vendorData.subscription_plan || 'trial';
-            let { data: planDb } = await supabaseClient.from('plans').select('*').eq('plan_id', planId).single();
-            
-            if (!planDb) {
-                const confPlan = CONFIG.pricingPlans.find(p => p.id === planId);
-                if (confPlan) planDb = { plan_name: confPlan.name, monthly_price: confPlan.price, included_branches: 1, included_slips: confPlan.quota || 0, extra_branch_price: 300, extra_slip_unit: 100, extra_slip_price: 100 };
-            }
-            if(!planDb) return;
-
-            const d = new Date(); const firstDay = new Date(d.getFullYear(), d.getMonth(), 1).toISOString();
-            const { count: slipUsed } = await supabaseClient.from('slip_logs').select('*', { count: 'exact', head: true }).eq('merchant_id', vendorData.id).neq('status', 'error').gte('created_at', firstDay);
-
-            const basePrice = parseFloat(planDb.monthly_price || 0);
-            let extraBranchCount = Math.max(0, branchCount - (planDb.included_branches || 1));
-            let extraBranchPrice = extraBranchCount * (planDb.extra_branch_price || 300);
-
-            const used = slipUsed || 0; const incSlip = planDb.included_slips || 0;
-            let extraSlipCount = Math.max(0, used - incSlip);
-            let extraSlipPrice = Math.ceil(extraSlipCount / (planDb.extra_slip_unit || 100)) * (planDb.extra_slip_price || 100);
-
-            const totalEstimatedBill = basePrice + extraBranchPrice + extraSlipPrice;
-
-            document.getElementById('billPlanName').innerText = planDb.plan_name;
-            document.getElementById('billBasePrice').innerText = `฿${basePrice.toFixed(2)}`;
-            document.getElementById('billBranchCount').innerText = branchCount;
-            document.getElementById('billBranchIncluded').innerText = planDb.included_branches || 1;
-            document.getElementById('billBranchExtra').innerText = `+ ฿${extraBranchPrice.toFixed(2)}`;
-            document.getElementById('billSlipUsed').innerText = used;
-            document.getElementById('billSlipIncluded').innerText = incSlip;
-            document.getElementById('billSlipExtra').innerText = `+ ฿${extraSlipPrice.toFixed(2)}`;
-            document.getElementById('billTotalAmount').innerText = `฿${totalEstimatedBill.toFixed(2)}`;
-        }
-
         function renderSubscriptionInfo() {
             if (!vendorData) return;
-            document.getElementById('slipQuotaText').innerText = vendorData.slip_quota || 0;
-
-            if (vendorData.subscription_expires_at) {
-                const expDate = new Date(vendorData.subscription_expires_at);
-                document.getElementById('subExpiresAt').innerText = expDate.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                const isExpired = new Date() > expDate;
-                const badgeEl = document.getElementById('subStatusBadge');
-                if (isExpired) { badgeEl.innerText = "หมดอายุแล้ว"; badgeEl.className = "sub-badge sub-expired"; } 
-                else { badgeEl.innerText = "ใช้งานได้ปกติ"; badgeEl.className = "sub-badge sub-active"; }
+            
+            const renewSelect = document.getElementById('renewPlanSelect'); 
+            let optionsHtml = '';
+            if(CONFIG.pricingPlans) {
+                CONFIG.pricingPlans.filter(p => p.price > 0).forEach(p => { 
+                    optionsHtml += `<option value="${p.id}" data-price="${p.price}" data-days="${p.days}" data-quota="${p.quota}">${p.name} - ฿${p.price}</option>`; 
+                });
+                renewSelect.innerHTML = optionsHtml; 
+                updateRenewQr();
             }
 
-            const renewSelect = document.getElementById('renewPlanSelect'); let optionsHtml = '';
-            CONFIG.pricingPlans.filter(p => p.price > 0).forEach(p => { optionsHtml += `<option value="${p.id}" data-price="${p.price}" data-days="${p.days}" data-quota="${p.quota}">${p.name} - ฿${p.price}</option>`; });
-            renewSelect.innerHTML = optionsHtml; updateRenewQr();
+            const quotaSelect = document.getElementById('quotaPlanSelect'); 
+            let qHtml = '';
+            if(CONFIG.quotaPlans) { 
+                CONFIG.quotaPlans.forEach(q => { 
+                    qHtml += `<option value="${q.id}" data-price="${q.price}" data-quota="${q.quota}">${q.name} - ฿${q.price}</option>`; 
+                }); 
+                quotaSelect.innerHTML = qHtml; 
+                updateQuotaQr();
+            }
+        }
 
-            const quotaSelect = document.getElementById('quotaPlanSelect'); let qHtml = '';
-            if(CONFIG.quotaPlans) { CONFIG.quotaPlans.forEach(q => { qHtml += `<option value="${q.id}" data-price="${q.price}" data-quota="${q.quota}">${q.name} - ฿${q.price}</option>`; }); }
-            quotaSelect.innerHTML = qHtml; updateQuotaQr();
+        async function loadBillingInfo() {
+            try {
+                const planId = vendorData.subscription_plan || 'trial';
+                let planDb = null;
+                
+                const { data: dbData } = await supabaseClient.from('plans').select('*').eq('plan_id', planId).maybeSingle();
+                if(dbData) planDb = dbData;
+                
+                if (!planDb) {
+                    const confPlan = CONFIG.pricingPlans.find(p => p.id === planId);
+                    if (confPlan) planDb = { plan_name: confPlan.name, monthly_price: confPlan.price, included_branches: 1, included_slips: confPlan.quota || 0, extra_branch_price: 300, extra_slip_unit: 100, extra_slip_price: 100 };
+                    else planDb = { plan_name: 'ฟรี/ทดลองใช้', monthly_price: 0, included_branches: 1, included_slips: 0, extra_branch_price: 300, extra_slip_unit: 100, extra_slip_price: 100 };
+                }
+
+                const d = new Date(); const firstDay = new Date(d.getFullYear(), d.getMonth(), 1).toISOString();
+                const { count: slipUsed } = await supabaseClient.from('slip_logs').select('*', { count: 'exact', head: true }).eq('merchant_id', vendorData.id).neq('status', 'error').gte('created_at', firstDay);
+
+                const basePrice = parseFloat(planDb.monthly_price || 0);
+                let extraBranchCount = Math.max(0, branchCount - (planDb.included_branches || 1));
+                let extraBranchPrice = extraBranchCount * (planDb.extra_branch_price || 300);
+
+                const used = slipUsed || 0; const incSlip = planDb.included_slips || 0;
+                let extraSlipCount = Math.max(0, used - incSlip);
+                let extraSlipPrice = Math.ceil(extraSlipCount / (planDb.extra_slip_unit || 100)) * (planDb.extra_slip_price || 100);
+
+                const totalEstimatedBill = basePrice + extraBranchPrice + extraSlipPrice;
+
+                document.getElementById('billPlanName').innerText = planDb.plan_name;
+                document.getElementById('billBasePrice').innerText = `฿${basePrice.toFixed(2)}`;
+                document.getElementById('billBranchCount').innerText = branchCount;
+                document.getElementById('billBranchIncluded').innerText = planDb.included_branches || 1;
+                document.getElementById('billBranchExtra').innerText = `+ ฿${extraBranchPrice.toFixed(2)}`;
+                document.getElementById('billSlipUsed').innerText = used;
+                document.getElementById('billSlipIncluded').innerText = incSlip;
+                document.getElementById('billSlipExtra').innerText = `+ ฿${extraSlipPrice.toFixed(2)}`;
+                document.getElementById('billTotalAmount').innerText = `฿${totalEstimatedBill.toFixed(2)}`;
+                document.getElementById('slipQuotaText').innerText = vendorData.slip_quota || 0;
+
+                if (vendorData.subscription_expires_at) {
+                    const expDate = new Date(vendorData.subscription_expires_at);
+                    document.getElementById('subExpiresAt').innerText = expDate.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    const isExpired = new Date() > expDate;
+                    const badgeEl = document.getElementById('subStatusBadge');
+                    if (isExpired) { badgeEl.innerText = "หมดอายุแล้ว"; badgeEl.className = "sub-badge sub-expired"; } 
+                    else { badgeEl.innerText = "ใช้งานได้ปกติ"; badgeEl.className = "sub-badge sub-active"; }
+                }
+            } catch(e) { console.error("Billing Info Error:", e); document.getElementById('billPlanName').innerText = "โหลดล้มเหลว"; }
         }
 
         function updateRenewQr() {
@@ -630,7 +665,8 @@
                 const slipUrl = publicData.publicUrl;
 
                 const gasRes = await fetch(CONFIG.gasWebhookUrl, {
-                    method: 'POST', body: JSON.stringify({ action: 'verify_subscription_slip', vendor_id: vendorData.id, slip_url: slipUrl, amount: expectedPrice })
+                    method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: JSON.stringify({ action: 'verify_subscription_slip', vendor_id: vendorData.id, slip_url: slipUrl, amount: expectedPrice })
                 });
 
                 const result = await gasRes.json();
@@ -685,7 +721,8 @@
                 const slipUrl = publicData.publicUrl;
 
                 const gasRes = await fetch(CONFIG.gasWebhookUrl, {
-                    method: 'POST', body: JSON.stringify({ action: 'verify_subscription_slip', vendor_id: vendorData.id, slip_url: slipUrl, amount: expectedPrice })
+                    method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: JSON.stringify({ action: 'verify_subscription_slip', vendor_id: vendorData.id, slip_url: slipUrl, amount: expectedPrice })
                 });
 
                 const result = await gasRes.json();
@@ -700,7 +737,7 @@
             btn.innerText = "ยืนยัน"; btn.disabled = false;
         }
 
-        // ==================== ระบบหมวดหมู่ & จัดการเมนู (พร้อมปุ่มคัดลอก) ====================
+        // ==================== ระบบหมวดหมู่ & จัดการเมนู ====================
         async function loadCategories() {
             if (!vendorData) return;
             const { data, error } = await supabaseClient.from('categories').select('*').eq('vendor_id', vendorData.id).order('created_at', { ascending: true });
@@ -895,14 +932,12 @@
             let confirmMsg = newStatus === 'processing' ? "ตรวจสอบสลิปถูกต้อง และรับคิวนี้ใช่หรือไม่?" : newStatus === 'completed' ? "อาหารเสร็จแล้ว ส่งมอบเรียบร้อยใช่หรือไม่?" : "ต้องการยกเลิกออเดอร์นี้ใช่หรือไม่?";
             if (!confirm(confirmMsg)) return;
 
-            // หน่วงปุ่มกันกดเบิ้ล
             const originalText = btnElement.innerText;
             btnElement.innerText = "⏳ กำลังส่งข้อมูล...";
             btnElement.disabled = true;
 
             await supabaseClient.from('orders').update({ status: newStatus }).eq('id', orderId);
             
-            // ส่งข้อมูลให้ GAS ไปสร้าง Flex แจ้งลูกค้า
             if (customerUid && customerUid !== '') { 
                 try { 
                     await fetch(CONFIG.gasWebhookUrl, { 
@@ -914,17 +949,32 @@
             loadOrders(); 
         }
 
-        // ==================== ระบบตั้งค่าทั่วไป และ ช่องทางรับเงิน ====================
+        // ==================== ระบบตั้งค่าทั่วไป ====================
         function populateSettingsForm() {
             if (!vendorData) return;
             document.getElementById('settingStoreName').value = vendorData.name || '';
             document.getElementById('settingPhone').value = vendorData.phone || '';
             
-            // ตั้งค่าช่องทางรับเงิน
             document.getElementById('settingPaymentType').value = vendorData.payment_type || 'promptpay';
             document.getElementById('settingPromptpay').value = vendorData.promptpay_number || '';
             document.getElementById('settingBankInfo').value = vendorData.bank_info || '';
             togglePaymentInputs();
+
+            // จัดการแสดงผล LINE Token
+            const tokenInput = document.getElementById('settingLineToken');
+            const tokenBtn = document.getElementById('saveTokenBtn');
+            if (vendorData.line_token) {
+                // ซ่อน Token จริง โชว์แค่ตัวหน้ากับตัวหลัง
+                const hiddenToken = vendorData.line_token.substring(0, 10) + '....................' + vendorData.line_token.substring(vendorData.line_token.length - 10);
+                tokenInput.placeholder = hiddenToken;
+                tokenInput.value = ''; 
+                tokenBtn.innerText = "✏️ แก้ไข Token";
+                tokenBtn.style.background = "#f59e0b"; // ปุ่มสีส้ม
+            } else {
+                tokenInput.placeholder = "วาง Token ที่คัดลอกมาที่นี่...";
+                tokenBtn.innerText = "💾 บันทึก Token";
+                tokenBtn.style.background = "#00B900";
+            }
         }
 
         function togglePaymentInputs() {
@@ -957,6 +1007,35 @@
             vendorData.name = name; vendorData.phone = phone; vendorData.payment_type = payType; vendorData.promptpay_number = promptpay; vendorData.bank_info = bankInfo; vendorData.line_picture_url = logoUrl;
             document.getElementById('storeName').innerText = name; if(logoUrl) document.getElementById('storeLogo').src = logoUrl;
             btn.innerText = "💾 บันทึกข้อมูลร้านค้า"; btn.disabled = false;
+        }
+
+        // ==================== ระบบอัปเดต LINE Token (ใหม่) ====================
+        async function updateLineToken(btn) {
+            const tokenInput = document.getElementById('settingLineToken');
+            const token = tokenInput.value.trim();
+            
+            if (!token) return alert("กรุณาวาง LINE Token ที่ต้องการบันทึก หรือ แก้ไข");
+            
+            btn.innerText = "⏳ กำลังบันทึก..."; btn.disabled = true;
+
+            try {
+                // 1. อัปเดตลง Supabase (เพื่อให้หน้าเว็บจำได้ทันที)
+                const { error } = await supabaseClient.from('vendors').update({ line_token: token }).eq('id', vendorData.id);
+                if(error) throw error;
+                vendorData.line_token = token;
+
+                // 2. ส่งไปยิงลง Google Sheet ผ่าน GAS
+                await fetch(CONFIG.gasWebhookUrl, {
+                    method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: JSON.stringify({ action: 'update_line_token', vendor_id: vendorData.id, line_token: token })
+                });
+
+                alert("บันทึก LINE Token เรียบร้อยแล้ว!");
+                populateSettingsForm(); // รีเฟรชโชว์ปุ่มแก้ไข และซ่อน Token จางๆ
+            } catch(e) {
+                alert("เกิดข้อผิดพลาด: " + e.message);
+            }
+            btn.disabled = false;
         }
 
         window.onload = initDashboard;
