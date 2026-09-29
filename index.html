@@ -194,7 +194,7 @@
                 .from('vendors')
                 .insert([
                     { 
-                        id: newVendorId, // <=== ใช้รหัสใหม่ที่สร้างขึ้น
+                        id: newVendorId, 
                         line_owner_uid: lineData.uid, 
                         line_display_name: lineData.name,
                         line_picture_url: lineData.pic,
@@ -223,18 +223,26 @@
                 // ยิงไปแจ้ง GAS ให้เก็บลง Google Sheet และแจ้งแอดมินด้วยรหัสใหม่
                 try {
                     await fetch(CONFIG.gasWebhookUrl, {
-    method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify({ 
-        action: 'register_vendor', 
-        vendor_id: newVendorId, 
-        store_name: storeName, 
-        owner_uid: lineData.uid, 
-        display_name: lineData.name, 
-        plan: selectedPlan.name, 
-        expires_at: expiresAt.toLocaleDateString('th-TH'),
-        referrer_id: referrerId  // <--- เพิ่มบรรทัดนี้เข้าไปครับ!
-    })
-});
+                        method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
+                        body: JSON.stringify({ 
+                            action: 'register_vendor', 
+                            vendor_id: newVendorId, 
+                            store_name: storeName, 
+                            owner_uid: lineData.uid, 
+                            display_name: lineData.name, 
+                            plan: selectedPlan.name, 
+                            expires_at: expiresAt.toLocaleDateString('th-TH'),
+                            referrer_id: referrerId  // ส่งรหัสผู้แนะนำไปด้วย
+                        })
+                    });
+                } catch(e) {
+                    console.log(e);
+                }
+
+                // สั่งให้เปลี่ยนหน้าไปที่ Dashboard
+                window.location.href = "dashboard.html"; 
+            }
+        }
         window.onload = initializeLiff;
     </script>
 </body>
