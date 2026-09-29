@@ -61,7 +61,7 @@
     <!-- Modal QR Code สั่งอาหารลูกค้า -->
     <div id="customerQrModal" style="display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 400; justify-content: center; align-items: center;">
         <div style="background: white; width: 90%; max-width: 320px; border-radius: 12px; padding: 20px; box-sizing: border-box; text-align: center;">
-            <h3 style="margin-top: 0; color: #00BCD4;">🍽️️ สแกนเพื่อสั่งอาหาร</h3>
+            <h3 style="margin-top: 0; color: #00BCD4;">🍽️ สแกนเพื่อสั่งอาหาร</h3>
             <p style="font-size: 13px; color: #666; margin-bottom: 15px;">บันทึกรูปนี้ไปปริ้นตั้งโต๊ะให้ลูกค้าสแกนได้เลย</p>
             <img id="customerQrImage" src="" style="width: 200px; height: 200px; border: 1px solid #ddd; padding: 10px; border-radius: 8px; margin-bottom: 10px;">
             <p style="font-size: 11px; color: #888; margin-top: 0; margin-bottom: 15px;">(ในแอป LINE สามารถกดค้างที่รูปเพื่อบันทึกได้)</p>
@@ -123,13 +123,13 @@
                 </select>
                 <input type="number" id="menuPrice" placeholder="ราคา (บาท)" style="width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
                 
-                <!-- (ใหม่) ช่องใส่ตัวเลือกย่อย -->
                 <label style="font-size: 13px; font-weight: bold; color: #00BCD4;">ตัวเลือกย่อย (คั่นด้วยลูกน้ำ ",") - *ถ้ามี</label>
+                <p style="font-size: 11px; color: #888; margin: 0 0 5px 0;">*ถ้ามีหลายกลุ่ม ให้คั่นด้วย (;) เช่น ความหวาน:หวานมาก,หวานน้อย ; ใส่ไข่:ไข่ดาว,ไข่เจียว</p>
                 <input type="text" id="menuOptions" placeholder="เช่น หวานปกติ, หวานน้อย, ไม่หวาน" style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #b2ebf2; border-radius: 6px; box-sizing:border-box;">
 
                 <input type="file" id="menuImage" accept="image/*" style="margin-bottom: 10px;">
                 <button onclick="addNewMenu()" id="saveMenuBtn" style="background: #06C755; color: white; border: none; padding: 11px; border-radius: 6px; cursor: pointer; width: 100%; font-size: 15px; font-weight: bold;">💾 บันทึกเมนูใหม่</button>
-                <button onclick="resetFormState()" id="cancelEditBtn" style="display: none; background: #eee; color: #555; border: none; padding: 8px; border-radius: 6px; cursor: pointer; width: 100%; font-size: 14px; margin-top: 6px;">ยกเลิกการแก้ไข</button>
+                <button onclick="resetFormState()" id="cancelEditBtn" style="display: none; background: #eee; color: #555; border: none; padding: 8px; border-radius: 6px; cursor: pointer; width: 100%; font-size: 14px; margin-top: 6px;">ยกเลิก</button>
             </div>
             <div id="menuList" style="margin-top: 15px;"><p style="text-align: center; color: #888;">กำลังโหลดเมนู...</p></div>
         </div>
@@ -248,6 +248,7 @@
         let categories = [];
         let editingMenuId = null;
         let editingCategoryId = null;
+        let copiedImageUrl = null; // เก็บ URL รูปสำหรับระบบคัดลอก
 
         function switchTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -411,17 +412,14 @@
 
             btn.innerText = "กำลังประมวลผล..."; btn.disabled = true;
             try {
-                // 1. หักยอดเงินแม่ค้า
                 const newBalance = balance - amount;
                 await supabaseClient.from('vendors').update({ wallet_balance: newBalance }).eq('id', vendorData.id);
                 vendorData.wallet_balance = newBalance; document.getElementById('walletBalance').innerText = newBalance;
 
-                // 2. บันทึกลงตาราง withdrawals (เพื่อให้แอดมินเห็นในระบบ)
                 await supabaseClient.from('withdrawals').insert([{
                     vendor_id: vendorData.id, store_name: vendorData.name, promptpay: vendorData.promptpay_number, type: type, amount: amount, status: 'pending'
                 }]);
 
-                // 3. แจ้งเตือนเข้า LINE แอดมิน (ผ่าน GAS)
                 await fetch(CONFIG.gasWebhookUrl, {
                     method: 'POST', body: JSON.stringify({ action: 'withdraw_request', vendor_id: vendorData.id, store_name: vendorData.name, phone: vendorData.phone, promptpay: vendorData.promptpay_number, type: type, amount: amount })
                 });
@@ -562,7 +560,7 @@
             btn.innerText = "ยืนยัน"; btn.disabled = false;
         }
 
-        // ==================== ระบบหมวดหมู่ & จัดการเมนู (พร้อมระบบตัวเลือก) ====================
+        // ==================== ระบบหมวดหมู่ & จัดการเมนู (พร้อมปุ่มคัดลอก) ====================
         async function loadCategories() {
             if (!vendorData) return;
             const { data, error } = await supabaseClient.from('categories').select('*').eq('vendor_id', vendorData.id).order('created_at', { ascending: true });
@@ -589,14 +587,15 @@
         async function addNewMenu() {
             const name = document.getElementById('menuName').value.trim(); const price = document.getElementById('menuPrice').value;
             const categoryId = document.getElementById('menuCategorySelect').value || null; 
-            const options = document.getElementById('menuOptions').value.trim(); // <== ดึงค่าตัวเลือกย่อย
+            const options = document.getElementById('menuOptions').value.trim(); 
             const fileInput = document.getElementById('menuImage');
             const btn = document.getElementById('saveMenuBtn');
             
             if (!name || !price) { alert("กรุณากรอกชื่อเมนูและราคา"); return; }
             btn.innerText = "กำลังบันทึก..."; btn.disabled = true;
 
-            let imageUrl = null;
+            let imageUrl = copiedImageUrl; 
+            
             if (fileInput.files.length > 0) {
                 const file = fileInput.files[0]; const fileName = `${vendorData.id}-${Date.now()}.${file.name.split('.').pop()}`; 
                 const { error: uploadError } = await supabaseClient.storage.from('menu-images').upload(fileName, file);
@@ -618,8 +617,9 @@
 
         function resetFormState() {
             document.getElementById('menuName').value = ''; document.getElementById('menuPrice').value = ''; document.getElementById('menuImage').value = ''; document.getElementById('menuCategorySelect').value = '';
-            document.getElementById('menuOptions').value = ''; // เคลียร์ช่อง
-            editingMenuId = null; document.getElementById('formTitle').innerText = "🍔 เพิ่มเมนูใหม่";
+            document.getElementById('menuOptions').value = ''; 
+            editingMenuId = null; copiedImageUrl = null;
+            document.getElementById('formTitle').innerText = "🍔 เพิ่มเมนูใหม่";
             const btn = document.getElementById('saveMenuBtn'); btn.innerText = "💾 บันทึกเมนูใหม่"; btn.style.background = "#06C755"; btn.disabled = false;
             document.getElementById('cancelEditBtn').style.display = 'none';
         }
@@ -634,18 +634,57 @@
                 const imgSrc = item.image_url ? item.image_url : 'https://via.placeholder.com/60?text=No+Image'; const statusColor = item.is_available ? 'green' : 'red';
                 const statusText = item.is_available ? '✅ พร้อมขาย' : '❌ ของหมด'; const toggleBtnText = item.is_available ? '⏸️ พักการขาย' : '▶️ เปิดขาย';
                 const toggleBtnColor = item.is_available ? '#ff9800' : '#06C755'; const catBadge = item.categories?.name ? `<span style="background: #eef2ff; color: #4338ca; padding: 2px 7px; border-radius: 10px; font-size: 11px; margin-left: 6px;">🏷️ ${item.categories.name}</span>` : '';
-                const optBadge = item.options ? `<br><small style="color:#00BCD4;">[ตัวเลือก: ${item.options}]</small>` : ''; // แสดง Option ให้แม่ค้าเห็น
+                const optBadge = item.options ? `<br><small style="color:#00BCD4;">[ตัวเลือก: ${item.options}]</small>` : ''; 
                 
-                html += `<div class="card" style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;"><img src="${imgSrc}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;"><div style="flex: 1;"><h4 style="margin: 0;">${item.name} ${catBadge}</h4><p style="margin: 5px 0 0 0; color: #06C755; font-weight: bold;">฿${item.price}</p>${optBadge}<span style="font-size: 12px; color: ${statusColor}; display:block; margin-top:3px;">${statusText}</span></div><div style="display: flex; flex-direction: column; gap: 5px;"><button onclick="editMenu('${item.id}', '${item.name}', ${item.price}, '${item.category_id || ''}', '${item.options || ''}')" style="background: #2196F3; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">✏️ แก้ไข</button><button onclick="toggleMenuStatus('${item.id}', ${item.is_available})" style="background: ${toggleBtnColor}; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">${toggleBtnText}</button><button onclick="deleteMenu('${item.id}', '${item.name}')" style="background: #ff4d4f; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🗑️ ลบ</button></div></div>`;
+                const safeCatId = item.category_id || '';
+                const safeOpts = item.options || '';
+                const safeImgUrl = item.image_url || '';
+
+                html += `<div class="card" style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
+                            <img src="${imgSrc}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;">
+                            <div style="flex: 1;">
+                                <h4 style="margin: 0;">${item.name} ${catBadge}</h4>
+                                <p style="margin: 5px 0 0 0; color: #06C755; font-weight: bold;">฿${item.price}</p>${optBadge}
+                                <span style="font-size: 12px; color: ${statusColor}; display:block; margin-top:3px;">${statusText}</span>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 5px;">
+                                <button onclick="copyMenu('${item.name}', ${item.price}, '${safeCatId}', '${safeOpts}', '${safeImgUrl}')" style="background: #9C27B0; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">📑 คัดลอก</button>
+                                <button onclick="editMenu('${item.id}', '${item.name}', ${item.price}, '${safeCatId}', '${safeOpts}')" style="background: #2196F3; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">✏️ แก้ไข</button>
+                                <button onclick="toggleMenuStatus('${item.id}', ${item.is_available})" style="background: ${toggleBtnColor}; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">${toggleBtnText}</button>
+                                <button onclick="deleteMenu('${item.id}', '${item.name}')" style="background: #ff4d4f; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🗑️ ลบ</button>
+                            </div>
+                        </div>`;
             });
             menuListDiv.innerHTML = html;
         }
 
         function editMenu(id, name, price, categoryId, options) { 
-            editingMenuId = id; document.getElementById('menuName').value = name; document.getElementById('menuPrice').value = price; 
+            editingMenuId = id; copiedImageUrl = null;
+            document.getElementById('menuName').value = name; document.getElementById('menuPrice').value = price; 
             document.getElementById('menuCategorySelect').value = categoryId || ''; 
-            document.getElementById('menuOptions').value = options || ''; // ดึง Option กลับมาโชว์
-            document.getElementById('formTitle').innerText = "✏️️ แก้ไขเมนู"; document.getElementById('saveMenuBtn').innerText = "💾 อัปเดตเมนู"; document.getElementById('saveMenuBtn').style.background = "#2196F3"; document.getElementById('cancelEditBtn').style.display = 'block'; window.scrollTo({ top: 0, behavior: 'smooth' }); 
+            document.getElementById('menuOptions').value = options || ''; 
+            document.getElementById('formTitle').innerText = "✏️ แก้ไขเมนู"; 
+            document.getElementById('saveMenuBtn').innerText = "💾 อัปเดตเมนู"; 
+            document.getElementById('saveMenuBtn').style.background = "#2196F3"; 
+            document.getElementById('cancelEditBtn').style.display = 'block'; 
+            window.scrollTo({ top: 0, behavior: 'smooth' }); 
+        }
+
+        function copyMenu(name, price, categoryId, options, imageUrl) {
+            editingMenuId = null; 
+            copiedImageUrl = imageUrl; 
+            
+            document.getElementById('menuName').value = name + " (สำเนา)";
+            document.getElementById('menuPrice').value = price;
+            document.getElementById('menuCategorySelect').value = categoryId || '';
+            document.getElementById('menuOptions').value = options || '';
+            document.getElementById('menuImage').value = ''; 
+            
+            document.getElementById('formTitle').innerText = "📑 สร้างสำเนาเมนู";
+            document.getElementById('saveMenuBtn').innerText = "💾 บันทึกเมนูใหม่ (จากสำเนา)";
+            document.getElementById('saveMenuBtn').style.background = "#9C27B0";
+            document.getElementById('cancelEditBtn').style.display = 'block';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
         
         async function deleteMenu(menuId, menuName) { if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบ "${menuName}"?`)) return; await supabaseClient.from('menu_items').delete().eq('id', menuId); loadMenuItems(); }
@@ -675,7 +714,6 @@
                 const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items; 
                 let itemsHtml = ''; 
                 
-                // --- ดึงโครงสร้าง JSON (รองรับ Options และ Notes) ---
                 const itemsArray = Array.isArray(items) ? items : Object.values(items);
                 itemsArray.forEach(item => {
                     let optStr = item.option && item.option !== '' ? `<br><small style="color:#00BCD4;">👉 ตัวเลือก: ${item.option}</small>` : '';
