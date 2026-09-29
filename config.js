@@ -4,9 +4,9 @@ const CONFIG = {
     supabaseKey: 'sb_publishable_Tm2NO4vvT938VdnT4ZG_cQ_DFdh-r-5',
     
     // 2. ข้อมูลเชื่อมต่อ LINE LIFF
-    liffIdRegister: '2011781647-1GTbZ2gJ',   
-    liffIdDashboard: '2011781647-rkokpjId',  
-    liffIdCustomer: '2011781647-erlnJT8p', 
+    liffIdRegister: '2011794866-9V2Hw2Rg',   
+    liffIdDashboard: '2011794866-5xNLJ6Sa',  
+    liffIdCustomer: '2011794866-KxUcfGFz', 
     
     // 3. ข้อมูล Webhook ของ Google Apps Script (GAS)
     gasWebhookUrl: 'https://script.google.com/macros/s/AKfycbz55ygFed3hzf-3xRTdd4nCQl4wZ88PsGyaAkmpfMjU4_dexgy5R1Hpo9dXDJfG4Dcp/exec',
