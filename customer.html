@@ -71,36 +71,55 @@
 
     <script>
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
-        // --- เปลี่ยนวิธีดึง vendorId ใหม่ทั้งหมด ---
         let vendorId = null;
         let vendorData = null; let menuData = []; let cart = []; let customerUid = null; let selectedCategory = 'all';
         let currentModalItem = null; let currentModalQty = 1;
 
         async function initCustomerApp() { 
             try { 
-                await liff.init({ liffId: CONFIG.liffIdCustomer }); 
-                
-                // --- ดึงรหัสร้านค้า (vid) ด้วยวิธีที่ชัวร์ที่สุด ---
+                // 1. ดึงรหัสร้านค้าจาก URL ก่อนเป็นอันดับแรก
                 const urlParams = new URLSearchParams(window.location.search);
                 vendorId = urlParams.get('vid');
                 
-                // เผื่อกรณีเข้าผ่าน liff.line.me แล้วพารามิเตอร์ซ่อนอยู่
+                // (เผื่อกรณีเข้าผ่าน liff.line.me แล้วพารามิเตอร์ซ่อนอยู่)
                 if (!vendorId) {
-                    const liffState = liff.getContext();
-                    if (liffState && liffState.endpointUrl) {
-                        const liffUrl = new URL(liffState.endpointUrl);
-                        vendorId = liffUrl.searchParams.get('vid');
+                    const tempUrl = window.location.href;
+                    if(tempUrl.includes('?vid=')) {
+                        vendorId = tempUrl.split('?vid=')[1].split('&')[0];
                     }
                 }
                 
                 if (!vendorId) {
-                    alert("ไม่พบรหัสร้านค้า กรุณาตรวจสอบลิงก์อีกครั้ง"); 
-                    return; 
+                    alert("ไม่พบรหัสร้านค้า กรุณาตรวจสอบลิงก์อีกครั้ง"); return; 
                 }
 
+                // 2. วิ่งไปถาม Supabase ว่าร้านนี้มี LIFF ID ของตัวเองไหม
+                const { data } = await supabaseClient.from('vendors').select('*').eq('id', vendorId).single(); 
+                if (!data) {
+                    alert("ไม่มีข้อมูลร้านค้านี้ในระบบ"); return;
+                }
+                vendorData = data;
+
+                // 3. ตัดสินใจว่าจะใช้ LIFF ID ของใคร (ถ้าร้านมีของตัวเองใช้ของร้าน ถ้าไม่มีใช้ของส่วนกลาง)
+                const liffToUse = vendorData.liff_customer_id ? vendorData.liff_customer_id.trim() : CONFIG.liffIdCustomer;
+
+                // 4. เริ่มทำงาน LIFF ด้วย ID ที่เลือก
+                await liff.init({ liffId: liffToUse }); 
+                
                 if (liff.isLoggedIn()) { 
                     customerUid = liff.getDecodedIDToken().sub; 
-                    await loadVendorInfo(); 
+                    
+                    // โหลดข้อมูลหน้าเว็บตามปกติ
+                    document.getElementById('storeName').innerText = vendorData.name; 
+                    if (vendorData.line_picture_url) document.getElementById('storeLogo').src = vendorData.line_picture_url; 
+                    const statusBadge = document.getElementById('storeStatus'); 
+                    if (vendorData.is_open) { 
+                        statusBadge.innerText = "🟢 เปิดรับออเดอร์"; statusBadge.className = "status-badge status-open"; 
+                    } else { 
+                        statusBadge.innerText = "🔴 ปิดรับออเดอร์"; statusBadge.className = "status-badge status-closed"; 
+                        document.getElementById('closedOverlay').style.display = "flex"; 
+                    } 
+                    
                     await loadCategories(); 
                     await loadMenu(); 
                 } else { 
@@ -111,20 +130,8 @@
             } 
         }
         
-        async function loadVendorInfo() { 
-            const { data } = await supabaseClient.from('vendors').select('*').eq('id', vendorId).single(); 
-            if (!data) return; 
-            vendorData = data; 
-            document.getElementById('storeName').innerText = data.name; 
-            if (data.line_picture_url) document.getElementById('storeLogo').src = data.line_picture_url; 
-            const statusBadge = document.getElementById('storeStatus'); 
-            if (data.is_open) { 
-                statusBadge.innerText = "🟢 เปิดรับออเดอร์"; statusBadge.className = "status-badge status-open"; 
-            } else { 
-                statusBadge.innerText = "🔴 ปิดรับออเดอร์"; statusBadge.className = "status-badge status-closed"; 
-                document.getElementById('closedOverlay').style.display = "flex"; 
-            } 
-        }
+        // (ลบฟังก์ชัน loadVendorInfo() เดิมทิ้งได้เลย เพราะเราเอามารวมในนี้แล้ว)
+        
         async function loadCategories() { const { data } = await supabaseClient.from('categories').select('*').eq('vendor_id', vendorId).order('created_at', { ascending: true }); if (!data) return; const catBar = document.getElementById('categoryBar'); let html = '<button class="cat-btn active" onclick="filterCategory(\'all\', this)">ทั้งหมด</button>'; data.forEach(cat => { html += `<button class="cat-btn" onclick="filterCategory('${cat.id}', this)">${cat.name}</button>`; }); catBar.innerHTML = html; }
         
         function filterCategory(catId, btnElement) { selectedCategory = catId; document.querySelectorAll('.cat-btn').forEach(btn => btn.classList.remove('active')); btnElement.classList.add('active'); renderMenuList(); }
