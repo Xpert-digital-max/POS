@@ -72,7 +72,7 @@
     <script>
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
         let vendorId = null;
-        let branchId = null; // เพิ่มตัวแปรเก็บรหัสสาขา
+        let branchId = null; 
         let vendorData = null; let menuData = []; let cart = []; let customerUid = null; let selectedCategory = 'all';
         let currentModalItem = null; let currentModalQty = 1;
 
@@ -87,9 +87,35 @@
             return decodeURIComponent(results[2].replace(/\+/g, ' '));
         }
 
+        // ==================== ระบบจำตะกร้า (Local Storage) ====================
+        function saveCart() {
+            if (vendorId) {
+                localStorage.setItem(`cart_${vendorId}`, JSON.stringify(cart));
+            }
+        }
+
+        function loadSavedCart() {
+            if (vendorId) {
+                const saved = localStorage.getItem(`cart_${vendorId}`);
+                if (saved) {
+                    cart = JSON.parse(saved);
+                    calculateTotal();
+                }
+            }
+        }
+
+        function clearSavedCart() {
+            if (vendorId) {
+                cart = [];
+                localStorage.removeItem(`cart_${vendorId}`);
+                localStorage.removeItem(`checkoutState_${vendorId}`);
+                calculateTotal();
+            }
+        }
+        // ===============================================================
+
         async function initCustomerApp() { 
             try { 
-                // 1. ดึงค่าพารามิเตอร์ URL ที่ถูกต้อง (แก้ปัญหา LIFF ซ่อนค่า)
                 vendorId = getUrlParameter('vid');
                 branchId = getUrlParameter('bid');
 
@@ -106,40 +132,32 @@
                     alert("ไม่พบรหัสร้านค้า กรุณาตรวจสอบลิงก์อีกครั้ง"); return; 
                 }
 
-                // 2. ถาม Supabase ว่าร้านนี้มีอยู่จริงไหม
                 const { data } = await supabaseClient.from('vendors').select('*').eq('id', vendorId).single(); 
                 if (!data) {
                     alert("ไม่มีข้อมูลร้านค้านี้ในระบบ"); return;
                 }
                 vendorData = data;
 
-                // 3. ⭐️ ถ้าระบุสาขามาด้วย (มี bid) ให้ดึงข้อมูลสาขามาทับ
                 if (branchId) {
                     const { data: bData } = await supabaseClient.from('branches').select('*').eq('id', branchId).single();
                     if (bData) {
-                        // เปลี่ยนชื่อร้านให้มีชื่อสาขาต่อท้าย
                         vendorData.name = `${vendorData.name} (${bData.branch_name})`;
-                        
-                        // บังคับเปลี่ยนช่องทางรับเงินไปที่สาขานี้เลย
                         if (bData.promptpay) {
                             vendorData.payment_type = 'promptpay';
                             vendorData.promptpay_number = bData.promptpay;
                         }
                     } else {
-                        branchId = null; // ถ้าหาสาขาไม่เจอ ให้กลับไปใช้ข้อมูลหลักของร้าน
+                        branchId = null; 
                     }
                 }
 
-                // 4. ตัดสินใจว่าจะใช้ LIFF ID ของใคร
                 const liffToUse = vendorData.liff_customer_id ? vendorData.liff_customer_id.trim() : CONFIG.liffIdCustomer;
 
-                // 5. เริ่มทำงาน LIFF
                 await liff.init({ liffId: liffToUse }); 
                 
                 if (liff.isLoggedIn()) { 
                     customerUid = liff.getDecodedIDToken().sub; 
                     
-                    // โหลดข้อมูลหน้าเว็บ
                     document.getElementById('storeName').innerText = vendorData.name; 
                     if (vendorData.line_picture_url) document.getElementById('storeLogo').src = vendorData.line_picture_url; 
                     const statusBadge = document.getElementById('storeStatus'); 
@@ -152,6 +170,16 @@
                     
                     await loadCategories(); 
                     await loadMenu(); 
+                    
+                    // ⭐️ เรียกตะกร้าเก่ากลับมา หลังจากหน้าเว็บโหลดเสร็จ
+                    loadSavedCart();
+
+                    // ⭐️ เช็คว่าลูกค้าค้างอยู่หน้าชำระเงินหรือเปล่า ถ้าใช่ให้เปิดหน้าต่างขึ้นมาเลย
+                    const isCheckoutOpen = localStorage.getItem(`checkoutState_${vendorId}`);
+                    if (isCheckoutOpen === 'open' && cart.length > 0) {
+                        goToCheckout();
+                    }
+
                 } else { 
                     liff.login(); 
                 } 
@@ -214,6 +242,8 @@
             const existingIdx = cart.findIndex(c => c.id === currentModalItem.id && c.option === finalOptionString && c.note === note);
             if (existingIdx >= 0) { cart[existingIdx].qty += currentModalQty; } 
             else { cart.push({ id: currentModalItem.id, name: currentModalItem.name, price: currentModalItem.price, qty: currentModalQty, option: finalOptionString, note: note }); }
+            
+            saveCart(); // ⭐️ เซฟตะกร้าลงความจำมือถือทุกครั้งที่หยิบของ
             closeItemModal(); calculateTotal(); renderMenuList(); 
         }
 
@@ -242,12 +272,29 @@
                     document.getElementById('qrCodeImage').style.display = 'inline-block';
                 }
             }
+            
+            // ⭐️ จดจำสถานะว่าลูกค้าเปิดหน้าชำระเงินค้างไว้
+            localStorage.setItem(`checkoutState_${vendorId}`, 'open');
             document.getElementById('checkoutModal').style.display = 'flex';
         }
 
         function copyBankText() { navigator.clipboard.writeText(vendorData.bank_info).then(() => { alert("คัดลอกรายละเอียดบัญชีเรียบร้อยแล้ว"); }); }
-        function updateCartItem(index, change) { cart[index].qty += change; if (cart[index].qty <= 0) { cart.splice(index, 1); } calculateTotal(); renderMenuList(); if (cart.length === 0) { closeCheckout(); } else { goToCheckout(); } }
-        function closeCheckout() { document.getElementById('checkoutModal').style.display = 'none'; }
+        
+        function updateCartItem(index, change) { 
+            cart[index].qty += change; 
+            if (cart[index].qty <= 0) { cart.splice(index, 1); } 
+            
+            saveCart(); // ⭐️ เซฟตะกร้าลงความจำมือถือเมื่อมีการเปลี่ยนแปลงจำนวน
+            calculateTotal(); renderMenuList(); 
+            
+            if (cart.length === 0) { closeCheckout(); } else { goToCheckout(); } 
+        }
+        
+        function closeCheckout() { 
+            // ⭐️ ล้างสถานะการเปิดหน้าชำระเงินเมื่อกดปุ่มยกเลิก
+            localStorage.removeItem(`checkoutState_${vendorId}`);
+            document.getElementById('checkoutModal').style.display = 'none'; 
+        }
 
         // ==================== ระบบส่งออเดอร์ ====================
         async function submitOrder() {
@@ -258,7 +305,6 @@
             if (fileInput.files.length === 0) { alert("กรุณาแนบสลิปโอนเงินก่อนยืนยันออเดอร์"); return; }
             btn.innerText = "⏳ กำลังบันทึกออเดอร์..."; btn.disabled = true;
 
-            // 1. อัปโหลดสลิป
             const file = fileInput.files[0]; const fileName = `slip-${Date.now()}.${file.name.split('.').pop()}`; let slipUrl = null;
             const { error: uploadError } = await supabaseClient.storage.from('slip-images').upload(fileName, file);
             if (uploadError) { alert("อัปโหลดสลิปไม่สำเร็จ: " + uploadError.message); btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false; return; }
@@ -266,7 +312,6 @@
 
             let orderStatus = 'pending'; 
             
-            // 2. ตรวจสลิปออโต้ (ถ้าเปิดไว้)
             if (vendorData.slip_check_mode === 'auto' && vendorData.slip_quota > 0) {
                 try {
                     const gasRes = await fetch(CONFIG.gasWebhookUrl, {
@@ -283,7 +328,6 @@
                 } catch (e) {}
             }
 
-            // ⭐️ 3. เตรียมข้อมูลบันทึกลง Supabase (พร้อมแนบรหัสสาขา)
             const orderPayload = { 
                 vendor_id: vendorId, 
                 customer_uid: customerUid, 
@@ -292,17 +336,15 @@
                 slip_image_url: slipUrl, 
                 status: orderStatus 
             };
-            if (branchId) orderPayload.branch_id = branchId; // แนบรหัสสาขาลงฐานข้อมูลด้วย
+            if (branchId) orderPayload.branch_id = branchId;
 
             const { data: newOrder, error: orderError } = await supabaseClient.from('orders')
                 .insert([orderPayload])
                 .select().single();
 
             if (!orderError && newOrder) {
-                // แจ้งลูกค้าทันทีที่บันทึกเสร็จ ไม่ต้องรอส่ง LINE
                 alert(orderStatus === 'processing' ? "✅ รับออเดอร์เรียบร้อย กำลังเตรียมอาหาร!" : "ส่งออเดอร์เรียบร้อยแล้ว!\n(รอร้านตรวจสอบสลิปสักครู่นะครับ)");
                 
-                // 4. สั่ง GAS ให้ส่ง Flex LINE แบบ Fire & Forget
                 if (customerUid) {
                     const d = new Date();
                     const dateStr = d.getFullYear().toString().slice(-2) + ('0' + (d.getMonth()+1)).slice(-2) + ('0' + d.getDate()).slice(-2);
@@ -317,10 +359,13 @@
                             order_status: orderStatus, 
                             store_name: vendorData.name, 
                             order_ref: orderRef, 
-                            queue_num: "-" // ออเดอร์ใหม่ยังไม่รู้คิวเป๊ะๆ ให้โชว์ขีดไปก่อน
+                            queue_num: "-" 
                         })
-                    }).catch(e => console.log(e)); // ปล่อยมันทำงานหลังบ้านไป
+                    }).catch(e => console.log(e)); 
                 }
+
+                // ⭐️ ออเดอร์สำเร็จแล้ว ให้เคลียร์ตะกร้าออกจากความจำ
+                clearSavedCart();
 
                 if (liff.isInClient()) { liff.closeWindow(); } else { window.location.reload(); }
             } else {
