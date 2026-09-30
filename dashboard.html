@@ -29,6 +29,13 @@
         .billing-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; color: #555; }
         .billing-total { display: flex; justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px dashed #bcdcff; font-weight: bold; font-size: 16px; color: #0d47a1; }
         .admin-bank-box { background: #e3f2fd; padding: 10px; border-radius: 6px; border: 1px dashed #2196F3; font-size: 13px; color: #0d47a1; margin-bottom: 10px; display: none; text-align: left;}
+
+        /* สไตล์เสริมสำหรับแท็บตัวกรองสาขา */
+        .branch-filter-btn { padding: 8px 14px; border: none; border-radius: 20px; cursor: pointer; white-space: nowrap; font-size: 13px; font-weight: bold; transition: 0.2s; }
+        .branch-filter-btn.active { background: #06C755; color: white; box-shadow: 0 2px 5px rgba(6,199,85,0.3); }
+        .branch-filter-btn.inactive { background: #e0e0e0; color: #555; }
+        .branch-filter-scroll { display: flex; gap: 8px; margin-bottom: 15px; overflow-x: auto; padding-bottom: 5px; -ms-overflow-style: none; scrollbar-width: none; }
+        .branch-filter-scroll::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body>
@@ -101,6 +108,12 @@
         <!-- 1. หน้าออเดอร์ -->
         <div id="orders" class="tab-content active">
             <h2>คิวรอทำ</h2>
+            
+            <!-- ====== แถบตัวกรองสาขา ====== -->
+            <div id="orderBranchTabs" class="branch-filter-scroll">
+                <!-- ปุ่มจะมาอยู่ตรงนี้โดยอัตโนมัติ -->
+            </div>
+
             <div id="orderList"><p style="text-align: center; color: #888;">กำลังโหลด...</p></div>
         </div>
 
@@ -310,6 +323,10 @@
         let branchCount = 1;
         let lastOrderCount = -1; // ตัวแปรเช็กจำนวนออเดอร์ใหม่เพื่อเล่นเสียง
 
+        // ตัวแปรสำหรับระบบแท็บสาขาในหน้าออเดอร์
+        let branchListData = []; 
+        let currentOrderBranchFilter = 'all'; // ค่าเริ่มต้นให้แสดงทุกสาขา
+
         // 🔊 ฟังก์ชันสร้างเสียงเตือนออเดอร์เข้า
         function playNotificationSound() {
             try {
@@ -379,8 +396,8 @@
                 
                 await loadCategories(); 
                 await loadMenuItems(); 
+                await loadBranches(); // ต้องโหลดสาขาก่อนโหลดออเดอร์
                 await loadOrders(); 
-                await loadBranches();
                 await loadBillingInfo(); 
 
                 // ⏱️ สั่งให้ระบบวิ่งเช็กออเดอร์ใหม่ทุกๆ 5 วินาทีอัตโนมัติ
@@ -389,15 +406,16 @@
             } catch(e) { console.error(e); }
         }
 
-        // ==================== ระบบจัดการสาขา (เวอร์ชันอัปเดตมีปุ่ม QR Code) ====================
+        // ==================== ระบบจัดการสาขา & แท็บฟิลเตอร์ ====================
         async function loadBranches() {
             const { data } = await supabaseClient.from('branches').select('*').eq('merchant_id', vendorData.id).eq('is_active', true);
             const container = document.getElementById('branchListContainer');
+            branchListData = data || []; // เก็บใส่ตัวแปร Global ไว้ใช้งานร่วมกับหน้าออเดอร์
             
             const liffToUse = vendorData.liff_customer_id ? vendorData.liff_customer_id : CONFIG.liffIdCustomer;
             const mainLink = `https://liff.line.me/${liffToUse}?vid=${vendorData.id}`;
 
-            // แสดงสาขาหลัก
+            // วาดรายชื่อสาขาในหน้า "ตั้งค่า"
             let html = `<div style="padding:10px; border-bottom:1px solid #f0f0f0; margin-bottom:8px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div><strong style="color:#6a1b9a;">👑 สาขาหลัก</strong><br><span style="font-size:12px; color:#666;">รับเงิน: ${vendorData.promptpay_number || vendorData.bank_info || '-'}</span></div>
@@ -427,13 +445,38 @@
                 });
             }
             container.innerHTML = html;
+            
+            // เรียกฟังก์ชันสร้างปุ่มตัวกรองในหน้าออเดอร์
+            renderBranchOrderTabs();
+        }
+
+        // --- สร้างปุ่มตัวกรองสาขา ---
+        function renderBranchOrderTabs() {
+            const container = document.getElementById('orderBranchTabs');
+            if (!container) return;
+
+            let html = `<button onclick="filterOrdersByBranch('all')" class="branch-filter-btn ${currentOrderBranchFilter === 'all' ? 'active' : 'inactive'}">🌐 รวมทุกสาขา</button>`;
+            html += `<button onclick="filterOrdersByBranch('main')" class="branch-filter-btn ${currentOrderBranchFilter === 'main' ? 'active' : 'inactive'}">👑 สาขาหลัก</button>`;
+
+            branchListData.forEach(b => {
+                const isActive = currentOrderBranchFilter === b.id;
+                html += `<button onclick="filterOrdersByBranch('${b.id}')" class="branch-filter-btn ${isActive ? 'active' : 'inactive'}">🏢 ${b.branch_name}</button>`;
+            });
+            container.innerHTML = html;
+        }
+
+        // --- เมื่อพนักงานกดเลือกสาขา ---
+        function filterOrdersByBranch(branchId) {
+            currentOrderBranchFilter = branchId;
+            renderBranchOrderTabs(); // อัปเดตสีปุ่ม
+            loadOrders(); // ดึงข้อมูลออเดอร์ใหม่ตามที่กรอง
         }
 
         // ฟังก์ชันเสริมสำหรับแสดง Modal QR Code ของแต่ละสาขา
         function showBranchQr(link, branchName) {
             const qrUrl = `https://quickchart.io/qr?text=${encodeURIComponent(link)}&size=300`;
             document.getElementById('customerQrImage').src = qrUrl;
-            document.querySelector('#customerQrModal h3').innerText = `🍽️ สแกนสั่งอาหาร (${branchName})`;
+            document.querySelector('#customerQrModal h3').innerText = `🍽️ สแกนสั่งอาหาร\n(${branchName})`;
             document.getElementById('customerQrModal').style.display = 'flex';
         }
 
@@ -464,9 +507,7 @@
         function showCustomerQr() {
             const customerLink = document.getElementById('customerLinkText').value;
             if(!customerLink) return alert("กำลังสร้างลิงก์ กรุณารอสักครู่...");
-            const qrUrl = `https://quickchart.io/qr?text=${encodeURIComponent(customerLink)}&size=300`;
-            document.getElementById('customerQrImage').src = qrUrl;
-            document.getElementById('customerQrModal').style.display = 'flex';
+            showBranchQr(customerLink, 'สาขาหลัก');
         }
 
         function closeCustomerQrModal() { document.getElementById('customerQrModal').style.display = 'none'; }
@@ -489,7 +530,7 @@
               "type": "flex", "altText": `สั่งอาหารจากร้าน ${storeName}`,
               "contents": {
                 "type": "bubble",
-                "header": { "type": "box", "layout": "vertical", "backgroundColor": "#00BCD4", "contents": [{ "type": "text", "text": "🍽️ เมนูอาหาร", "color": "#FFFFFF", "weight": "bold", "size": "xl" }] },
+                "header": { "type": "box", "layout": "vertical", "backgroundColor": "#00BCD4", "contents": [{ "type": "text", "text": "🍽️️ เมนูอาหาร", "color": "#FFFFFF", "weight": "bold", "size": "xl" }] },
                 "body": { "type": "box", "layout": "vertical", "spacing": "md", "contents": [
                     { "type": "text", "text": `ร้าน ${storeName}`, "weight": "bold", "color": "#333333", "size": "md" },
                     { "type": "text", "text": "หิวแล้วใช่ไหม? สั่งอาหารออนไลน์ได้ง่ายๆ ไม่ต้องรอคิว กดดูเมนูเลย!", "wrap": true, "color": "#666666", "size": "sm" }
@@ -652,7 +693,7 @@
                 document.getElementById('subExpiresAt').innerText = expDate.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
                 
                 if (!vendorData.is_subscription_active) {
-                    badgeEl.innerText = "⚠️ รอชำระเงิน/รออนุมัติ"; 
+                    badgeEl.innerText = "⚠️️ รอชำระเงิน/รออนุมัติ"; 
                     badgeEl.className = "sub-badge"; 
                     badgeEl.style.background = "#fff3cd"; badgeEl.style.color = "#856404";
                 } else if (new Date() > expDate) {
@@ -854,7 +895,7 @@
             if (categories.length === 0) { chipsDiv.innerHTML = '<span style="font-size: 13px; color: #888;">ยังไม่มีหมวดหมู่ (กดเพิ่มด้านบนได้เลย)</span>'; } 
             else {
                 let html = '';
-                categories.forEach(cat => { html += `<span class="cat-chip">${cat.name} <button onclick="editCategory('${cat.id}', '${cat.name}')">✏️</button> <button onclick="deleteCategory('${cat.id}', '${cat.name}')" style="color: #d32f2f;">✕</button></span>`; });
+                categories.forEach(cat => { html += `<span class="cat-chip">${cat.name} <button onclick="editCategory('${cat.id}', '${cat.name}')">✏️️</button> <button onclick="deleteCategory('${cat.id}', '${cat.name}')" style="color: #d32f2f;">✕</button></span>`; });
                 chipsDiv.innerHTML = html;
             }
             const selectEl = document.getElementById('menuCategorySelect'); selectEl.innerHTML = '<option value="">-- ไม่ระบุหมวดหมู่ --</option>';
@@ -993,7 +1034,19 @@
             if (!vendorData) return; 
             const orderListDiv = document.getElementById('orderList'); 
             
-            const { data, error } = await supabaseClient.from('orders').select('*').eq('vendor_id', vendorData.id).in('status', ['pending', 'processing']).order('created_at', { ascending: true });
+            // สร้าง Query ดึงข้อมูลออเดอร์ โดยกรองตามสาขาที่เลือก
+            let query = supabaseClient.from('orders')
+                .select('*')
+                .eq('vendor_id', vendorData.id)
+                .in('status', ['pending', 'processing']);
+
+            if (currentOrderBranchFilter === 'main') {
+                query = query.is('branch_id', null); // สาขาหลักจะไม่มี branch_id
+            } else if (currentOrderBranchFilter !== 'all') {
+                query = query.eq('branch_id', currentOrderBranchFilter); // กรองตาม id สาขาย่อย
+            }
+            
+            const { data, error } = await query.order('created_at', { ascending: true });
             if (error) return;
 
             const currentCount = data ? data.length : 0;
@@ -1028,6 +1081,14 @@
                 const orderRef = `${dateStr}-${order.id.substring(0,4).toUpperCase()}`; 
                 const queueNum = index + 1;
                 const custUid = order.customer_uid || '';
+
+                // กำหนดป้ายกำกับสาขา
+                let branchTag = '<span style="background:#e1bee7; color:#6a1b9a; padding:3px 8px; border-radius:12px; font-size:11px; margin-left:8px;">👑 สาขาหลัก</span>';
+                if (order.branch_id) {
+                    const bInfo = branchListData.find(b => b.id === order.branch_id);
+                    const bName = bInfo ? bInfo.branch_name : 'สาขาย่อย';
+                    branchTag = `<span style="background:#e3f2fd; color:#0d47a1; padding:3px 8px; border-radius:12px; font-size:11px; margin-left:8px;">🏢 ${bName}</span>`;
+                }
                 
                 let statusBadge = ''; let actionButtons = '';
                 if (order.status === 'pending') { 
@@ -1043,7 +1104,7 @@
                     <div class="card" style="border-left: 4px solid #06C755;">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
                             <h3 style="margin: 0; display:flex; flex-direction:column;">
-                                คิวที่ ${queueNum} 
+                                <div>คิวที่ ${queueNum} ${branchTag}</div>
                                 <span style="font-size: 12px; color: #888; font-weight: normal; margin-top:3px;">อ้างอิง: ${orderRef} • ${orderTime}</span>
                             </h3>
                             <div>${statusBadge}</div>
