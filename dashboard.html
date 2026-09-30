@@ -466,28 +466,79 @@
         }
 
         function shareAffiliateFlex() {
-            if (!liff.isLoggedIn()) return;
-            const refLink = document.getElementById('affiliateLink').value; 
-            if(!refLink) return;
-            const storeName = vendorData.name || "เพื่อนของคุณ";
-            const flexMsg = {
-              "type": "flex", "altText": `${storeName} ชวนคุณเปิดร้านอาหารระบบใหม่ ทดลองใช้ฟรี!`,
-              "contents": {
-                "type": "bubble",
-                "header": { "type": "box", "layout": "vertical", "backgroundColor": "#06C755", "contents": [{ "type": "text", "text": "Food POS System", "color": "#FFFFFF", "weight": "bold", "size": "xl" }] },
-                "body": { "type": "box", "layout": "vertical", "spacing": "md", "contents": [
-                    { "type": "text", "text": `คำชวนจาก: ${storeName}`, "weight": "bold", "color": "#333333", "size": "md" },
-                    { "type": "text", "text": "จัดการออเดอร์ร้านอาหารง่ายๆ ผ่าน LINE พร้อมระบบตรวจสลิปอัตโนมัติ ทดลองใช้ฟรี!", "wrap": true, "color": "#666666", "size": "sm" }
-                ]},
-                "footer": { "type": "box", "layout": "vertical", "contents": [
-                    { "type": "button", "style": "primary", "color": "#06C755", "action": { "type": "uri", "label": "เปิดร้านค้าเลย (ฟรี)", "uri": refLink } }
-                ]}
+    if (!liff.isLoggedIn()) return;
+    const refLink = document.getElementById('affiliateLink').value; 
+    if(!refLink) return;
+    const storeName = vendorData.name || "เพื่อนของคุณ";
+    
+    // --- โครงสร้าง Flex Message รูปแบบใหม่ที่สวยและดึงดูดกว่าเดิม ---
+    const flexMsg = {
+      "type": "flex",
+      "altText": `คำชวนพิเศษจากร้าน ${storeName} ให้เปิดร้านค้าฟรี!`,
+      "contents": {
+        "type": "bubble",
+        "hero": {
+          "type": "image",
+          "url": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1024&q=80",
+          "size": "full",
+          "aspectRatio": "20:13",
+          "aspectMode": "cover"
+        },
+        "body": {
+          "type": "box",
+          "layout": "vertical",
+          "contents": [
+            {
+              "type": "text",
+              "text": "🎉 คำชวนพิเศษจากร้าน:",
+              "weight": "bold",
+              "size": "md",
+              "color": "#06C755"
+            },
+            {
+              "type": "text",
+              "text": storeName,
+              "weight": "bold",
+              "size": "xl",
+              "color": "#111111",
+              "margin": "sm"
+            },
+            {
+              "type": "text",
+              "text": "✅ รับออเดอร์ผ่าน LINE\n✅ ตรวจสลิปโอนเงินอัตโนมัติ\n✅ แจ้งเตือนเมื่ออาหารเสร็จ\n✅ ระบบจัดการคิวสุดล้ำ",
+              "size": "sm",
+              "color": "#555555",
+              "wrap": true,
+              "margin": "md"
+            }
+          ]
+        },
+        "footer": {
+          "type": "box",
+          "layout": "vertical",
+          "spacing": "sm",
+          "contents": [
+            {
+              "type": "button",
+              "style": "primary",
+              "height": "sm",
+              "color": "#06C755",
+              "action": {
+                "type": "uri",
+                "label": "👉 เปิดร้านค้า (ทดลองฟรี 10 วัน!)",
+                "uri": refLink
               }
-            };
-            if (liff.isApiAvailable('shareTargetPicker')) {
-                liff.shareTargetPicker([flexMsg]).then(function (res) { if (res) alert('ส่งคำชวนให้เพื่อนสำเร็จ! 🎉'); }).catch(function (error) {});
-            } else { alert('อุปกรณ์ของคุณไม่รองรับการส่งข้อความผ่านปุ่มนี้ กรุณากดคัดลอกลิงก์ส่งให้เพื่อนแทนครับ'); }
+            }
+          ],
+          "flex": 0
         }
+      }
+    };
+
+    if (liff.isApiAvailable('shareTargetPicker')) {
+        liff.shareTargetPicker([flexMsg]).then(function (res) { if (res) alert('ส่งคำชวนให้เพื่อนสำเร็จ! 🎉'); }).catch(function (error) {});
+    } else { alert('อุปกรณ์ของคุณไม่รองรับการส่งข้อความผ่านปุ่มนี้ กรุณากดคัดลอกลิงก์ส่งให้เพื่อนแทนครับ'); }
+}
 
         function showAffiliateQr() {
             const refLink = document.getElementById('affiliateLink').value;
