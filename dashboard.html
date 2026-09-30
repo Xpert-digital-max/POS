@@ -483,12 +483,34 @@
         async function addBranch() {
             const bName = document.getElementById('newBranchName').value.trim();
             const bPrompt = document.getElementById('newBranchPromptpay').value.trim();
+            
             if(!bName || !bPrompt) return alert("กรุณาใส่ชื่อสาขาและช่องทางรับเงินให้ครบ");
             
-            await supabaseClient.from('branches').insert([{ merchant_id: vendorData.id, branch_name: bName, promptpay: bPrompt }]);
-            document.getElementById('newBranchName').value = ''; document.getElementById('newBranchPromptpay').value = '';
-            await loadBranches();
-            await loadBillingInfo(); 
+            try {
+                // เพิ่ม is_active: true บังคับเข้าไปด้วย เพื่อแก้ปัญหาฐานข้อมูลไม่ตั้งค่าเริ่มต้น
+                const { error } = await supabaseClient.from('branches').insert([{ 
+                    merchant_id: vendorData.id, 
+                    branch_name: bName, 
+                    promptpay: bPrompt,
+                    is_active: true 
+                }]);
+
+                if (error) throw error; // ถ้า Supabase บันทึกไม่ได้ ให้เตะไปที่ catch ด้านล่าง
+
+                // เคลียร์ค่าในช่องกรอก
+                document.getElementById('newBranchName').value = ''; 
+                document.getElementById('newBranchPromptpay').value = '';
+                
+                alert(`🎉 บันทึกสาขา "${bName}" เรียบร้อยแล้ว!`);
+                
+                // สั่งโหลดข้อมูลสาขาใหม่ ซึ่งจะไปสร้างแท็บสาขาในหน้าออเดอร์ให้อัตโนมัติด้วย
+                await loadBranches();
+                await loadBillingInfo(); 
+
+            } catch (err) {
+                console.error("Add Branch Error:", err);
+                alert(`❌ เกิดข้อผิดพลาดในการบันทึก:\n${err.message}\n\n(เช็กด่วน: คุณได้สร้างตาราง "branches" ใน Supabase หรือตั้งค่า RLS ปลดล็อกการ Insert แล้วหรือยัง?)`);
+            }
         }
 
         async function deleteBranch(id) {
