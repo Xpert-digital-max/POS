@@ -263,7 +263,7 @@
             await supabaseClient.from('withdrawals').update({ status: 'completed' }).eq('id', id); alert("อัปเดตสถานะสำเร็จ!"); loadWithdrawals();
         }
 
-        // ================= 3. จัดการร้านค้า (อัปเดตระบบอนุมัติ) =================
+        // ================= 3. จัดการร้านค้า (อัปเดตระบบอนุมัติ + จ่ายค่าคอมฯ) =================
         async function loadAllVendors() {
             const { data, error } = await supabaseClient.from('vendors').select('*').order('created_at', { ascending: false });
             const tbody = document.getElementById('allVendorsTable').querySelector('tbody');
@@ -276,15 +276,14 @@
                 
                 let expBadge = isExpired ? `<span class="badge danger">หมดอายุ</span>` : `<span class="badge success">ใช้งานได้</span>`;
                 
-                // [NEW] เช็คว่าร้านยังไม่ได้จ่ายเงินหรือรออนุมัติไหม (เช็คจาก is_subscription_active เป็นหลัก)
                 if (v.is_subscription_active === false) {
                     expBadge = `<span class="badge warning" style="background:#fef08a; color:#854d0e;">รอชำระเงิน/รออนุมัติ</span>`;
                 }
 
                 let actionBtns = '';
-                // [NEW] ปุ่มอนุมัติ (ถ้าสถานะเป็น Inactive)
+                // [NEW] เพิ่มการส่งค่า v.referrer_id ไปในฟังก์ชันอนุมัติด้วย
                 if (v.is_subscription_active === false) {
-                    actionBtns += `<button class="btn btn-success" style="margin-bottom:5px; width:100%;" onclick="approveVendor('${v.id}', '${v.name}', '${v.subscription_plan}')">✅ อนุมัติเปิดร้าน</button><br>`;
+                    actionBtns += `<button class="btn btn-success" style="margin-bottom:5px; width:100%;" onclick="approveVendor('${v.id}', '${v.name}', '${v.subscription_plan}', '${v.referrer_id || ''}')">✅ อนุมัติเปิดร้าน</button><br>`;
                 }
                 actionBtns += `<button class="btn btn-danger" style="width:100%;" onclick="suspendVendor('${v.id}', '${v.name}')">🛑 ระงับการใช้งาน</button>`;
 
@@ -300,18 +299,19 @@
             tbody.innerHTML = html;
         }
 
-        async function approveVendor(id, name, planId) {
+        async function approveVendor(id, name, planId, referrerId) {
             if (!confirm(`ตรวจสอบยอดเงินถูกต้อง และต้องการ "อนุมัติเปิดใช้งาน" ให้ร้าน ${name} ใช่หรือไม่?`)) return;
             
-            // หาจำนวนวันที่ต้องบวกให้ตามแพ็กเกจ
+            // หาข้อมูลแพ็กเกจ (จำนวนวัน, โควต้า, ค่าคอมมิชชั่น)
             const confPlan = CONFIG.pricingPlans.find(p => p.id === planId);
             const addDays = confPlan ? confPlan.days : 30;
             const setQuota = confPlan ? confPlan.quota : 0;
+            const commAmount = confPlan ? confPlan.comm : 0; // ดึงยอดค่าแนะนำ
             
             const newExpDate = new Date();
             newExpDate.setDate(newExpDate.getDate() + addDays);
 
-            // อัปเดตสถานะใน Supabase ให้เป็น Active
+            // 1. อัปเดตสถานะร้านค้าให้เป็น Active
             const { error } = await supabaseClient.from('vendors').update({ 
                 is_subscription_active: true, 
                 subscription_expires_at: newExpDate.toISOString(),
@@ -320,16 +320,26 @@
 
             if (error) {
                 alert("เกิดข้อผิดพลาดในการอนุมัติ: " + error.message);
-            } else {
-                alert(`✅ อนุมัติเปิดใช้งานร้าน ${name} เรียบร้อยแล้ว!`); 
-                loadAllVendors();
-            }
-        }
+                return;
+            } 
 
-        async function suspendVendor(id, name) {
-            if (!confirm(`ต้องการ "ระงับ" ร้าน ${name} ใช่หรือไม่? (ระบบจะบังคับปิดร้านทันที)`)) return;
-            await supabaseClient.from('vendors').update({ subscription_expires_at: '2000-01-01T00:00:00Z', is_subscription_active: false, is_open: false }).eq('id', id);
-            alert(`ระงับร้าน ${name} เรียบร้อยแล้ว`); loadAllVendors();
+            // 2. จ่ายค่าคอมมิชชั่นให้ผู้แนะนำ (ถ้ามีผู้แนะนำ และแพ็กเกจนั้นมีค่าคอมฯ)
+            if (referrerId && referrerId !== 'null' && commAmount > 0) {
+                try {
+                    // ดึงยอดเงินปัจจุบันของผู้แนะนำ
+                    const { data: refData } = await supabaseClient.from('vendors').select('wallet_balance').eq('id', referrerId).single();
+                    if (refData) {
+                        const newBalance = (refData.wallet_balance || 0) + commAmount;
+                        // อัปเดตยอดเงินใหม่ให้ผู้แนะนำ
+                        await supabaseClient.from('vendors').update({ wallet_balance: newBalance }).eq('id', referrerId);
+                    }
+                } catch (commErr) {
+                    console.error("จ่ายค่าคอมมิชชั่นผิดพลาด: ", commErr);
+                }
+            }
+
+            alert(`✅ อนุมัติเปิดใช้งานร้าน ${name} เรียบร้อยแล้ว!`); 
+            loadAllVendors();
         }
     </script>
 </body>
