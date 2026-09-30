@@ -305,14 +305,22 @@
             if (fileInput.files.length === 0) { alert("กรุณาแนบสลิปโอนเงินก่อนยืนยันออเดอร์"); return; }
             btn.innerText = "⏳ กำลังบันทึกออเดอร์..."; btn.disabled = true;
 
+            // 1. อัปโหลดสลิป
             const file = fileInput.files[0]; const fileName = `slip-${Date.now()}.${file.name.split('.').pop()}`; let slipUrl = null;
             const { error: uploadError } = await supabaseClient.storage.from('slip-images').upload(fileName, file);
             if (uploadError) { alert("อัปโหลดสลิปไม่สำเร็จ: " + uploadError.message); btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false; return; }
-            const { data: publicUrlData } = supabaseClient.storage.from('slip-images').getPublicUrl(fileName); slipUrl = publicUrlData.publicUrl;
+            const { data: publicUrlData } = supabaseClient.storage.from('slip-images').getPublicUrl(fileName); 
+            slipUrl = publicUrlData.publicUrl;
+
+            // ⭐️ เพิ่มโค้ดตรงนี้: หน่วงเวลา 2 วินาที รอให้ลิงก์รูปลงเซิร์ฟเวอร์สมบูรณ์ก่อนส่งให้ AI
+            btn.innerText = "⏳ กำลังตรวจสอบสลิป..."; 
+            await new Promise(resolve => setTimeout(resolve, 2000));
 
             let orderStatus = 'pending'; 
             
+            // 2. ตรวจสลิปออโต้ (ถ้าเปิดไว้)
             if (vendorData.slip_check_mode === 'auto' && vendorData.slip_quota > 0) {
+                 // ... โค้ดเดิมยาวลงไป ...
                 try {
                     const gasRes = await fetch(CONFIG.gasWebhookUrl, {
                         method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
