@@ -72,28 +72,33 @@
     <script>
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
         let vendorId = null;
+        let branchId = null; // เพิ่มตัวแปรเก็บรหัสสาขา
         let vendorData = null; let menuData = []; let cart = []; let customerUid = null; let selectedCategory = 'all';
         let currentModalItem = null; let currentModalQty = 1;
 
+        // ฟังก์ชันเจาะดึงค่าพารามิเตอร์แบบ 100%
+        function getUrlParameter(name) {
+            const url = window.location.href;
+            name = name.replace(/[\[\]]/g, '\\$&');
+            const regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)');
+            const results = regex.exec(url);
+            if (!results) return null;
+            if (!results[2]) return '';
+            return decodeURIComponent(results[2].replace(/\+/g, ' '));
+        }
+
         async function initCustomerApp() { 
             try { 
-                // 1. ถอดรหัส URL แบบพิเศษ ป้องกัน LINE ซ่อนพารามิเตอร์
-                let tempUrl = decodeURIComponent(window.location.href);
-                const urlParams = new URLSearchParams(window.location.search);
-                vendorId = urlParams.get('vid');
-                
-                // กรณี LINE ซ่อนพารามิเตอร์ไว้ใน liff.state
-                if (!vendorId && urlParams.has('liff.state')) {
-                    const liffState = urlParams.get('liff.state');
-                    const stateParams = new URLSearchParams(liffState.startsWith('?') ? liffState : '?' + liffState);
-                    vendorId = stateParams.get('vid');
-                }
-                
-                // กรณีหลุดรอดจากด่านบน ใช้ RegEx ดึงออกแบบดื้อๆ
+                // 1. ดึงค่าพารามิเตอร์ URL ที่ถูกต้อง (แก้ปัญหา LIFF ซ่อนค่า)
+                vendorId = getUrlParameter('vid');
+                branchId = getUrlParameter('bid');
+
                 if (!vendorId) {
-                    const match = tempUrl.match(/[?&]vid=([^&]+)/);
-                    if (match) {
-                        vendorId = match[1];
+                    const liffState = getUrlParameter('liff.state');
+                    if (liffState) {
+                        const stateParams = new URLSearchParams(liffState.startsWith('?') ? liffState : '?' + liffState);
+                        vendorId = stateParams.get('vid');
+                        if (!branchId) branchId = stateParams.get('bid');
                     }
                 }
                 
@@ -101,23 +106,40 @@
                     alert("ไม่พบรหัสร้านค้า กรุณาตรวจสอบลิงก์อีกครั้ง"); return; 
                 }
 
-                // 2. วิ่งไปถาม Supabase ว่าร้านนี้มี LIFF ID ของตัวเองไหม
+                // 2. ถาม Supabase ว่าร้านนี้มีอยู่จริงไหม
                 const { data } = await supabaseClient.from('vendors').select('*').eq('id', vendorId).single(); 
                 if (!data) {
                     alert("ไม่มีข้อมูลร้านค้านี้ในระบบ"); return;
                 }
                 vendorData = data;
 
-                // 3. ตัดสินใจว่าจะใช้ LIFF ID ของใคร (ถ้าร้านมีของตัวเองใช้ของร้าน ถ้าไม่มีใช้ของส่วนกลาง)
+                // 3. ⭐️ ถ้าระบุสาขามาด้วย (มี bid) ให้ดึงข้อมูลสาขามาทับ
+                if (branchId) {
+                    const { data: bData } = await supabaseClient.from('branches').select('*').eq('id', branchId).single();
+                    if (bData) {
+                        // เปลี่ยนชื่อร้านให้มีชื่อสาขาต่อท้าย
+                        vendorData.name = `${vendorData.name} (${bData.branch_name})`;
+                        
+                        // บังคับเปลี่ยนช่องทางรับเงินไปที่สาขานี้เลย
+                        if (bData.promptpay) {
+                            vendorData.payment_type = 'promptpay';
+                            vendorData.promptpay_number = bData.promptpay;
+                        }
+                    } else {
+                        branchId = null; // ถ้าหาสาขาไม่เจอ ให้กลับไปใช้ข้อมูลหลักของร้าน
+                    }
+                }
+
+                // 4. ตัดสินใจว่าจะใช้ LIFF ID ของใคร
                 const liffToUse = vendorData.liff_customer_id ? vendorData.liff_customer_id.trim() : CONFIG.liffIdCustomer;
 
-                // 4. เริ่มทำงาน LIFF ด้วย ID ที่เลือก
+                // 5. เริ่มทำงาน LIFF
                 await liff.init({ liffId: liffToUse }); 
                 
                 if (liff.isLoggedIn()) { 
                     customerUid = liff.getDecodedIDToken().sub; 
                     
-                    // โหลดข้อมูลหน้าเว็บตามปกติ
+                    // โหลดข้อมูลหน้าเว็บ
                     document.getElementById('storeName').innerText = vendorData.name; 
                     if (vendorData.line_picture_url) document.getElementById('storeLogo').src = vendorData.line_picture_url; 
                     const statusBadge = document.getElementById('storeStatus'); 
@@ -227,7 +249,7 @@
         function updateCartItem(index, change) { cart[index].qty += change; if (cart[index].qty <= 0) { cart.splice(index, 1); } calculateTotal(); renderMenuList(); if (cart.length === 0) { closeCheckout(); } else { goToCheckout(); } }
         function closeCheckout() { document.getElementById('checkoutModal').style.display = 'none'; }
 
-        // ==================== ระบบส่งออเดอร์ (เวอร์ชัน Fire & Forget ตัดรอ LINE) ====================
+        // ==================== ระบบส่งออเดอร์ ====================
         async function submitOrder() {
             const fileInput = document.getElementById('slipImage');
             const btn = document.getElementById('confirmOrderBtn');
@@ -261,9 +283,19 @@
                 } catch (e) {}
             }
 
-            // 3. บันทึกลง Supabase (แล้วดึง ID กลับมาทำเลขอ้างอิง)
+            // ⭐️ 3. เตรียมข้อมูลบันทึกลง Supabase (พร้อมแนบรหัสสาขา)
+            const orderPayload = { 
+                vendor_id: vendorId, 
+                customer_uid: customerUid, 
+                items: cart, 
+                total_price: parseFloat(total), 
+                slip_image_url: slipUrl, 
+                status: orderStatus 
+            };
+            if (branchId) orderPayload.branch_id = branchId; // แนบรหัสสาขาลงฐานข้อมูลด้วย
+
             const { data: newOrder, error: orderError } = await supabaseClient.from('orders')
-                .insert([{ vendor_id: vendorId, customer_uid: customerUid, items: cart, total_price: parseFloat(total), slip_image_url: slipUrl, status: orderStatus }])
+                .insert([orderPayload])
                 .select().single();
 
             if (!orderError && newOrder) {
