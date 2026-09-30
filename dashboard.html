@@ -959,7 +959,7 @@
             loadOrders(); 
         }
 
-        // ==================== ระบบตั้งค่าทั่วไป ====================
+        // ==================== ระบบตั้งค่า Token และ LIFF ====================
         function populateSettingsForm() {
             if (!vendorData) return;
             document.getElementById('settingStoreName').value = vendorData.name || '';
@@ -970,61 +970,41 @@
             document.getElementById('settingBankInfo').value = vendorData.bank_info || '';
             togglePaymentInputs();
 
-            // จัดการแสดงผล LINE Token & LIFF
+            // จัดการแสดงผล LINE Token & LIFF (ทำให้เป็นตัวจางๆ)
             const tokenInput = document.getElementById('settingLineToken');
             const liffInput = document.getElementById('settingLiffCustomer');
             const tokenBtn = document.getElementById('saveTokenBtn');
             
-            if (vendorData.line_token) {
-                const hiddenToken = vendorData.line_token.substring(0, 10) + '....................' + vendorData.line_token.substring(vendorData.line_token.length - 10);
-                tokenInput.placeholder = hiddenToken; tokenInput.value = ''; 
-                if(liffInput) liffInput.value = vendorData.liff_customer_id || '';
-                tokenBtn.innerText = "✏️ แก้ไข Token & LIFF"; tokenBtn.style.background = "#f59e0b";
+            if (vendorData.line_token || vendorData.liff_customer_id) {
+                // ถ้ามี Token ให้ทำตัวจางๆ
+                if (vendorData.line_token) {
+                    const hiddenToken = vendorData.line_token.substring(0, 10) + '....................' + vendorData.line_token.substring(vendorData.line_token.length - 10);
+                    tokenInput.placeholder = hiddenToken; 
+                }
+                tokenInput.value = ''; 
+                
+                // ถ้ามี LIFF ID ให้ทำตัวจางๆ
+                if (vendorData.liff_customer_id) {
+                    liffInput.placeholder = vendorData.liff_customer_id;
+                }
+                liffInput.value = '';
+
+                tokenBtn.innerText = "✏️ แก้ไข Token & LIFF"; 
+                tokenBtn.style.background = "#f59e0b";
             } else {
                 tokenInput.placeholder = "วาง Token ที่นี่..."; tokenInput.value = '';
-                if(liffInput) liffInput.value = '';
+                liffInput.placeholder = "เช่น 1234567890-AbCdEfGh"; liffInput.value = '';
                 tokenBtn.innerText = "💾 บันทึก Token & LIFF"; tokenBtn.style.background = "#00B900";
             }
-        }
-
-        function togglePaymentInputs() {
-            const type = document.getElementById('settingPaymentType').value;
-            if (type === 'promptpay') { document.getElementById('divPromptpay').style.display = 'block'; document.getElementById('divBank').style.display = 'none'; } 
-            else { document.getElementById('divPromptpay').style.display = 'none'; document.getElementById('divBank').style.display = 'block'; }
-        }
-
-        async function updateStoreSettings(btn) {
-            const name = document.getElementById('settingStoreName').value.trim(); 
-            const phone = document.getElementById('settingPhone').value.trim(); 
-            const payType = document.getElementById('settingPaymentType').value;
-            const promptpay = document.getElementById('settingPromptpay').value.trim(); 
-            const bankInfo = document.getElementById('settingBankInfo').value.trim();
-            
-            if (!name) return alert("กรุณากรอกชื่อร้าน");
-            btn.innerText = "⏳ กำลังบันทึก..."; btn.disabled = true;
-
-            let logoUrl = vendorData.line_picture_url; 
-            const fileInput = document.getElementById('settingStoreLogo');
-            if (fileInput.files.length > 0) {
-                const file = fileInput.files[0]; const fileName = `logo-${vendorData.id}-${Date.now()}.${file.name.split('.').pop()}`;
-                const { error: uploadError } = await supabaseClient.storage.from('menu-images').upload(fileName, file);
-                if (!uploadError) { const { data: publicUrlData } = supabaseClient.storage.from('menu-images').getPublicUrl(fileName); logoUrl = publicUrlData.publicUrl; }
-            }
-
-            await supabaseClient.from('vendors').update({ name: name, phone: phone, payment_type: payType, promptpay_number: promptpay, bank_info: bankInfo, line_picture_url: logoUrl }).eq('id', vendorData.id);
-            alert("อัปเดตข้อมูลร้านค้าเรียบร้อยแล้ว!");
-            
-            vendorData.name = name; vendorData.phone = phone; vendorData.payment_type = payType; vendorData.promptpay_number = promptpay; vendorData.bank_info = bankInfo; vendorData.line_picture_url = logoUrl;
-            document.getElementById('storeName').innerText = name; if(logoUrl) document.getElementById('storeLogo').src = logoUrl;
-            btn.innerText = "💾 บันทึกข้อมูลร้านค้า"; btn.disabled = false;
         }
 
         async function updateLineToken(btn) {
             const tokenInput = document.getElementById('settingLineToken');
             const liffInput = document.getElementById('settingLiffCustomer');
             
-            const token = tokenInput.value.trim() !== '' ? tokenInput.value.trim() : vendorData.line_token;
-            const liffId = liffInput ? liffInput.value.trim() : '';
+            // ถ้ากรอกใหม่ให้เอาค่าในช่อง ถ้าเว้นว่างให้ใช้ค่าเดิมที่เคยมี
+            const token = tokenInput.value.trim() !== '' ? tokenInput.value.trim() : (vendorData.line_token || '');
+            const liffId = liffInput.value.trim() !== '' ? liffInput.value.trim() : (vendorData.liff_customer_id || '');
             
             btn.innerText = "⏳ กำลังบันทึก..."; btn.disabled = true;
             try {
@@ -1040,10 +1020,17 @@
                 const liffToUse = liffId ? liffId : CONFIG.liffIdCustomer;
                 document.getElementById('customerLinkText').value = `https://liff.line.me/${liffToUse}?vid=${vendorData.id}`;
 
+                // ส่งค่า liff_id ไปให้ GAS บันทึกลง Sheet ด้วย
                 await fetch(CONFIG.gasWebhookUrl, {
                     method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
-                    body: JSON.stringify({ action: 'update_line_token', vendor_id: vendorData.id, line_token: token })
+                    body: JSON.stringify({ 
+                        action: 'update_line_token', 
+                        vendor_id: vendorData.id, 
+                        line_token: token,
+                        liff_id: liffId // <--- ส่งค่านี้เพิ่มไป
+                    })
                 });
+                
                 alert("บันทึก LINE Token และ LIFF ID เรียบร้อยแล้ว!");
                 populateSettingsForm(); 
             } catch(e) { alert("เกิดข้อผิดพลาด: " + e.message); }
