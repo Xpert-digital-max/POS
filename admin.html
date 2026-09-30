@@ -263,7 +263,7 @@
             await supabaseClient.from('withdrawals').update({ status: 'completed' }).eq('id', id); alert("อัปเดตสถานะสำเร็จ!"); loadWithdrawals();
         }
 
-        // ================= 3. จัดการร้านค้า (เหมือนเดิม) =================
+        // ================= 3. จัดการร้านค้า (อัปเดตระบบอนุมัติ) =================
         async function loadAllVendors() {
             const { data, error } = await supabaseClient.from('vendors').select('*').order('created_at', { ascending: false });
             const tbody = document.getElementById('allVendorsTable').querySelector('tbody');
@@ -273,15 +273,62 @@
                 const planName = confPlan ? confPlan.name : 'ทดลองใช้ฟรี';
                 const expDate = new Date(v.subscription_expires_at);
                 const isExpired = expDate < new Date();
-                const expBadge = isExpired ? `<span class="badge danger">หมดอายุ</span>` : `<span class="badge success">ใช้งานได้</span>`;
+                
+                let expBadge = isExpired ? `<span class="badge danger">หมดอายุ</span>` : `<span class="badge success">ใช้งานได้</span>`;
+                
+                // [NEW] เช็คว่าร้านยังไม่ได้จ่ายเงินหรือรออนุมัติไหม (เช็คจาก is_subscription_active เป็นหลัก)
+                if (v.is_subscription_active === false) {
+                    expBadge = `<span class="badge warning" style="background:#fef08a; color:#854d0e;">รอชำระเงิน/รออนุมัติ</span>`;
+                }
 
-                html += `<tr><td><strong>${v.name}</strong></td><td>${planName}</td><td>${expDate.toLocaleDateString('th-TH')} ${expBadge}</td><td><strong style="color:#06C755;">${v.slip_quota || 0}</strong> บิล</td><td>฿${v.wallet_balance || 0}</td><td><button class="btn btn-danger" onclick="suspendVendor('${v.id}', '${v.name}')">🛑 ระงับร้านนี้</button></td></tr>`;
-            }); tbody.innerHTML = html;
+                let actionBtns = '';
+                // [NEW] ปุ่มอนุมัติ (ถ้าสถานะเป็น Inactive)
+                if (v.is_subscription_active === false) {
+                    actionBtns += `<button class="btn btn-success" style="margin-bottom:5px; width:100%;" onclick="approveVendor('${v.id}', '${v.name}', '${v.subscription_plan}')">✅ อนุมัติเปิดร้าน</button><br>`;
+                }
+                actionBtns += `<button class="btn btn-danger" style="width:100%;" onclick="suspendVendor('${v.id}', '${v.name}')">🛑 ระงับการใช้งาน</button>`;
+
+                html += `<tr>
+                    <td><strong>${v.name}</strong><br><span style="font-size:11px; color:#888;">ID: ${v.id}</span></td>
+                    <td>${planName}</td>
+                    <td>${expDate.toLocaleDateString('th-TH')} ${expBadge}</td>
+                    <td><strong style="color:#06C755;">${v.slip_quota || 0}</strong> บิล</td>
+                    <td>฿${v.wallet_balance || 0}</td>
+                    <td>${actionBtns}</td>
+                </tr>`;
+            }); 
+            tbody.innerHTML = html;
+        }
+
+        async function approveVendor(id, name, planId) {
+            if (!confirm(`ตรวจสอบยอดเงินถูกต้อง และต้องการ "อนุมัติเปิดใช้งาน" ให้ร้าน ${name} ใช่หรือไม่?`)) return;
+            
+            // หาจำนวนวันที่ต้องบวกให้ตามแพ็กเกจ
+            const confPlan = CONFIG.pricingPlans.find(p => p.id === planId);
+            const addDays = confPlan ? confPlan.days : 30;
+            const setQuota = confPlan ? confPlan.quota : 0;
+            
+            const newExpDate = new Date();
+            newExpDate.setDate(newExpDate.getDate() + addDays);
+
+            // อัปเดตสถานะใน Supabase ให้เป็น Active
+            const { error } = await supabaseClient.from('vendors').update({ 
+                is_subscription_active: true, 
+                subscription_expires_at: newExpDate.toISOString(),
+                slip_quota: setQuota
+            }).eq('id', id);
+
+            if (error) {
+                alert("เกิดข้อผิดพลาดในการอนุมัติ: " + error.message);
+            } else {
+                alert(`✅ อนุมัติเปิดใช้งานร้าน ${name} เรียบร้อยแล้ว!`); 
+                loadAllVendors();
+            }
         }
 
         async function suspendVendor(id, name) {
             if (!confirm(`ต้องการ "ระงับ" ร้าน ${name} ใช่หรือไม่? (ระบบจะบังคับปิดร้านทันที)`)) return;
-            await supabaseClient.from('vendors').update({ subscription_expires_at: '2000-01-01T00:00:00Z', is_open: false, slip_check_mode: 'manual' }).eq('id', id);
+            await supabaseClient.from('vendors').update({ subscription_expires_at: '2000-01-01T00:00:00Z', is_subscription_active: false, is_open: false }).eq('id', id);
             alert(`ระงับร้าน ${name} เรียบร้อยแล้ว`); loadAllVendors();
         }
     </script>
