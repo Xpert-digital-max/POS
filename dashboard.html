@@ -286,15 +286,18 @@
                 </div>
             </div>
 
-            <!-- ====== [NEW] ตั้งค่า LINE TOKEN ====== -->
+            <!-- ====== [NEW] ตั้งค่า LINE TOKEN & LIFF ====== -->
             <div class="card" style="border-left: 4px solid #00B900; background: #f4fdf6;">
-                <h3 style="margin-top: 0; color: #00B900;">💬 ตั้งค่า LINE Messaging API (Token)</h3>
-                <p style="font-size: 13px; color: #666; margin-bottom: 15px;">ระบุ Channel Access Token เพื่อให้ระบบสามารถส่งข้อความแจ้งเตือนสถานะออเดอร์หาลูกค้าได้อัตโนมัติ</p>
+                <h3 style="margin-top: 0; color: #00B900;">💬 ตั้งค่า LINE บอทของร้านค้าตัวเอง</h3>
+                <p style="font-size: 13px; color: #666; margin-bottom: 15px;">หากต้องการให้ระบบแจ้งเตือนลูกค้าผ่าน LINE OA ของร้านคุณเอง กรุณาสร้าง Provider ใหม่และระบุข้อมูลด้านล่าง (หากเว้นว่างไว้ ระบบจะใช้บอทส่วนกลาง)</p>
                 
-                <label style="font-size: 13px; font-weight: bold; color: #555;">LINE Channel Access Token</label>
-                <input type="text" id="settingLineToken" placeholder="วาง Token ที่คัดลอกมาที่นี่..." style="width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 15px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
+                <label style="font-size: 13px; font-weight: bold; color: #555;">1. LINE Channel Access Token</label>
+                <input type="text" id="settingLineToken" placeholder="วาง Token ที่นี่..." style="width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 15px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
                 
-                <button onclick="updateLineToken(this)" id="saveTokenBtn" style="background: #00B900; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; font-size: 14px;">💾 บันทึก Token</button>
+                <label style="font-size: 13px; font-weight: bold; color: #555;">2. LIFF ID (สำหรับสั่งอาหาร)</label>
+                <input type="text" id="settingLiffCustomer" placeholder="เช่น 1234567890-AbCdEfGh" style="width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 15px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
+                
+                <button onclick="updateLineToken(this)" id="saveTokenBtn" style="background: #00B900; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; font-size: 14px;">💾 บันทึก Token & LIFF</button>
             </div>
 
         </div>
@@ -345,7 +348,8 @@
 
                 updateStoreStatusUI(vendorData.is_open);
                 
-                document.getElementById('customerLinkText').value = `https://liff.line.me/${CONFIG.liffIdCustomer}?vid=${vendorData.id}`;
+                const liffToUse = vendorData.liff_customer_id ? vendorData.liff_customer_id : CONFIG.liffIdCustomer;
+                document.getElementById('customerLinkText').value = `https://liff.line.me/${liffToUse}?vid=${vendorData.id}`;
 
                 populateSettingsForm();
                 renderAffiliateInfo();
@@ -966,51 +970,54 @@
             document.getElementById('settingBankInfo').value = vendorData.bank_info || '';
             togglePaymentInputs();
 
+            // จัดการแสดงผล LINE Token & LIFF
             const tokenInput = document.getElementById('settingLineToken');
+            const liffInput = document.getElementById('settingLiffCustomer');
             const tokenBtn = document.getElementById('saveTokenBtn');
+            
             if (vendorData.line_token) {
                 const hiddenToken = vendorData.line_token.substring(0, 10) + '....................' + vendorData.line_token.substring(vendorData.line_token.length - 10);
-                tokenInput.placeholder = hiddenToken;
-                tokenInput.value = ''; 
-                tokenBtn.innerText = "✏️ แก้ไข Token";
-                tokenBtn.style.background = "#f59e0b";
+                tokenInput.placeholder = hiddenToken; tokenInput.value = ''; 
+                liffInput.value = vendorData.liff_customer_id || '';
+                tokenBtn.innerText = "✏️ แก้ไข Token & LIFF"; tokenBtn.style.background = "#f59e0b";
             } else {
-                tokenInput.placeholder = "วาง Token ที่คัดลอกมาที่นี่...";
-                tokenBtn.innerText = "💾 บันทึก Token";
-                tokenBtn.style.background = "#00B900";
+                tokenInput.placeholder = "วาง Token ที่นี่..."; tokenInput.value = '';
+                liffInput.value = '';
+                tokenBtn.innerText = "💾 บันทึก Token & LIFF"; tokenBtn.style.background = "#00B900";
             }
         }
 
-        function togglePaymentInputs() {
-            const type = document.getElementById('settingPaymentType').value;
-            if (type === 'promptpay') { document.getElementById('divPromptpay').style.display = 'block'; document.getElementById('divBank').style.display = 'none'; } 
-            else { document.getElementById('divPromptpay').style.display = 'none'; document.getElementById('divBank').style.display = 'block'; }
-        }
-
-        async function updateStoreSettings(btn) {
-            const name = document.getElementById('settingStoreName').value.trim(); 
-            const phone = document.getElementById('settingPhone').value.trim(); 
-            const payType = document.getElementById('settingPaymentType').value;
-            const promptpay = document.getElementById('settingPromptpay').value.trim(); 
-            const bankInfo = document.getElementById('settingBankInfo').value.trim();
+        async function updateLineToken(btn) {
+            const tokenInput = document.getElementById('settingLineToken');
+            const liffInput = document.getElementById('settingLiffCustomer');
             
-            if (!name) return alert("กรุณากรอกชื่อร้าน");
+            // ถ้ากรอกใหม่ให้เอาค่าในช่อง ถ้าเว้นว่างให้ใช้ค่าเดิมที่เคยมี
+            const token = tokenInput.value.trim() !== '' ? tokenInput.value.trim() : vendorData.line_token;
+            const liffId = liffInput.value.trim();
+            
             btn.innerText = "⏳ กำลังบันทึก..."; btn.disabled = true;
+            try {
+                const { error } = await supabaseClient.from('vendors').update({ 
+                    line_token: token,
+                    liff_customer_id: liffId
+                }).eq('id', vendorData.id);
+                
+                if(error) throw error;
+                vendorData.line_token = token;
+                vendorData.liff_customer_id = liffId;
+                
+                // อัปเดตลิงก์ร้านค้าใหม่ให้ทันที
+                const liffToUse = liffId ? liffId : CONFIG.liffIdCustomer;
+                document.getElementById('customerLinkText').value = `https://liff.line.me/${liffToUse}?vid=${vendorData.id}`;
 
-            let logoUrl = vendorData.line_picture_url; 
-            const fileInput = document.getElementById('settingStoreLogo');
-            if (fileInput.files.length > 0) {
-                const file = fileInput.files[0]; const fileName = `logo-${vendorData.id}-${Date.now()}.${file.name.split('.').pop()}`;
-                const { error: uploadError } = await supabaseClient.storage.from('menu-images').upload(fileName, file);
-                if (!uploadError) { const { data: publicUrlData } = supabaseClient.storage.from('menu-images').getPublicUrl(fileName); logoUrl = publicUrlData.publicUrl; }
-            }
-
-            await supabaseClient.from('vendors').update({ name: name, phone: phone, payment_type: payType, promptpay_number: promptpay, bank_info: bankInfo, line_picture_url: logoUrl }).eq('id', vendorData.id);
-            alert("อัปเดตข้อมูลร้านค้าเรียบร้อยแล้ว!");
-            
-            vendorData.name = name; vendorData.phone = phone; vendorData.payment_type = payType; vendorData.promptpay_number = promptpay; vendorData.bank_info = bankInfo; vendorData.line_picture_url = logoUrl;
-            document.getElementById('storeName').innerText = name; if(logoUrl) document.getElementById('storeLogo').src = logoUrl;
-            btn.innerText = "💾 บันทึกข้อมูลร้านค้า"; btn.disabled = false;
+                await fetch(CONFIG.gasWebhookUrl, {
+                    method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: JSON.stringify({ action: 'update_line_token', vendor_id: vendorData.id, line_token: token })
+                });
+                alert("บันทึก LINE Token และ LIFF ID เรียบร้อยแล้ว!");
+                populateSettingsForm(); 
+            } catch(e) { alert("เกิดข้อผิดพลาด: " + e.message); }
+            btn.disabled = false;
         }
 
         async function updateLineToken(btn) {
