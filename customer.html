@@ -71,15 +71,60 @@
 
     <script>
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
-        const urlParams = new URLSearchParams(window.location.search);
-        const vendorId = urlParams.get('vid');
+        // --- เปลี่ยนวิธีดึง vendorId ใหม่ทั้งหมด ---
+        let vendorId = null;
         let vendorData = null; let menuData = []; let cart = []; let customerUid = null; let selectedCategory = 'all';
         let currentModalItem = null; let currentModalQty = 1;
 
-        async function initCustomerApp() { if (!vendorId) return alert("ไม่พบรหัสร้านค้า"); try { await liff.init({ liffId: CONFIG.liffIdCustomer }); if (liff.isLoggedIn()) { customerUid = liff.getDecodedIDToken().sub; await loadVendorInfo(); await loadCategories(); await loadMenu(); } else { liff.login(); } } catch (err) { } }
-        
-        async function loadVendorInfo() { const { data } = await supabaseClient.from('vendors').select('*').eq('id', vendorId).single(); if (!data) return; vendorData = data; document.getElementById('storeName').innerText = data.name; if (data.line_picture_url) document.getElementById('storeLogo').src = data.line_picture_url; const statusBadge = document.getElementById('storeStatus'); if (data.is_open) { statusBadge.innerText = "🟢 เปิดรับออเดอร์"; statusBadge.className = "status-badge status-open"; } else { statusBadge.innerText = "🔴 ปิดรับออเดอร์"; statusBadge.className = "status-badge status-closed"; document.getElementById('closedOverlay').style.display = "flex"; } }
+        async function initCustomerApp() { 
+            try { 
+                await liff.init({ liffId: CONFIG.liffIdCustomer }); 
+                
+                // --- ดึงรหัสร้านค้า (vid) ด้วยวิธีที่ชัวร์ที่สุด ---
+                const urlParams = new URLSearchParams(window.location.search);
+                vendorId = urlParams.get('vid');
+                
+                // เผื่อกรณีเข้าผ่าน liff.line.me แล้วพารามิเตอร์ซ่อนอยู่
+                if (!vendorId) {
+                    const liffState = liff.getContext();
+                    if (liffState && liffState.endpointUrl) {
+                        const liffUrl = new URL(liffState.endpointUrl);
+                        vendorId = liffUrl.searchParams.get('vid');
+                    }
+                }
+                
+                if (!vendorId) {
+                    alert("ไม่พบรหัสร้านค้า กรุณาตรวจสอบลิงก์อีกครั้ง"); 
+                    return; 
+                }
 
+                if (liff.isLoggedIn()) { 
+                    customerUid = liff.getDecodedIDToken().sub; 
+                    await loadVendorInfo(); 
+                    await loadCategories(); 
+                    await loadMenu(); 
+                } else { 
+                    liff.login(); 
+                } 
+            } catch (err) { 
+                console.error("LIFF Init Error: ", err);
+            } 
+        }
+        
+        async function loadVendorInfo() { 
+            const { data } = await supabaseClient.from('vendors').select('*').eq('id', vendorId).single(); 
+            if (!data) return; 
+            vendorData = data; 
+            document.getElementById('storeName').innerText = data.name; 
+            if (data.line_picture_url) document.getElementById('storeLogo').src = data.line_picture_url; 
+            const statusBadge = document.getElementById('storeStatus'); 
+            if (data.is_open) { 
+                statusBadge.innerText = "🟢 เปิดรับออเดอร์"; statusBadge.className = "status-badge status-open"; 
+            } else { 
+                statusBadge.innerText = "🔴 ปิดรับออเดอร์"; statusBadge.className = "status-badge status-closed"; 
+                document.getElementById('closedOverlay').style.display = "flex"; 
+            } 
+        }
         async function loadCategories() { const { data } = await supabaseClient.from('categories').select('*').eq('vendor_id', vendorId).order('created_at', { ascending: true }); if (!data) return; const catBar = document.getElementById('categoryBar'); let html = '<button class="cat-btn active" onclick="filterCategory(\'all\', this)">ทั้งหมด</button>'; data.forEach(cat => { html += `<button class="cat-btn" onclick="filterCategory('${cat.id}', this)">${cat.name}</button>`; }); catBar.innerHTML = html; }
         
         function filterCategory(catId, btnElement) { selectedCategory = catId; document.querySelectorAll('.cat-btn').forEach(btn => btn.classList.remove('active')); btnElement.classList.add('active'); renderMenuList(); }
