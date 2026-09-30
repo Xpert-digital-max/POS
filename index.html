@@ -238,7 +238,8 @@
                             plan: selectedPlan.name, 
                             expires_at: expiresAt.toLocaleDateString('th-TH'),
                             referrer_id: referrerId,
-                            status: statusText
+                            status: statusText,
+                            phone: phoneNumber // <--- [เพิ่มบรรทัดนี้เข้าไปครับ]
                         })
                     });
                 } catch(e) {}
