@@ -296,31 +296,28 @@
             document.getElementById('checkoutModal').style.display = 'none'; 
         }
 
-        // ==================== ระบบส่งออเดอร์ ====================
+        // ==================== ระบบส่งออเดอร์ (แบบมาตรฐาน ส่งลิงก์ URL) ====================
         async function submitOrder() {
             const fileInput = document.getElementById('slipImage');
             const btn = document.getElementById('confirmOrderBtn');
             const total = document.getElementById('totalPrice').innerText;
 
             if (fileInput.files.length === 0) { alert("กรุณาแนบสลิปโอนเงินก่อนยืนยันออเดอร์"); return; }
-            btn.innerText = "⏳ กำลังบันทึกออเดอร์..."; btn.disabled = true;
+            btn.innerText = "⏳ กำลังอัปโหลดสลิป..."; btn.disabled = true;
 
-            // 1. อัปโหลดสลิป
             const file = fileInput.files[0]; const fileName = `slip-${Date.now()}.${file.name.split('.').pop()}`; let slipUrl = null;
             const { error: uploadError } = await supabaseClient.storage.from('slip-images').upload(fileName, file);
             if (uploadError) { alert("อัปโหลดสลิปไม่สำเร็จ: " + uploadError.message); btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false; return; }
             const { data: publicUrlData } = supabaseClient.storage.from('slip-images').getPublicUrl(fileName); 
             slipUrl = publicUrlData.publicUrl;
 
-            // ⭐️ เพิ่มโค้ดตรงนี้: หน่วงเวลา 2 วินาที รอให้ลิงก์รูปลงเซิร์ฟเวอร์สมบูรณ์ก่อนส่งให้ AI
-            btn.innerText = "⏳ กำลังตรวจสอบสลิป..."; 
+            // หน่วงเวลา 2 วินาทีเพื่อให้ลิงก์ Public ของ Supabase ทำงานสมบูรณ์
             await new Promise(resolve => setTimeout(resolve, 2000));
+            btn.innerText = "⏳ กำลังให้ AI ตรวจสลิป...";
 
             let orderStatus = 'pending'; 
             
-            // 2. ตรวจสลิปออโต้ (ถ้าเปิดไว้)
             if (vendorData.slip_check_mode === 'auto' && vendorData.slip_quota > 0) {
-                 // ... โค้ดเดิมยาวลงไป ...
                 try {
                     const gasRes = await fetch(CONFIG.gasWebhookUrl, {
                         method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -336,19 +333,11 @@
                 } catch (e) {}
             }
 
-            const orderPayload = { 
-                vendor_id: vendorId, 
-                customer_uid: customerUid, 
-                items: cart, 
-                total_price: parseFloat(total), 
-                slip_image_url: slipUrl, 
-                status: orderStatus 
-            };
+            btn.innerText = "⏳ กำลังบันทึกออเดอร์...";
+            const orderPayload = { vendor_id: vendorId, customer_uid: customerUid, items: cart, total_price: parseFloat(total), slip_image_url: slipUrl, status: orderStatus };
             if (branchId) orderPayload.branch_id = branchId;
 
-            const { data: newOrder, error: orderError } = await supabaseClient.from('orders')
-                .insert([orderPayload])
-                .select().single();
+            const { data: newOrder, error: orderError } = await supabaseClient.from('orders').insert([orderPayload]).select().single();
 
             if (!orderError && newOrder) {
                 alert(orderStatus === 'processing' ? "✅ รับออเดอร์เรียบร้อย กำลังเตรียมอาหาร!" : "ส่งออเดอร์เรียบร้อยแล้ว!\n(รอร้านตรวจสอบสลิปสักครู่นะครับ)");
@@ -360,21 +349,11 @@
 
                     fetch(CONFIG.gasWebhookUrl, {
                         method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
-                        body: JSON.stringify({ 
-                            action: 'notify_customer', 
-                            vendor_id: vendorId, 
-                            uid: customerUid, 
-                            order_status: orderStatus, 
-                            store_name: vendorData.name, 
-                            order_ref: orderRef, 
-                            queue_num: "-" 
-                        })
+                        body: JSON.stringify({ action: 'notify_customer', vendor_id: vendorId, uid: customerUid, order_status: orderStatus, store_name: vendorData.name, order_ref: orderRef, queue_num: "-" })
                     }).catch(e => console.log(e)); 
                 }
 
-                // ⭐️ ออเดอร์สำเร็จแล้ว ให้เคลียร์ตะกร้าออกจากความจำ
                 clearSavedCart();
-
                 if (liff.isInClient()) { liff.closeWindow(); } else { window.location.reload(); }
             } else {
                 alert("บันทึกออเดอร์ไม่สำเร็จ: " + orderError.message);
