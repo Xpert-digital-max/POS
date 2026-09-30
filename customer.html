@@ -77,15 +77,23 @@
 
         async function initCustomerApp() { 
             try { 
-                // 1. ดึงรหัสร้านค้าจาก URL ก่อนเป็นอันดับแรก
+                // 1. ถอดรหัส URL แบบพิเศษ ป้องกัน LINE ซ่อนพารามิเตอร์
+                let tempUrl = decodeURIComponent(window.location.href);
                 const urlParams = new URLSearchParams(window.location.search);
                 vendorId = urlParams.get('vid');
                 
-                // (เผื่อกรณีเข้าผ่าน liff.line.me แล้วพารามิเตอร์ซ่อนอยู่)
+                // กรณี LINE ซ่อนพารามิเตอร์ไว้ใน liff.state
+                if (!vendorId && urlParams.has('liff.state')) {
+                    const liffState = urlParams.get('liff.state');
+                    const stateParams = new URLSearchParams(liffState.startsWith('?') ? liffState : '?' + liffState);
+                    vendorId = stateParams.get('vid');
+                }
+                
+                // กรณีหลุดรอดจากด่านบน ใช้ RegEx ดึงออกแบบดื้อๆ
                 if (!vendorId) {
-                    const tempUrl = window.location.href;
-                    if(tempUrl.includes('?vid=')) {
-                        vendorId = tempUrl.split('?vid=')[1].split('&')[0];
+                    const match = tempUrl.match(/[?&]vid=([^&]+)/);
+                    if (match) {
+                        vendorId = match[1];
                     }
                 }
                 
@@ -129,8 +137,6 @@
                 console.error("LIFF Init Error: ", err);
             } 
         }
-        
-        // (ลบฟังก์ชัน loadVendorInfo() เดิมทิ้งได้เลย เพราะเราเอามารวมในนี้แล้ว)
         
         async function loadCategories() { const { data } = await supabaseClient.from('categories').select('*').eq('vendor_id', vendorId).order('created_at', { ascending: true }); if (!data) return; const catBar = document.getElementById('categoryBar'); let html = '<button class="cat-btn active" onclick="filterCategory(\'all\', this)">ทั้งหมด</button>'; data.forEach(cat => { html += `<button class="cat-btn" onclick="filterCategory('${cat.id}', this)">${cat.name}</button>`; }); catBar.innerHTML = html; }
         
@@ -264,7 +270,7 @@
                 // แจ้งลูกค้าทันทีที่บันทึกเสร็จ ไม่ต้องรอส่ง LINE
                 alert(orderStatus === 'processing' ? "✅ รับออเดอร์เรียบร้อย กำลังเตรียมอาหาร!" : "ส่งออเดอร์เรียบร้อยแล้ว!\n(รอร้านตรวจสอบสลิปสักครู่นะครับ)");
                 
-                // 4. สั่ง GAS ให้ส่ง Flex LINE แบบ Fire & Forget (ไม่ใส่ await และส่ง data ครบถ้วน)
+                // 4. สั่ง GAS ให้ส่ง Flex LINE แบบ Fire & Forget
                 if (customerUid) {
                     const d = new Date();
                     const dateStr = d.getFullYear().toString().slice(-2) + ('0' + (d.getMonth()+1)).slice(-2) + ('0' + d.getDate()).slice(-2);
