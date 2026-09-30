@@ -389,26 +389,52 @@
             } catch(e) { console.error(e); }
         }
 
-        // ==================== ระบบจัดการสาขา ====================
+        // ==================== ระบบจัดการสาขา (เวอร์ชันอัปเดตมีปุ่ม QR Code) ====================
         async function loadBranches() {
             const { data } = await supabaseClient.from('branches').select('*').eq('merchant_id', vendorData.id).eq('is_active', true);
             const container = document.getElementById('branchListContainer');
             
-            let html = `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid #f0f0f0;">
+            const liffToUse = vendorData.liff_customer_id ? vendorData.liff_customer_id : CONFIG.liffIdCustomer;
+            const mainLink = `https://liff.line.me/${liffToUse}?vid=${vendorData.id}`;
+
+            // แสดงสาขาหลัก
+            let html = `<div style="padding:10px; border-bottom:1px solid #f0f0f0; margin-bottom:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div><strong style="color:#6a1b9a;">👑 สาขาหลัก</strong><br><span style="font-size:12px; color:#666;">รับเงิน: ${vendorData.promptpay_number || vendorData.bank_info || '-'}</span></div>
-                    <span style="font-size:11px; background:#e1bee7; padding:3px 8px; border-radius:10px;">เปิดใช้งาน</span></div>`;
+                    <span style="font-size:11px; background:#e1bee7; padding:3px 8px; border-radius:10px;">เปิดใช้งาน</span>
+                </div>
+                <div style="display:flex; gap:5px; margin-top:8px;">
+                    <button onclick="navigator.clipboard.writeText('${mainLink}'); alert('คัดลอกลิงก์สาขาหลักแล้ว!');" style="flex:1; background:#00838F; color:white; border:none; padding:6px; border-radius:4px; font-size:11px; cursor:pointer;">🔗 คัดลอกลิงก์</button>
+                    <button onclick="showBranchQr('${mainLink}', 'สาขาหลัก')" style="flex:1; background:#00BCD4; color:white; border:none; padding:6px; border-radius:4px; font-size:11px; cursor:pointer;">📷 QR Code สาขาหลัก</button>
+                </div>
+            </div>`;
 
             branchCount = 1; 
             if (data && data.length > 0) {
                 branchCount += data.length;
                 data.forEach(b => {
-                    html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid #f0f0f0;">
-                        <div><strong>${b.branch_name}</strong><br><span style="font-size:12px; color:#666;">รับเงิน: ${b.promptpay}</span></div>
-                        <button onclick="deleteBranch('${b.id}')" style="background:#ff4d4f; color:white; border:none; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;">ลบ</button>
+                    const branchLink = `https://liff.line.me/${liffToUse}?vid=${vendorData.id}&bid=${b.id}`;
+                    html += `<div style="padding:10px; border-bottom:1px solid #f0f0f0; margin-bottom:8px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div><strong>🏢 ${b.branch_name}</strong><br><span style="font-size:12px; color:#666;">รับเงิน: ${b.promptpay}</span></div>
+                            <button onclick="deleteBranch('${b.id}')" style="background:#ff4d4f; color:white; border:none; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;">ลบ</button>
+                        </div>
+                        <div style="display:flex; gap:5px; margin-top:8px;">
+                            <button onclick="navigator.clipboard.writeText('${branchLink}'); alert('คัดลอกลิงก์ ${b.branch_name}แล้ว!');" style="flex:1; background:#00838F; color:white; border:none; padding:6px; border-radius:4px; font-size:11px; cursor:pointer;">🔗 คัดลอกลิงก์</button>
+                            <button onclick="showBranchQr('${branchLink}', '${b.branch_name}')" style="flex:1; background:#00BCD4; color:white; border:none; padding:6px; border-radius:4px; font-size:11px; cursor:pointer;">📷 QR Code สาขานี้</button>
+                        </div>
                     </div>`;
                 });
             }
             container.innerHTML = html;
+        }
+
+        // ฟังก์ชันเสริมสำหรับแสดง Modal QR Code ของแต่ละสาขา
+        function showBranchQr(link, branchName) {
+            const qrUrl = `https://quickchart.io/qr?text=${encodeURIComponent(link)}&size=300`;
+            document.getElementById('customerQrImage').src = qrUrl;
+            document.querySelector('#customerQrModal h3').innerText = `🍽️ สแกนสั่งอาหาร (${branchName})`;
+            document.getElementById('customerQrModal').style.display = 'flex';
         }
 
         async function addBranch() {
