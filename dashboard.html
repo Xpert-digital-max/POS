@@ -100,10 +100,7 @@
     <div class="content">
         <!-- 1. หน้าออเดอร์ -->
         <div id="orders" class="tab-content active">
-            <h2 style="display: flex; justify-content: space-between; align-items: center;">
-                คิวรอทำ 
-                <button onclick="loadOrders()" style="font-size: 14px; padding: 6px 12px; background: #eee; border: none; border-radius: 5px; cursor: pointer; color: #333;">🔄 รีเฟรช</button>
-            </h2>
+            <h2>คิวรอทำ</h2>
             <div id="orderList"><p style="text-align: center; color: #888;">กำลังโหลด...</p></div>
         </div>
 
@@ -311,6 +308,31 @@
         let editingCategoryId = null;
         let copiedImageUrl = null;
         let branchCount = 1;
+        let lastOrderCount = -1; // ตัวแปรเช็กจำนวนออเดอร์ใหม่เพื่อเล่นเสียง
+
+        // 🔊 ฟังก์ชันสร้างเสียงเตือนออเดอร์เข้า
+        function playNotificationSound() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.2);
+                
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.2);
+            } catch (e) {
+                console.log("Audio context blocked");
+            }
+        }
 
         function switchTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -360,6 +382,10 @@
                 await loadOrders(); 
                 await loadBranches();
                 await loadBillingInfo(); 
+
+                // ⏱️ สั่งให้ระบบวิ่งเช็กออเดอร์ใหม่ทุกๆ 5 วินาทีอัตโนมัติ
+                setInterval(loadOrders, 5000);
+
             } catch(e) { console.error(e); }
         }
 
@@ -466,79 +492,78 @@
         }
 
         function shareAffiliateFlex() {
-    if (!liff.isLoggedIn()) return;
-    const refLink = document.getElementById('affiliateLink').value; 
-    if(!refLink) return;
-    const storeName = vendorData.name || "เพื่อนของคุณ";
-    
-    // --- โครงสร้าง Flex Message รูปแบบใหม่ที่สวยและดึงดูดกว่าเดิม ---
-    const flexMsg = {
-      "type": "flex",
-      "altText": `คำชวนพิเศษจากร้าน ${storeName} ให้เปิดร้านค้าฟรี!`,
-      "contents": {
-        "type": "bubble",
-        "hero": {
-          "type": "image",
-          "url": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1024&q=80",
-          "size": "full",
-          "aspectRatio": "20:13",
-          "aspectMode": "cover"
-        },
-        "body": {
-          "type": "box",
-          "layout": "vertical",
-          "contents": [
-            {
-              "type": "text",
-              "text": "🎉 คำชวนพิเศษจากร้าน:",
-              "weight": "bold",
-              "size": "md",
-              "color": "#06C755"
-            },
-            {
-              "type": "text",
-              "text": storeName,
-              "weight": "bold",
-              "size": "xl",
-              "color": "#111111",
-              "margin": "sm"
-            },
-            {
-              "type": "text",
-              "text": "✅ รับออเดอร์ผ่าน LINE\n✅ ตรวจสลิปโอนเงินอัตโนมัติ\n✅ แจ้งเตือนเมื่ออาหารเสร็จ\n✅ ระบบจัดการคิวสุดล้ำ",
-              "size": "sm",
-              "color": "#555555",
-              "wrap": true,
-              "margin": "md"
-            }
-          ]
-        },
-        "footer": {
-          "type": "box",
-          "layout": "vertical",
-          "spacing": "sm",
-          "contents": [
-            {
-              "type": "button",
-              "style": "primary",
-              "height": "sm",
-              "color": "#06C755",
-              "action": {
-                "type": "uri",
-                "label": "👉 เปิดร้านค้า (ทดลองฟรี 10 วัน!)",
-                "uri": refLink
+            if (!liff.isLoggedIn()) return;
+            const refLink = document.getElementById('affiliateLink').value; 
+            if(!refLink) return;
+            const storeName = vendorData.name || "เพื่อนของคุณ";
+            
+            const flexMsg = {
+              "type": "flex",
+              "altText": `คำชวนพิเศษจากร้าน ${storeName} ให้เปิดร้านค้าฟรี!`,
+              "contents": {
+                "type": "bubble",
+                "hero": {
+                  "type": "image",
+                  "url": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1024&q=80",
+                  "size": "full",
+                  "aspectRatio": "20:13",
+                  "aspectMode": "cover"
+                },
+                "body": {
+                  "type": "box",
+                  "layout": "vertical",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "🎉 คำชวนพิเศษจากร้าน:",
+                      "weight": "bold",
+                      "size": "md",
+                      "color": "#06C755"
+                    },
+                    {
+                      "type": "text",
+                      "text": storeName,
+                      "weight": "bold",
+                      "size": "xl",
+                      "color": "#111111",
+                      "margin": "sm"
+                    },
+                    {
+                      "type": "text",
+                      "text": "✅ รับออเดอร์ผ่าน LINE\n✅ ตรวจสลิปโอนเงินอัตโนมัติ\n✅ แจ้งเตือนเมื่ออาหารเสร็จ\n✅ ระบบจัดการคิวสุดล้ำ",
+                      "size": "sm",
+                      "color": "#555555",
+                      "wrap": true,
+                      "margin": "md"
+                    }
+                  ]
+                },
+                "footer": {
+                  "type": "box",
+                  "layout": "vertical",
+                  "spacing": "sm",
+                  "contents": [
+                    {
+                      "type": "button",
+                      "style": "primary",
+                      "height": "sm",
+                      "color": "#06C755",
+                      "action": {
+                        "type": "uri",
+                        "label": "👉 เปิดร้านค้า (ทดลองฟรี 10 วัน!)",
+                        "uri": refLink
+                      }
+                    }
+                  ],
+                  "flex": 0
+                }
               }
-            }
-          ],
-          "flex": 0
-        }
-      }
-    };
+            };
 
-    if (liff.isApiAvailable('shareTargetPicker')) {
-        liff.shareTargetPicker([flexMsg]).then(function (res) { if (res) alert('ส่งคำชวนให้เพื่อนสำเร็จ! 🎉'); }).catch(function (error) {});
-    } else { alert('อุปกรณ์ของคุณไม่รองรับการส่งข้อความผ่านปุ่มนี้ กรุณากดคัดลอกลิงก์ส่งให้เพื่อนแทนครับ'); }
-}
+            if (liff.isApiAvailable('shareTargetPicker')) {
+                liff.shareTargetPicker([flexMsg]).then(function (res) { if (res) alert('ส่งคำชวนให้เพื่อนสำเร็จ! 🎉'); }).catch(function (error) {});
+            } else { alert('อุปกรณ์ของคุณไม่รองรับการส่งข้อความผ่านปุ่มนี้ กรุณากดคัดลอกลิงก์ส่งให้เพื่อนแทนครับ'); }
+        }
 
         function showAffiliateQr() {
             const refLink = document.getElementById('affiliateLink').value;
@@ -872,19 +897,19 @@
                 const safeCatId = item.category_id || ''; const safeOpts = item.options || ''; const safeImgUrl = item.image_url || '';
 
                 html += `<div class="card" style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
-                            <img src="${imgSrc}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;">
-                            <div style="flex: 1;">
-                                <h4 style="margin: 0;">${item.name} ${catBadge}</h4>
-                                <p style="margin: 5px 0 0 0; color: #06C755; font-weight: bold;">฿${item.price}</p>${optBadge}
-                                <span style="font-size: 12px; color: ${statusColor}; display:block; margin-top:3px;">${statusText}</span>
-                            </div>
-                            <div style="display: flex; flex-direction: column; gap: 5px;">
-                                <button onclick="copyMenu('${item.name}', ${item.price}, '${safeCatId}', '${safeOpts}', '${safeImgUrl}')" style="background: #9C27B0; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">📑 คัดลอก</button>
-                                <button onclick="editMenu('${item.id}', '${item.name}', ${item.price}, '${safeCatId}', '${safeOpts}')" style="background: #2196F3; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">✏️ แก้ไข</button>
-                                <button onclick="toggleMenuStatus('${item.id}', ${item.is_available})" style="background: ${toggleBtnColor}; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">${toggleBtnText}</button>
-                                <button onclick="deleteMenu('${item.id}', '${item.name}')" style="background: #ff4d4f; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🗑️ ลบ</button>
-                            </div>
-                        </div>`;
+                        <img src="${imgSrc}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;">
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0;">${item.name} ${catBadge}</h4>
+                            <p style="margin: 5px 0 0 0; color: #06C755; font-weight: bold;">฿${item.price}</p>${optBadge}
+                            <span style="font-size: 12px; color: ${statusColor}; display:block; margin-top:3px;">${statusText}</span>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                            <button onclick="copyMenu('${item.name}', ${item.price}, '${safeCatId}', '${safeOpts}', '${safeImgUrl}')" style="background: #9C27B0; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">📑 คัดลอก</button>
+                            <button onclick="editMenu('${item.id}', '${item.name}', ${item.price}, '${safeCatId}', '${safeOpts}')" style="background: #2196F3; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">✏️ แก้ไข</button>
+                            <button onclick="toggleMenuStatus('${item.id}', ${item.is_available})" style="background: ${toggleBtnColor}; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">${toggleBtnText}</button>
+                            <button onclick="deleteMenu('${item.id}', '${item.name}')" style="background: #ff4d4f; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🗑️ ลบ</button>
+                        </div>
+                    </div>`;
             });
             menuListDiv.innerHTML = html;
         }
@@ -939,9 +964,25 @@
         }
 
         async function loadOrders() {
-            if (!vendorData) return; const orderListDiv = document.getElementById('orderList'); orderListDiv.innerHTML = '<p style="text-align: center; color: #888;">กำลังโหลด...</p>';
+            if (!vendorData) return; 
+            const orderListDiv = document.getElementById('orderList'); 
+            
             const { data, error } = await supabaseClient.from('orders').select('*').eq('vendor_id', vendorData.id).in('status', ['pending', 'processing']).order('created_at', { ascending: true });
-            if (error || data.length === 0) { orderListDiv.innerHTML = '<p style="text-align: center; color: #888;">ยังไม่มีออเดอร์เข้าในขณะนี้</p>'; return; }
+            if (error) return;
+
+            const currentCount = data ? data.length : 0;
+
+            // 🚨 ถ้ามีออเดอร์เพิ่มขึ้นมาใหม่ -> เล่นเสียงเตือนและสั่น
+            if (lastOrderCount !== -1 && currentCount > lastOrderCount) {
+                playNotificationSound();
+                if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+            }
+            lastOrderCount = currentCount;
+
+            if (currentCount === 0) { 
+                orderListDiv.innerHTML = '<p style="text-align: center; color: #888;">ยังไม่มีออเดอร์เข้าในขณะนี้</p>'; 
+                return; 
+            }
             
             let html = '';
             data.forEach((order, index) => {
@@ -1021,13 +1062,11 @@
             document.getElementById('settingBankInfo').value = vendorData.bank_info || '';
             togglePaymentInputs();
 
-            // จัดการแสดงผล LINE Token & LIFF (ทำให้เป็นตัวจางๆ)
             const tokenInput = document.getElementById('settingLineToken');
             const liffInput = document.getElementById('settingLiffCustomer');
             const tokenBtn = document.getElementById('saveTokenBtn');
             
             if (vendorData.line_token || vendorData.liff_customer_id) {
-                // ถ้ามี Token ให้ทำตัวจางๆ
                 if (vendorData.line_token) {
                     const hiddenToken = vendorData.line_token.substring(0, 10) + '....................' + vendorData.line_token.substring(vendorData.line_token.length - 10);
                     tokenInput.placeholder = hiddenToken; 
@@ -1036,7 +1075,6 @@
                 }
                 tokenInput.value = ''; 
                 
-                // ถ้ามี LIFF ID ให้ทำตัวจางๆ
                 if (vendorData.liff_customer_id) {
                     liffInput.placeholder = vendorData.liff_customer_id;
                 } else {
@@ -1089,7 +1127,6 @@
             const tokenInput = document.getElementById('settingLineToken');
             const liffInput = document.getElementById('settingLiffCustomer');
             
-            // ถ้ากรอกใหม่ให้เอาค่าในช่อง ถ้าเว้นว่างให้ใช้ค่าเดิมที่เคยมี
             const token = tokenInput.value.trim() !== '' ? tokenInput.value.trim() : (vendorData.line_token || '');
             const liffId = liffInput.value.trim() !== '' ? liffInput.value.trim() : (vendorData.liff_customer_id || '');
             
@@ -1107,14 +1144,13 @@
                 const liffToUse = liffId ? liffId : CONFIG.liffIdCustomer;
                 document.getElementById('customerLinkText').value = `https://liff.line.me/${liffToUse}?vid=${vendorData.id}`;
 
-                // ส่งค่า liff_id ไปให้ GAS บันทึกลง Sheet ด้วย
                 await fetch(CONFIG.gasWebhookUrl, {
                     method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
                     body: JSON.stringify({ 
                         action: 'update_line_token', 
                         vendor_id: vendorData.id, 
                         line_token: token,
-                        liff_id: liffId // <--- ส่งค่านี้เพิ่มไป
+                        liff_id: liffId
                     })
                 });
                 
