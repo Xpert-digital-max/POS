@@ -338,11 +338,12 @@
             try {
                 const numberRes = await fetch(CONFIG.gasWebhookUrl, {
                     method: 'POST',
+                    redirect: 'follow', // 👈 เพิ่มคำสั่งนี้ให้ทำตาม Redirect ของ GAS
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // 👈 แก้ตรงนี้เพื่อหลบ CORS
                     body: JSON.stringify({
                         action: 'generate_order_number',
                         vendor_id: vendorId
-                    }),
-                    headers: { 'Content-Type': 'application/json' }
+                    })
                 });
                 const numberResult = await numberRes.json();
                 
