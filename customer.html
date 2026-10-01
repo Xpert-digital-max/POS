@@ -382,6 +382,7 @@
                 await new Promise(resolve => setTimeout(resolve, 3000));
                 btn.innerText = "⏳ กำลังให้ AI ตรวจสลิป...";
                 
+                // ค้นหาบรรทัดนี้ใน submitOrder
                 if (vendorData.slip_check_mode === 'auto' && vendorData.slip_quota > 0) {
                     try {
                         const gasRes = await fetch(CONFIG.gasWebhookUrl, {
@@ -390,9 +391,11 @@
                         });
                         const result = await gasRes.json();
                         
+                        // 🔴 เพิ่มบรรทัดนี้เพื่อเช็กผลลัพธ์
+                        console.log("VERIFY RESPONSE:", result);
+
                         if (result.status === 'success') {
-                            // สลิปถูกต้องและยอดตรง
-                            orderStatus = 'processing'; 
+                            orderStatus = 'processing';
                         } else {
                             const errCode = (result.debug && result.debug.code) ? result.debug.code : "";
 
