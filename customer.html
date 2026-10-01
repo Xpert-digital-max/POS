@@ -311,8 +311,8 @@
             const { data: publicUrlData } = supabaseClient.storage.from('slip-images').getPublicUrl(fileName); 
             slipUrl = publicUrlData.publicUrl;
 
-            // หน่วงเวลา 2 วินาทีเพื่อให้ลิงก์ Public ของ Supabase ทำงานสมบูรณ์
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // หน่วงเวลา 3 วินาทีเพื่อให้ Supabase ปล่อยลิงก์สาธารณะสำเร็จ 100%
+            await new Promise(resolve => setTimeout(resolve, 3000));
             btn.innerText = "⏳ กำลังให้ AI ตรวจสลิป...";
 
             let orderStatus = 'pending'; 
@@ -324,13 +324,16 @@
                         body: JSON.stringify({ action: 'verify_customer_slip', vendor_promptpay: vendorData.promptpay_number, slip_url: slipUrl, amount: total, vendor_id: vendorId })
                     });
                     const result = await gasRes.json();
+                    
                     if (result.status === 'success') {
                         orderStatus = 'processing'; 
                         await supabaseClient.from('vendors').update({ slip_quota: vendorData.slip_quota - 1 }).eq('id', vendorId);
                     } else {
-                        alert(`❌ ตรวจสลิปออโต้ไม่ผ่าน:\n${result.msg}\nระบบจะส่งให้ร้านตรวจด้วยตนเองครับ`);
+                        alert(`❌ ตรวจสลิปไม่ผ่าน:\n${result.msg}\nระบบจะส่งให้ร้านตรวจด้วยตนเองครับ`);
                     }
-                } catch (e) {}
+                } catch (e) {
+                    console.error("AI Verify Error:", e);
+                }
             }
 
             btn.innerText = "⏳ กำลังบันทึกออเดอร์...";
