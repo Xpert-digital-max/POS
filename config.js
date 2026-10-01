@@ -22,8 +22,8 @@ const CONFIG = {
     // ---------------------------------------------------------
     trialDaysDefault: 10, 
     adminPaymentType: 'promptpay', 
-    adminPromptpay: '0819474479', 
-    adminBankInfo: 'ธ.กสิกรไทย บจก. เอ็กซ์ ดิจิทัล', 
+    adminPromptpay: '3220300357527', 
+    adminBankInfo: 'ธ.กสิกรไทย บจก.NPX Digital Marketing', 
 
     // ---------------------------------------------------------
     // 5. โครงสร้างแพ็กเกจ (Pricing Plans) อัปเดตล่าสุด
