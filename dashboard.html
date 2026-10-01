@@ -879,6 +879,20 @@
                     vendorData.subscription_plan = planId; vendorData.subscription_expires_at = baseDate.toISOString(); 
                     vendorData.slip_check_mode = selectedPlanObj.mode; vendorData.is_subscription_active = true; vendorData.slip_quota = newQuota;
 
+                    // --- เพิ่มโค้ดแจ้งเตือนกลุ่มแอดมินตรงนี้ ---
+                    fetch(CONFIG.gasWebhookUrl, {
+                        method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
+                        body: JSON.stringify({
+                            action: 'notify_admin_payment', 
+                            type: 'renew', 
+                            store_name: vendorData.name, 
+                            plan_name: selectedPlanObj.name, 
+                            amount: expectedPrice, 
+                            referrer_id: vendorData.referrer_id || null, 
+                            commission: (vendorData.referrer_id ? selectedPlanObj.comm : 0)
+                        })
+                    }).catch(e => console.log(e));
+
                     alert(`🎉 ต่ออายุแพ็กเกจเรียบร้อยแล้ว\nใช้งานได้ถึง ${baseDate.toLocaleDateString('th-TH')}`);
                     renderSubscriptionInfo(); await loadBillingInfo(); fileInput.value = '';
                 } else { alert("❌ ตรวจสอบไม่ผ่าน: " + (result.msg || "สลิปไม่ถูกต้อง")); }
@@ -912,6 +926,19 @@
                     const newQuota = (vendorData.slip_quota || 0) + addedQuota;
                     await supabaseClient.from('vendors').update({ slip_quota: newQuota }).eq('id', vendorData.id);
                     vendorData.slip_quota = newQuota;
+                    // --- เพิ่มโค้ดแจ้งเตือนกลุ่มแอดมินตรงนี้ ---
+                    fetch(CONFIG.gasWebhookUrl, {
+                        method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
+                        body: JSON.stringify({
+                            action: 'notify_admin_payment', 
+                            type: 'topup', 
+                            store_name: vendorData.name, 
+                            plan_name: opt.text.split(' - ')[0], 
+                            amount: expectedPrice, 
+                            referrer_id: null, 
+                            commission: 0
+                        })
+                    }).catch(e => console.log(e));
                     alert(`🎉 เติมโควต้าสำเร็จ ได้รับเพิ่ม ${addedQuota} บิล\nโควต้าคงเหลือ: ${newQuota} บิล`);
                     renderSubscriptionInfo(); await loadBillingInfo(); fileInput.value = '';
                 } else { alert("❌ ตรวจสอบไม่ผ่าน: " + (result.msg || "สลิปไม่ถูกต้อง")); }
