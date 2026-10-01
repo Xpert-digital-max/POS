@@ -391,27 +391,32 @@
                         });
                         const result = await gasRes.json();
                         
-                        // 🔴 เพิ่มบรรทัดนี้เพื่อเช็กผลลัพธ์
                         console.log("VERIFY RESPONSE:", result);
 
                         if (result.status === 'success') {
-                            orderStatus = 'processing';
+                            // สลิปถูกต้องและยอดตรง
+                            orderStatus = 'processing'; 
                         } else {
+                            // 🟢 [แก้ไขแล้ว] ตรวจสอบสาเหตุที่สลิปไม่ผ่าน และแสดงข้อความแจ้งลูกค้าทันที
                             const errCode = (result.debug && result.debug.code) ? result.debug.code : "";
 
                             if (errCode === "AMOUNT_UNMATCHED") {
-                                // ⚠️ ยอดผิด: อนุญาตให้ผ่านเป็น Pending แต่เพิ่มข้อความเตือนให้ร้านค้า
+                                // ⚠️ ยอดผิด: แจ้งลูกค้า และอนุญาตให้ผ่านเป็น Pending 
                                 orderStatus = 'pending';
                                 if (cart.length > 0) {
                                     cart[0].note = (cart[0].note ? cart[0].note + " | " : "") + `⚠️ เตือน: ${result.msg}`;
                                 }
-                                alert(`⚠️ ยอดโอนไม่ตรงกับค่าอาหาร\n(${result.msg})\nระบบจะส่งออเดอร์ให้ร้านค้าตรวจสอบอีกครั้งครับ`);
+                                alert(`⚠️ แจ้งเตือน: ยอดโอนไม่ตรงกับค่าอาหาร\n(${result.msg})\n\nระบบจะส่งออเดอร์ให้ร้านค้าตรวจสอบอีกครั้งครับ`);
                             } else {
-                                // ❌ สลิปซ้ำ หรืออ่านไม่ได้: บล็อกทันที ห้ามไปต่อ
-                                alert(`❌ ตรวจสลิปไม่ผ่าน:\n${result.msg}\nกรุณาแนบสลิปที่ถูกต้องใหม่อีกครั้งครับ`);
+                                // ❌ สลิปซ้ำ (DUPLICATE_SLIP) หรืออ่านไม่ได้: บล็อกทันที ห้ามส่งออเดอร์ และแจ้งลูกค้า
+                                alert(`❌ ตรวจสลิปไม่ผ่าน:\n${result.msg}\n\nกรุณาแนบสลิปที่ถูกต้องใหม่อีกครั้งครับ`);
+                                
+                                // ปลดล็อกปุ่มให้กดใหม่ได้
                                 btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
                                 if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
-                                return; // 🛑 หยุดการทำงานทันที ไม่ให้ส่งออเดอร์
+                                
+                                // 🛑 หยุดการทำงานของฟังก์ชัน submitOrder ทันที! (นี่คือสาเหตุที่ทำไมมันยังทะลุไปโชว์ว่า "ส่งออเดอร์เรียบร้อยแล้ว")
+                                return; 
                             }
                         }
                     } catch (e) {
