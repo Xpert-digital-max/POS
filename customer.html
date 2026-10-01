@@ -55,9 +55,13 @@
 
             <input type="file" id="slipImage" accept="image/*" style="width: 100%; margin-bottom: 15px; padding: 10px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box;">
             
-            <div style="display: flex; gap: 10px;">
-                <button onclick="closeCheckout()" style="flex: 1; padding: 12px; border: none; border-radius: 8px; background: #eee; font-weight: bold; cursor: pointer;">ยกเลิก</button>
-                <button id="confirmOrderBtn" onclick="submitOrder()" style="flex: 2; padding: 12px; border: none; border-radius: 8px; background: #06C755; color: white; font-weight: bold; cursor: pointer;">ยืนยันการสั่งซื้อ</button>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="closeCheckout()" style="flex: 1; padding: 12px; border: none; border-radius: 8px; background: #eee; font-weight: bold; cursor: pointer;">ยกเลิก</button>
+                    <button id="confirmOrderBtn" onclick="submitOrder('transfer')" style="flex: 2; padding: 12px; border: none; border-radius: 8px; background: #06C755; color: white; font-weight: bold; cursor: pointer;">ยืนยันการสั่งซื้อ</button>
+                </div>
+                <!-- ปุ่มชำระเงินสดจะซ่อนไว้เป็นค่าเริ่มต้น (เปิดเมื่อตั้งค่าอนุญาต) -->
+                <button id="cashOrderBtn" onclick="submitOrder('cash')" style="display: none; padding: 12px; border: none; border-radius: 8px; background: #FF9800; color: white; font-weight: bold; cursor: pointer;">💵 ชำระด้วยเงินสดที่หน้าร้าน</button>
             </div>
         </div>
     </div>
@@ -243,7 +247,7 @@
             if (existingIdx >= 0) { cart[existingIdx].qty += currentModalQty; } 
             else { cart.push({ id: currentModalItem.id, name: currentModalItem.name, price: currentModalItem.price, qty: currentModalQty, option: finalOptionString, note: note }); }
             
-            saveCart(); // ⭐️ เซฟตะกร้าลงความจำมือถือทุกครั้งที่หยิบของ
+            saveCart(); 
             closeItemModal(); calculateTotal(); renderMenuList(); 
         }
 
@@ -273,7 +277,14 @@
                 }
             }
             
-            // ⭐️ จดจำสถานะว่าลูกค้าเปิดหน้าชำระเงินค้างไว้
+            // ⭐️ ตรวจสอบว่าร้านค้าเปิดรับเงินสดในหลังบ้านหรือไม่
+            if (vendorData.allow_cash_payment === true) {
+                document.getElementById('cashOrderBtn').style.display = 'block';
+            } else {
+                document.getElementById('cashOrderBtn').style.display = 'none';
+            }
+
+            // จดจำสถานะว่าลูกค้าเปิดหน้าชำระเงินค้างไว้
             localStorage.setItem(`checkoutState_${vendorId}`, 'open');
             document.getElementById('checkoutModal').style.display = 'flex';
         }
@@ -284,66 +295,105 @@
             cart[index].qty += change; 
             if (cart[index].qty <= 0) { cart.splice(index, 1); } 
             
-            saveCart(); // ⭐️ เซฟตะกร้าลงความจำมือถือเมื่อมีการเปลี่ยนแปลงจำนวน
+            saveCart(); 
             calculateTotal(); renderMenuList(); 
             
             if (cart.length === 0) { closeCheckout(); } else { goToCheckout(); } 
         }
         
         function closeCheckout() { 
-            // ⭐️ ล้างสถานะการเปิดหน้าชำระเงินเมื่อกดปุ่มยกเลิก
             localStorage.removeItem(`checkoutState_${vendorId}`);
             document.getElementById('checkoutModal').style.display = 'none'; 
         }
 
-        // ==================== ระบบส่งออเดอร์ (แบบมาตรฐาน ส่งลิงก์ URL) ====================
-        async function submitOrder() {
+        // ==================== ระบบส่งออเดอร์ (อัปเดตระบบตรวจสอบเข้มงวด + รองรับเงินสด) ====================
+        async function submitOrder(paymentMethod = 'transfer') {
             const fileInput = document.getElementById('slipImage');
             const btn = document.getElementById('confirmOrderBtn');
+            const cashBtn = document.getElementById('cashOrderBtn');
             const total = document.getElementById('totalPrice').innerText;
 
-            if (fileInput.files.length === 0) { alert("กรุณาแนบสลิปโอนเงินก่อนยืนยันออเดอร์"); return; }
-            btn.innerText = "⏳ กำลังอัปโหลดสลิป..."; btn.disabled = true;
+            if (paymentMethod === 'transfer') {
+                if (fileInput.files.length === 0) { alert("กรุณาแนบสลิปโอนเงินก่อนยืนยันออเดอร์"); return; }
+                btn.innerText = "⏳ กำลังอัปโหลดสลิป...";
+            } else {
+                if(cashBtn) cashBtn.innerText = "⏳ กำลังดำเนินการ...";
+            }
 
-            const file = fileInput.files[0]; const fileName = `slip-${Date.now()}.${file.name.split('.').pop()}`; let slipUrl = null;
-            const { error: uploadError } = await supabaseClient.storage.from('slip-images').upload(fileName, file);
-            if (uploadError) { alert("อัปโหลดสลิปไม่สำเร็จ: " + uploadError.message); btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false; return; }
-            const { data: publicUrlData } = supabaseClient.storage.from('slip-images').getPublicUrl(fileName); 
-            slipUrl = publicUrlData.publicUrl;
+            btn.disabled = true;
+            if(cashBtn) cashBtn.disabled = true;
 
-            // หน่วงเวลา 3 วินาทีเพื่อให้ Supabase ปล่อยลิงก์สาธารณะสำเร็จ 100%
-            await new Promise(resolve => setTimeout(resolve, 3000));
-            btn.innerText = "⏳ กำลังให้ AI ตรวจสลิป...";
+            let slipUrl = null;
+            let orderStatus = 'pending';
 
-            let orderStatus = 'pending'; 
-            
-            if (vendorData.slip_check_mode === 'auto' && vendorData.slip_quota > 0) {
-                try {
-                    const gasRes = await fetch(CONFIG.gasWebhookUrl, {
-                        method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
-                        body: JSON.stringify({ action: 'verify_customer_slip', vendor_promptpay: vendorData.promptpay_number, slip_url: slipUrl, amount: total, vendor_id: vendorId })
-                    });
-                    const result = await gasRes.json();
-                    
-                    if (result.status === 'success') {
-                        orderStatus = 'processing'; 
-                        await supabaseClient.from('vendors').update({ slip_quota: vendorData.slip_quota - 1 }).eq('id', vendorId);
-                    } else {
-                        alert(`❌ ตรวจสลิปไม่ผ่าน:\n${result.msg}\nระบบจะส่งให้ร้านตรวจด้วยตนเองครับ`);
+            if (paymentMethod === 'transfer') {
+                const file = fileInput.files[0]; const fileName = `slip-${Date.now()}.${file.name.split('.').pop()}`;
+                const { error: uploadError } = await supabaseClient.storage.from('slip-images').upload(fileName, file);
+                
+                if (uploadError) { 
+                    alert("อัปโหลดสลิปไม่สำเร็จ: " + uploadError.message); 
+                    btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false; 
+                    if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
+                    return; 
+                }
+                
+                const { data: publicUrlData } = supabaseClient.storage.from('slip-images').getPublicUrl(fileName); 
+                slipUrl = publicUrlData.publicUrl;
+
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                btn.innerText = "⏳ กำลังให้ AI ตรวจสลิป...";
+                
+                if (vendorData.slip_check_mode === 'auto' && vendorData.slip_quota > 0) {
+                    try {
+                        const gasRes = await fetch(CONFIG.gasWebhookUrl, {
+                            method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
+                            body: JSON.stringify({ action: 'verify_customer_slip', vendor_promptpay: vendorData.promptpay_number, slip_url: slipUrl, amount: total, vendor_id: vendorId })
+                        });
+                        const result = await gasRes.json();
+                        
+                        if (result.status === 'success') {
+                            // สลิปถูกต้องและยอดตรง
+                            orderStatus = 'processing'; 
+                        } else {
+                            const errCode = (result.debug && result.debug.code) ? result.debug.code : "";
+
+                            if (errCode === "AMOUNT_UNMATCHED") {
+                                // ⚠️ ยอดผิด: อนุญาตให้ผ่านเป็น Pending แต่เพิ่มข้อความเตือนให้ร้านค้า
+                                orderStatus = 'pending';
+                                if (cart.length > 0) {
+                                    cart[0].note = (cart[0].note ? cart[0].note + " | " : "") + `⚠️ เตือน: ${result.msg}`;
+                                }
+                                alert(`⚠️ ยอดโอนไม่ตรงกับค่าอาหาร\n(${result.msg})\nระบบจะส่งออเดอร์ให้ร้านค้าตรวจสอบอีกครั้งครับ`);
+                            } else {
+                                // ❌ สลิปซ้ำ หรืออ่านไม่ได้: บล็อกทันที ห้ามไปต่อ
+                                alert(`❌ ตรวจสลิปไม่ผ่าน:\n${result.msg}\nกรุณาแนบสลิปที่ถูกต้องใหม่อีกครั้งครับ`);
+                                btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
+                                if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
+                                return; // 🛑 หยุดการทำงานทันที ไม่ให้ส่งออเดอร์
+                            }
+                        }
+                    } catch (e) {
+                        console.error("AI Verify Error:", e);
+                        alert("⚠️ ระบบตรวจสลิปขัดข้องชั่วคราว ออเดอร์จะถูกส่งให้ร้านค้าตรวจสอบด้วยตนเองครับ");
                     }
-                } catch (e) {
-                    console.error("AI Verify Error:", e);
+                }
+                btn.innerText = "⏳ กำลังบันทึกออเดอร์...";
+
+            } else {
+                // กรณีเลือกชำระเงินสด
+                orderStatus = 'pending';
+                if (cart.length > 0) {
+                    cart[0].note = (cart[0].note ? cart[0].note + " | " : "") + "💵 ชำระเงินสดหน้าร้าน (กรุณาเก็บเงินก่อนยืนยันออเดอร์)";
                 }
             }
 
-            btn.innerText = "⏳ กำลังบันทึกออเดอร์...";
             const orderPayload = { vendor_id: vendorId, customer_uid: customerUid, items: cart, total_price: parseFloat(total), slip_image_url: slipUrl, status: orderStatus };
             if (branchId) orderPayload.branch_id = branchId;
 
             const { data: newOrder, error: orderError } = await supabaseClient.from('orders').insert([orderPayload]).select().single();
 
             if (!orderError && newOrder) {
-                alert(orderStatus === 'processing' ? "✅ รับออเดอร์เรียบร้อย กำลังเตรียมอาหาร!" : "ส่งออเดอร์เรียบร้อยแล้ว!\n(รอร้านตรวจสอบสลิปสักครู่นะครับ)");
+                alert(orderStatus === 'processing' ? "✅ รับออเดอร์เรียบร้อย กำลังเตรียมอาหาร!" : "ส่งออเดอร์เรียบร้อยแล้ว!\n(รอร้านตรวจสอบและยืนยันสักครู่นะครับ)");
                 
                 if (customerUid) {
                     const d = new Date();
@@ -361,6 +411,7 @@
             } else {
                 alert("บันทึกออเดอร์ไม่สำเร็จ: " + orderError.message);
                 btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
+                if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
             }
         }
         window.onload = initCustomerApp;
