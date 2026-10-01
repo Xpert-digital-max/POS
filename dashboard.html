@@ -332,11 +332,11 @@
         let editingCategoryId = null;
         let copiedImageUrl = null;
         let branchCount = 1;
-        let lastOrderCount = -1; // ตัวแปรเช็กจำนวนออเดอร์ใหม่เพื่อเล่นเสียง
+        let lastOrderCount = -1; 
 
         // ตัวแปรสำหรับระบบแท็บสาขาในหน้าออเดอร์
         let branchListData = []; 
-        let currentOrderBranchFilter = 'all'; // ค่าเริ่มต้นให้แสดงทุกสาขา
+        let currentOrderBranchFilter = 'all'; 
 
         // 🔊 ฟังก์ชันสร้างเสียงเตือนออเดอร์เข้า
         function playNotificationSound() {
@@ -407,9 +407,8 @@
                 
                 await loadCategories(); 
                 await loadMenuItems(); 
-                await loadBranches(); // ต้องโหลดสาขาก่อนโหลดออเดอร์
+                await loadBranches(); 
                 await loadOrders(); 
-                await loadBillingInfo(); 
 
                 // ⏱️ สั่งให้ระบบวิ่งเช็กออเดอร์ใหม่ทุกๆ 5 วินาทีอัตโนมัติ
                 setInterval(loadOrders, 5000);
@@ -421,12 +420,11 @@
         async function loadBranches() {
             const { data } = await supabaseClient.from('branches').select('*').eq('merchant_id', vendorData.id).eq('is_active', true);
             const container = document.getElementById('branchListContainer');
-            branchListData = data || []; // เก็บใส่ตัวแปร Global ไว้ใช้งานร่วมกับหน้าออเดอร์
+            branchListData = data || []; 
             
             const liffToUse = vendorData.liff_customer_id ? vendorData.liff_customer_id : CONFIG.liffIdCustomer;
             const mainLink = `https://liff.line.me/${liffToUse}?vid=${vendorData.id}`;
 
-            // วาดรายชื่อสาขาในหน้า "ตั้งค่า"
             let html = `<div style="padding:10px; border-bottom:1px solid #f0f0f0; margin-bottom:8px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div><strong style="color:#6a1b9a;">👑 สาขาหลัก</strong><br><span style="font-size:12px; color:#666;">รับเงิน: ${vendorData.promptpay_number || vendorData.bank_info || '-'}</span></div>
@@ -456,12 +454,9 @@
                 });
             }
             container.innerHTML = html;
-            
-            // เรียกฟังก์ชันสร้างปุ่มตัวกรองในหน้าออเดอร์
             renderBranchOrderTabs();
         }
 
-        // --- สร้างปุ่มตัวกรองสาขา ---
         function renderBranchOrderTabs() {
             const container = document.getElementById('orderBranchTabs');
             if (!container) return;
@@ -476,14 +471,12 @@
             container.innerHTML = html;
         }
 
-        // --- เมื่อพนักงานกดเลือกสาขา ---
         function filterOrdersByBranch(branchId) {
             currentOrderBranchFilter = branchId;
-            renderBranchOrderTabs(); // อัปเดตสีปุ่ม
-            loadOrders(); // ดึงข้อมูลออเดอร์ใหม่ตามที่กรอง
+            renderBranchOrderTabs(); 
+            loadOrders(); 
         }
 
-        // ฟังก์ชันเสริมสำหรับแสดง Modal QR Code ของแต่ละสาขา
         function showBranchQr(link, branchName) {
             const qrUrl = `https://quickchart.io/qr?text=${encodeURIComponent(link)}&size=300`;
             document.getElementById('customerQrImage').src = qrUrl;
@@ -498,7 +491,6 @@
             if(!bName || !bPrompt) return alert("กรุณาใส่ชื่อสาขาและช่องทางรับเงินให้ครบ");
             
             try {
-                // เพิ่ม is_active: true บังคับเข้าไปด้วย เพื่อแก้ปัญหาฐานข้อมูลไม่ตั้งค่าเริ่มต้น
                 const { error } = await supabaseClient.from('branches').insert([{ 
                     merchant_id: vendorData.id, 
                     branch_name: bName, 
@@ -506,15 +498,13 @@
                     is_active: true 
                 }]);
 
-                if (error) throw error; // ถ้า Supabase บันทึกไม่ได้ ให้เตะไปที่ catch ด้านล่าง
+                if (error) throw error; 
 
-                // เคลียร์ค่าในช่องกรอก
                 document.getElementById('newBranchName').value = ''; 
                 document.getElementById('newBranchPromptpay').value = '';
                 
                 alert(`🎉 บันทึกสาขา "${bName}" เรียบร้อยแล้ว!`);
                 
-                // สั่งโหลดข้อมูลสาขาใหม่ ซึ่งจะไปสร้างแท็บสาขาในหน้าออเดอร์ให้อัตโนมัติด้วย
                 await loadBranches();
                 await loadBillingInfo(); 
 
@@ -879,7 +869,6 @@
                     vendorData.subscription_plan = planId; vendorData.subscription_expires_at = baseDate.toISOString(); 
                     vendorData.slip_check_mode = selectedPlanObj.mode; vendorData.is_subscription_active = true; vendorData.slip_quota = newQuota;
 
-                    // --- เพิ่มโค้ดแจ้งเตือนกลุ่มแอดมินตรงนี้ ---
                     fetch(CONFIG.gasWebhookUrl, {
                         method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
                         body: JSON.stringify({
@@ -926,7 +915,7 @@
                     const newQuota = (vendorData.slip_quota || 0) + addedQuota;
                     await supabaseClient.from('vendors').update({ slip_quota: newQuota }).eq('id', vendorData.id);
                     vendorData.slip_quota = newQuota;
-                    // --- เพิ่มโค้ดแจ้งเตือนกลุ่มแอดมินตรงนี้ ---
+                    
                     fetch(CONFIG.gasWebhookUrl, {
                         method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
                         body: JSON.stringify({
@@ -1094,16 +1083,15 @@
             if (!vendorData) return; 
             const orderListDiv = document.getElementById('orderList'); 
             
-            // สร้าง Query ดึงข้อมูลออเดอร์ โดยกรองตามสาขาที่เลือก
             let query = supabaseClient.from('orders')
                 .select('*')
                 .eq('vendor_id', vendorData.id)
                 .in('status', ['pending', 'processing']);
 
             if (currentOrderBranchFilter === 'main') {
-                query = query.is('branch_id', null); // สาขาหลักจะไม่มี branch_id
+                query = query.is('branch_id', null); 
             } else if (currentOrderBranchFilter !== 'all') {
-                query = query.eq('branch_id', currentOrderBranchFilter); // กรองตาม id สาขาย่อย
+                query = query.eq('branch_id', currentOrderBranchFilter); 
             }
             
             const { data, error } = await query.order('created_at', { ascending: true });
@@ -1111,7 +1099,6 @@
 
             const currentCount = data ? data.length : 0;
 
-            // 🚨 ถ้ามีออเดอร์เพิ่มขึ้นมาใหม่ -> เล่นเสียงเตือนและสั่น
             if (lastOrderCount !== -1 && currentCount > lastOrderCount) {
                 playNotificationSound();
                 if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
@@ -1124,7 +1111,7 @@
             }
             
             let html = '';
-            data.forEach((order, index) => {
+            data.forEach((order) => {
                 const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items; 
                 let itemsHtml = ''; 
                 const itemsArray = Array.isArray(items) ? items : Object.values(items);
@@ -1136,13 +1123,17 @@
                 
                 const d = new Date(order.created_at);
                 const orderTime = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }); 
-                const orderDateTh = d.toLocaleDateString('th-TH');
-                const dateStr = d.getFullYear().toString().slice(-2) + ('0' + (d.getMonth()+1)).slice(-2) + ('0' + d.getDate()).slice(-2);
-                const orderRef = `${dateStr}-${order.id.substring(0,4).toUpperCase()}`; 
-                const queueNum = index + 1;
+                
+                // -------------------------------------------------------------
+                // [MODIFIED] ดึงเลขอ้างอิงและคิวจากระบบใหม่ (ตาราง Orders)
+                // -------------------------------------------------------------
+                // ถ้าเป็นออเดอร์เก่าที่ยังไม่มี reference_no ให้แสดงของเก่าแทน
+                const orderRef = order.reference_no ? order.reference_no : `${d.getFullYear().toString().slice(-2) + ('0' + (d.getMonth()+1)).slice(-2) + ('0' + d.getDate()).slice(-2)}-${order.id.substring(0,4).toUpperCase()}`; 
+                
+                // ถ้าเป็นออเดอร์เก่าที่ไม่มี queue_no ให้แสดงเป็น ?
+                const queueNum = order.queue_no ? order.queue_no : "?";
                 const custUid = order.customer_uid || '';
 
-                // กำหนดป้ายกำกับสาขา
                 let branchTag = '<span style="background:#e1bee7; color:#6a1b9a; padding:3px 8px; border-radius:12px; font-size:11px; margin-left:8px;">👑 สาขาหลัก</span>';
                 if (order.branch_id) {
                     const bInfo = branchListData.find(b => b.id === order.branch_id);
@@ -1153,11 +1144,11 @@
                 let statusBadge = ''; let actionButtons = '';
                 if (order.status === 'pending') { 
                     statusBadge = '<span style="background: #fff3cd; color: #856404; padding: 3px 8px; border-radius: 12px; font-size: 12px;">รอยืนยันสลิป</span>'; 
-                    actionButtons = `<button onclick="updateOrderStatus('${order.id}', 'processing', '${custUid}', '${orderRef}', ${queueNum}, this)" style="background: #06C755; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; flex: 1;">✅ รับออเดอร์</button> <button onclick="updateOrderStatus('${order.id}', 'rejected', '${custUid}', '${orderRef}', ${queueNum}, this)" style="background: #ff4d4f; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; flex: 1;">❌ ปฏิเสธ</button>`; 
+                    actionButtons = `<button onclick="updateOrderStatus('${order.id}', 'processing', '${custUid}', '${orderRef}', '${queueNum}', this)" style="background: #06C755; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; flex: 1;">✅ รับออเดอร์</button> <button onclick="updateOrderStatus('${order.id}', 'rejected', '${custUid}', '${orderRef}', '${queueNum}', this)" style="background: #ff4d4f; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; flex: 1;">❌ ปฏิเสธ</button>`; 
                 } 
                 else if (order.status === 'processing') { 
                     statusBadge = '<span style="background: #cce5ff; color: #004085; padding: 3px 8px; border-radius: 12px; font-size: 12px;">กำลังทำอาหาร 🍳</span>'; 
-                    actionButtons = `<button onclick="updateOrderStatus('${order.id}', 'completed', '${custUid}', '${orderRef}', ${queueNum}, this)" style="background: #2196F3; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%;">🏁 อาหารเสร็จแล้ว</button>`; 
+                    actionButtons = `<button onclick="updateOrderStatus('${order.id}', 'completed', '${custUid}', '${orderRef}', '${queueNum}', this)" style="background: #2196F3; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%;">🏁 อาหารเสร็จแล้ว</button>`; 
                 }
                 
                 html += `
@@ -1200,14 +1191,13 @@
 
         // ==================== ระบบตั้งค่าทั่วไป ====================
         
-        // --- ฟังก์ชันควบคุมฟอร์มให้อ่านอย่างเดียว (Read-only / Fade) ---
         function setPaymentFieldsState(isEditing) {
             const group = document.getElementById('storeSettingsGroup');
             const btn = document.getElementById('saveSettingsBtn');
             
             if (isEditing) {
                 group.style.opacity = '1';
-                group.style.pointerEvents = 'auto'; // เปิดให้กดแก้ไขได้
+                group.style.pointerEvents = 'auto'; 
                 document.getElementById('settingStoreName').readOnly = false;
                 document.getElementById('settingPhone').readOnly = false;
                 document.getElementById('settingPromptpay').readOnly = false;
@@ -1217,14 +1207,14 @@
                 btn.style.background = "#06C755";
             } else {
                 group.style.opacity = '0.6';
-                group.style.pointerEvents = 'none'; // ล็อกไม่ให้คลิก
+                group.style.pointerEvents = 'none'; 
                 document.getElementById('settingStoreName').readOnly = true;
                 document.getElementById('settingPhone').readOnly = true;
                 document.getElementById('settingPromptpay').readOnly = true;
                 document.getElementById('settingBankInfo').readOnly = true;
                 
                 btn.innerText = "✏️ แก้ไขข้อมูลร้านค้า";
-                btn.style.background = "#f59e0b"; // เปลี่ยนเป็นปุ่มสีส้มเมื่อเป็นโหมดแก้ไข
+                btn.style.background = "#f59e0b"; 
             }
         }
 
@@ -1240,7 +1230,6 @@
             
             togglePaymentInputs();
 
-            // เช็กว่ามีข้อมูลร้านหรือไม่ ถ้ามีแล้วให้ทำฟอร์มเป็นสีจาง (Read-only)
             if (vendorData.name || vendorData.promptpay_number || vendorData.bank_info) {
                 setPaymentFieldsState(false); 
             } else {
@@ -1283,7 +1272,6 @@
         }
 
         async function updateStoreSettings(btn) {
-            // ถ้าปุ่มเป็นโหมดแก้ไข ให้ปลดล็อกช่องกรอกแล้วหยุดการทำงาน
             if (btn.innerText.includes("แก้ไข")) {
                 setPaymentFieldsState(true);
                 return;
@@ -1323,7 +1311,6 @@
             vendorData.bank_info = bankInfo; vendorData.line_picture_url = logoUrl; vendorData.allow_cash_payment = allowCash;
             document.getElementById('storeName').innerText = name; if(logoUrl) document.getElementById('storeLogo').src = logoUrl;
             
-            // เมื่อบันทึกเสร็จ ให้ทำฟอร์มเป็นสีจาง และเปลี่ยนปุ่มกลับเป็น "แก้ไข"
             setPaymentFieldsState(false);
             btn.disabled = false;
         }
