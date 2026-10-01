@@ -175,7 +175,7 @@
                     await loadCategories(); 
                     await loadMenu(); 
                     
-                    // ⭐️ เรียกตะกร้าเก่ากลับมา หลังจากหน้าเว็บโหลดเสร็จ
+                    // ⭐️️ เรียกตะกร้าเก่ากลับมา หลังจากหน้าเว็บโหลดเสร็จ
                     loadSavedCart();
 
                     // ⭐️ เช็คว่าลูกค้าค้างอยู่หน้าชำระเงินหรือเปล่า ถ้าใช่ให้เปิดหน้าต่างขึ้นมาเลย
@@ -306,7 +306,7 @@
             document.getElementById('checkoutModal').style.display = 'none'; 
         }
 
-        // ==================== ระบบส่งออเดอร์ (อัปเดตระบบตรวจสอบเข้มงวด + รองรับเงินสด) ====================
+        // ==================== ระบบส่งออเดอร์ (อัปเดตระบบตรวจสอบเข้มงวด + รันคิว) ====================
         async function submitOrder(paymentMethod = 'transfer') {
             const fileInput = document.getElementById('slipImage');
             const btn = document.getElementById('confirmOrderBtn');
@@ -325,6 +325,44 @@
 
             let slipUrl = null;
             let orderStatus = 'pending';
+            
+            // ---------------------------------------------------------
+            // [NEW] 1. ขอเลขอ้างอิงและคิวจาก GAS ก่อนบันทึกลง Supabase
+            // ---------------------------------------------------------
+            btn.innerText = "⏳ กำลังจองคิว...";
+            if(cashBtn) cashBtn.innerText = "⏳ กำลังจองคิว...";
+
+            let referenceNo = "-";
+            let queueNo = 0;
+
+            try {
+                const numberRes = await fetch(CONFIG.gasWebhookUrl, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'generate_order_number',
+                        vendor_id: vendorId
+                    }),
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const numberResult = await numberRes.json();
+                
+                if (numberResult.status !== "success") {
+                    alert('ข้อผิดพลาด: ไม่สามารถจองคิวได้ ' + (numberResult.msg || ''));
+                    btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
+                    if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
+                    return; // หยุดการทำงาน ไม่สร้าง Order
+                }
+                
+                referenceNo = numberResult.reference_no;
+                queueNo = numberResult.queue_no;
+            } catch (e) {
+                console.error("Queue Error:", e);
+                alert('ข้อผิดพลาด: ระบบจองคิวขัดข้อง กรุณาลองใหม่อีกครั้ง');
+                btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
+                if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
+                return; // หยุดการทำงาน
+            }
+            // ---------------------------------------------------------
 
             if (paymentMethod === 'transfer') {
                 const file = fileInput.files[0]; const fileName = `slip-${Date.now()}.${file.name.split('.').pop()}`;
@@ -387,7 +425,19 @@
                 }
             }
 
-            const orderPayload = { vendor_id: vendorId, customer_uid: customerUid, items: cart, total_price: parseFloat(total), slip_image_url: slipUrl, status: orderStatus };
+            // ---------------------------------------------------------
+            // [NEW] 2. นำ Reference No. และ Queue No. ใส่เข้าไปใน Payload
+            // ---------------------------------------------------------
+            const orderPayload = { 
+                vendor_id: vendorId, 
+                customer_uid: customerUid, 
+                items: cart, 
+                total_price: parseFloat(total), 
+                slip_image_url: slipUrl, 
+                status: orderStatus,
+                reference_no: referenceNo, // 👈 แทรกตัวแปรใหม่ที่ได้มา
+                queue_no: queueNo          // 👈 แทรกตัวแปรใหม่ที่ได้มา
+            };
             if (branchId) orderPayload.branch_id = branchId;
 
             const { data: newOrder, error: orderError } = await supabaseClient.from('orders').insert([orderPayload]).select().single();
@@ -396,13 +446,20 @@
                 alert(orderStatus === 'processing' ? "✅ รับออเดอร์เรียบร้อย กำลังเตรียมอาหาร!" : "ส่งออเดอร์เรียบร้อยแล้ว!\n(รอร้านตรวจสอบและยืนยันสักครู่นะครับ)");
                 
                 if (customerUid) {
-                    const d = new Date();
-                    const dateStr = d.getFullYear().toString().slice(-2) + ('0' + (d.getMonth()+1)).slice(-2) + ('0' + d.getDate()).slice(-2);
-                    const orderRef = `${dateStr}-${newOrder.id.substring(0,4).toUpperCase()}`;
-
+                    // ---------------------------------------------------------
+                    // [NEW] 3. ส่งตัวแปรจาก GAS กลับไปให้ระบบ Flex Message แทนของเดิม
+                    // ---------------------------------------------------------
                     fetch(CONFIG.gasWebhookUrl, {
                         method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
-                        body: JSON.stringify({ action: 'notify_customer', vendor_id: vendorId, uid: customerUid, order_status: orderStatus, store_name: vendorData.name, order_ref: orderRef, queue_num: "-" })
+                        body: JSON.stringify({ 
+                            action: 'notify_customer', 
+                            vendor_id: vendorId, 
+                            uid: customerUid, 
+                            order_status: orderStatus, 
+                            store_name: vendorData.name, 
+                            order_ref: referenceNo, // 👈 ส่งค่าตัวใหม่ไปแทน
+                            queue_num: queueNo      // 👈 ส่งค่าตัวใหม่ไปแทน
+                        })
                     }).catch(e => console.log(e)); 
                 }
 
