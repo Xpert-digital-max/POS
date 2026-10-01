@@ -214,9 +214,10 @@
                     </div>
                     
                     <label style="font-size: 13px; font-weight: bold; color: #555;">แนบสลิปเพื่อยืนยัน</label>
-                    <div style="display: flex; gap: 8px; margin-top: 5px;">
-                        <input type="file" id="renewSlipImage" accept="image/*" style="flex: 1; padding: 5px; border: 1px solid #ccc; border-radius:6px; box-sizing:border-box;">
-                        <button onclick="verifyAndRenewSubscription(this)" id="renewBtn" style="background: #2196F3; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">ยืนยัน</button>
+                    <!-- [แก้ไข] ปรับช่องสลิปและปุ่มให้อยู่คนละบรรทัดและเต็มหน้าจอ -->
+                    <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 8px;">
+                        <input type="file" id="renewSlipImage" accept="image/*" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius:6px; box-sizing:border-box;">
+                        <button onclick="verifyAndRenewSubscription(this)" id="renewBtn" style="background: #2196F3; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; width: 100%;">ยืนยันการต่ออายุ</button>
                     </div>
                 </div>
 
@@ -235,9 +236,10 @@
                     </div>
                     
                     <label style="font-size: 13px; font-weight: bold; color: #555;">แนบสลิปเพื่อยืนยัน</label>
-                    <div style="display: flex; gap: 8px; margin-top: 5px;">
-                        <input type="file" id="quotaSlipImage" accept="image/*" style="flex: 1; padding: 5px; border: 1px solid #ccc; border-radius:6px; box-sizing:border-box;">
-                        <button onclick="verifyAndTopupQuota(this)" id="topupBtn" style="background: #06C755; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">ยืนยัน</button>
+                    <!-- [แก้ไข] ปรับช่องสลิปและปุ่มให้อยู่คนละบรรทัดและเต็มหน้าจอ -->
+                    <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 8px;">
+                        <input type="file" id="quotaSlipImage" accept="image/*" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius:6px; box-sizing:border-box;">
+                        <button onclick="verifyAndTopupQuota(this)" id="topupBtn" style="background: #06C755; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; width: 100%;">ยืนยันการเติมโควต้า</button>
                     </div>
                 </div>
             </div>
@@ -246,31 +248,40 @@
             <div class="card" style="background: #f9f9f9; border: 1px dashed #ccc;">
                 <h3 style="margin-top: 0; color: #333;">⚙️ ข้อมูลร้านค้าและช่องทางรับเงิน (สาขาหลัก)</h3>
                 
-                <label style="font-size: 13px; font-weight: bold; color: #555;">รูปโลโก้ร้าน</label>
-                <input type="file" id="settingStoreLogo" accept="image/*" style="margin-bottom: 15px; width: 100%; margin-top: 5px;">
-                
-                <label style="font-size: 13px; font-weight: bold; color: #555;">ชื่อร้านอาหาร</label>
-                <input type="text" id="settingStoreName" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
-                
-                <label style="font-size: 13px; font-weight: bold; color: #555;">เบอร์โทรศัพท์ติดต่อ</label>
-                <input type="tel" id="settingPhone" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
-                
-                <div class="section-divider"></div>
-                <h4 style="margin-top: 0; margin-bottom: 10px; color: #00BCD4;">💳 ช่องทางรับเงินลูกค้า (สาขาหลัก)</h4>
-                
-                <select id="settingPaymentType" onchange="togglePaymentInputs()" style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 6px;">
-                    <option value="promptpay">สร้าง QR Code พร้อมเพย์อัตโนมัติ</option>
-                    <option value="bank">โอนเข้าบัญชีธนาคาร (โชว์เลขบัญชี)</option>
-                </select>
-                
-                <div id="divPromptpay">
-                    <label style="font-size: 13px; font-weight: bold; color: #555;">เบอร์พร้อมเพย์ หรือ เลข ปชช.</label>
-                    <input type="text" id="settingPromptpay" placeholder="เช่น 0812345678" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
-                </div>
-                
-                <div id="divBank" style="display: none;">
-                    <label style="font-size: 13px; font-weight: bold; color: #555;">รายละเอียดบัญชี (ธนาคาร, สาขา, เลขบัญชี, ชื่อบัญชี)</label>
-                    <textarea id="settingBankInfo" placeholder="เช่น ธ.กสิกรไทย เลขบัญชี 123-4-56789-0 ชื่อ นายใจดี" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px; resize: none;" rows="3"></textarea>
+                <!-- [แก้ไข] จัดกลุ่มฟอร์มข้อมูลร้านค้าและช่องทางรับเงินเพื่อทำเอฟเฟกต์จาง/แก้ไข -->
+                <div id="storeSettingsGroup">
+                    <label style="font-size: 13px; font-weight: bold; color: #555;">รูปโลโก้ร้าน</label>
+                    <input type="file" id="settingStoreLogo" accept="image/*" style="margin-bottom: 15px; width: 100%; margin-top: 5px;">
+                    
+                    <label style="font-size: 13px; font-weight: bold; color: #555;">ชื่อร้านอาหาร</label>
+                    <input type="text" id="settingStoreName" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
+                    
+                    <label style="font-size: 13px; font-weight: bold; color: #555;">เบอร์โทรศัพท์ติดต่อ</label>
+                    <input type="tel" id="settingPhone" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
+                    
+                    <div class="section-divider"></div>
+                    <h4 style="margin-top: 0; margin-bottom: 10px; color: #00BCD4;">💳 ช่องทางรับเงินลูกค้า (สาขาหลัก)</h4>
+                    
+                    <select id="settingPaymentType" onchange="togglePaymentInputs()" style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 6px;">
+                        <option value="promptpay">สร้าง QR Code พร้อมเพย์อัตโนมัติ</option>
+                        <option value="bank">โอนเข้าบัญชีธนาคาร (โชว์เลขบัญชี)</option>
+                    </select>
+                    
+                    <div id="divPromptpay">
+                        <label style="font-size: 13px; font-weight: bold; color: #555;">เบอร์พร้อมเพย์ หรือ เลข ปชช.</label>
+                        <input type="text" id="settingPromptpay" placeholder="เช่น 0812345678" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
+                    </div>
+                    
+                    <div id="divBank" style="display: none;">
+                        <label style="font-size: 13px; font-weight: bold; color: #555;">รายละเอียดบัญชี (ธนาคาร, สาขา, เลขบัญชี, ชื่อบัญชี)</label>
+                        <textarea id="settingBankInfo" placeholder="เช่น ธ.กสิกรไทย เลขบัญชี 123-4-56789-0 ชื่อ นายใจดี" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px; resize: none;" rows="3"></textarea>
+                    </div>
+
+                    <!-- [แก้ไข] เพิ่มปุ่ม Toggle อนุญาตรับเงินสด -->
+                    <label style="display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: bold; color: #555; margin-bottom: 15px; cursor: pointer; padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 6px;">
+                        <input type="checkbox" id="settingAllowCash" style="width: 18px; height: 18px; cursor: pointer; accent-color: #06C755;">
+                        อนุญาตให้ลูกค้ารับชำระด้วยเงินสดที่หน้าร้าน
+                    </label>
                 </div>
 
                 <button onclick="updateStoreSettings(this)" id="saveSettingsBtn" style="background: #06C755; color: white; border: none; padding: 12px; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold;">💾 บันทึกข้อมูลร้านค้า</button>
@@ -552,7 +563,7 @@
               "type": "flex", "altText": `สั่งอาหารจากร้าน ${storeName}`,
               "contents": {
                 "type": "bubble",
-                "header": { "type": "box", "layout": "vertical", "backgroundColor": "#00BCD4", "contents": [{ "type": "text", "text": "🍽️️ เมนูอาหาร", "color": "#FFFFFF", "weight": "bold", "size": "xl" }] },
+                "header": { "type": "box", "layout": "vertical", "backgroundColor": "#00BCD4", "contents": [{ "type": "text", "text": "🍽 เมนูอาหาร", "color": "#FFFFFF", "weight": "bold", "size": "xl" }] },
                 "body": { "type": "box", "layout": "vertical", "spacing": "md", "contents": [
                     { "type": "text", "text": `ร้าน ${storeName}`, "weight": "bold", "color": "#333333", "size": "md" },
                     { "type": "text", "text": "หิวแล้วใช่ไหม? สั่งอาหารออนไลน์ได้ง่ายๆ ไม่ต้องรอคิว กดดูเมนูเลย!", "wrap": true, "color": "#666666", "size": "sm" }
@@ -715,7 +726,7 @@
                 document.getElementById('subExpiresAt').innerText = expDate.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
                 
                 if (!vendorData.is_subscription_active) {
-                    badgeEl.innerText = "⚠️️ รอชำระเงิน/รออนุมัติ"; 
+                    badgeEl.innerText = "⚠ รอชำระเงิน/รออนุมัติ"; 
                     badgeEl.className = "sub-badge"; 
                     badgeEl.style.background = "#fff3cd"; badgeEl.style.color = "#856404";
                 } else if (new Date() > expDate) {
@@ -872,7 +883,7 @@
                     renderSubscriptionInfo(); await loadBillingInfo(); fileInput.value = '';
                 } else { alert("❌ ตรวจสอบไม่ผ่าน: " + (result.msg || "สลิปไม่ถูกต้อง")); }
             } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); }
-            btn.innerText = "ยืนยัน"; btn.disabled = false;
+            btn.innerText = "ยืนยันการต่ออายุ"; btn.disabled = false;
         }
 
         async function verifyAndTopupQuota(btn) {
@@ -905,7 +916,7 @@
                     renderSubscriptionInfo(); await loadBillingInfo(); fileInput.value = '';
                 } else { alert("❌ ตรวจสอบไม่ผ่าน: " + (result.msg || "สลิปไม่ถูกต้อง")); }
             } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); }
-            btn.innerText = "ยืนยัน"; btn.disabled = false;
+            btn.innerText = "ยืนยันการเติมโควต้า"; btn.disabled = false;
         }
 
         // ==================== ระบบหมวดหมู่ & จัดการเมนู ====================
@@ -917,7 +928,7 @@
             if (categories.length === 0) { chipsDiv.innerHTML = '<span style="font-size: 13px; color: #888;">ยังไม่มีหมวดหมู่ (กดเพิ่มด้านบนได้เลย)</span>'; } 
             else {
                 let html = '';
-                categories.forEach(cat => { html += `<span class="cat-chip">${cat.name} <button onclick="editCategory('${cat.id}', '${cat.name}')">✏️️</button> <button onclick="deleteCategory('${cat.id}', '${cat.name}')" style="color: #d32f2f;">✕</button></span>`; });
+                categories.forEach(cat => { html += `<span class="cat-chip">${cat.name} <button onclick="editCategory('${cat.id}', '${cat.name}')">✏</button> <button onclick="deleteCategory('${cat.id}', '${cat.name}')" style="color: #d32f2f;">✕</button></span>`; });
                 chipsDiv.innerHTML = html;
             }
             const selectEl = document.getElementById('menuCategorySelect'); selectEl.innerHTML = '<option value="">-- ไม่ระบุหมวดหมู่ --</option>';
@@ -1161,6 +1172,35 @@
         }
 
         // ==================== ระบบตั้งค่าทั่วไป ====================
+        
+        // --- ฟังก์ชันควบคุมฟอร์มให้อ่านอย่างเดียว (Read-only / Fade) ---
+        function setPaymentFieldsState(isEditing) {
+            const group = document.getElementById('storeSettingsGroup');
+            const btn = document.getElementById('saveSettingsBtn');
+            
+            if (isEditing) {
+                group.style.opacity = '1';
+                group.style.pointerEvents = 'auto'; // เปิดให้กดแก้ไขได้
+                document.getElementById('settingStoreName').readOnly = false;
+                document.getElementById('settingPhone').readOnly = false;
+                document.getElementById('settingPromptpay').readOnly = false;
+                document.getElementById('settingBankInfo').readOnly = false;
+                
+                btn.innerText = "💾 บันทึกข้อมูลร้านค้า";
+                btn.style.background = "#06C755";
+            } else {
+                group.style.opacity = '0.6';
+                group.style.pointerEvents = 'none'; // ล็อกไม่ให้คลิก
+                document.getElementById('settingStoreName').readOnly = true;
+                document.getElementById('settingPhone').readOnly = true;
+                document.getElementById('settingPromptpay').readOnly = true;
+                document.getElementById('settingBankInfo').readOnly = true;
+                
+                btn.innerText = "✏️ แก้ไขข้อมูลร้านค้า";
+                btn.style.background = "#f59e0b"; // เปลี่ยนเป็นปุ่มสีส้มเมื่อเป็นโหมดแก้ไข
+            }
+        }
+
         function populateSettingsForm() {
             if (!vendorData) return;
             document.getElementById('settingStoreName').value = vendorData.name || '';
@@ -1169,7 +1209,16 @@
             document.getElementById('settingPaymentType').value = vendorData.payment_type || 'promptpay';
             document.getElementById('settingPromptpay').value = vendorData.promptpay_number || '';
             document.getElementById('settingBankInfo').value = vendorData.bank_info || '';
+            document.getElementById('settingAllowCash').checked = vendorData.allow_cash_payment === true;
+            
             togglePaymentInputs();
+
+            // เช็กว่ามีข้อมูลร้านหรือไม่ ถ้ามีแล้วให้ทำฟอร์มเป็นสีจาง (Read-only)
+            if (vendorData.name || vendorData.promptpay_number || vendorData.bank_info) {
+                setPaymentFieldsState(false); 
+            } else {
+                setPaymentFieldsState(true); 
+            }
 
             const tokenInput = document.getElementById('settingLineToken');
             const liffInput = document.getElementById('settingLiffCustomer');
@@ -1207,11 +1256,18 @@
         }
 
         async function updateStoreSettings(btn) {
+            // ถ้าปุ่มเป็นโหมดแก้ไข ให้ปลดล็อกช่องกรอกแล้วหยุดการทำงาน
+            if (btn.innerText.includes("แก้ไข")) {
+                setPaymentFieldsState(true);
+                return;
+            }
+
             const name = document.getElementById('settingStoreName').value.trim(); 
             const phone = document.getElementById('settingPhone').value.trim(); 
             const payType = document.getElementById('settingPaymentType').value;
             const promptpay = document.getElementById('settingPromptpay').value.trim(); 
             const bankInfo = document.getElementById('settingBankInfo').value.trim();
+            const allowCash = document.getElementById('settingAllowCash').checked;
             
             if (!name) return alert("กรุณากรอกชื่อร้าน");
             btn.innerText = "⏳ กำลังบันทึก..."; btn.disabled = true;
@@ -1224,12 +1280,25 @@
                 if (!uploadError) { const { data: publicUrlData } = supabaseClient.storage.from('menu-images').getPublicUrl(fileName); logoUrl = publicUrlData.publicUrl; }
             }
 
-            await supabaseClient.from('vendors').update({ name: name, phone: phone, payment_type: payType, promptpay_number: promptpay, bank_info: bankInfo, line_picture_url: logoUrl }).eq('id', vendorData.id);
+            await supabaseClient.from('vendors').update({ 
+                name: name, 
+                phone: phone, 
+                payment_type: payType, 
+                promptpay_number: promptpay, 
+                bank_info: bankInfo, 
+                line_picture_url: logoUrl,
+                allow_cash_payment: allowCash
+            }).eq('id', vendorData.id);
+            
             alert("อัปเดตข้อมูลร้านค้าเรียบร้อยแล้ว!");
             
-            vendorData.name = name; vendorData.phone = phone; vendorData.payment_type = payType; vendorData.promptpay_number = promptpay; vendorData.bank_info = bankInfo; vendorData.line_picture_url = logoUrl;
+            vendorData.name = name; vendorData.phone = phone; vendorData.payment_type = payType; vendorData.promptpay_number = promptpay; 
+            vendorData.bank_info = bankInfo; vendorData.line_picture_url = logoUrl; vendorData.allow_cash_payment = allowCash;
             document.getElementById('storeName').innerText = name; if(logoUrl) document.getElementById('storeLogo').src = logoUrl;
-            btn.innerText = "💾 บันทึกข้อมูลร้านค้า"; btn.disabled = false;
+            
+            // เมื่อบันทึกเสร็จ ให้ทำฟอร์มเป็นสีจาง และเปลี่ยนปุ่มกลับเป็น "แก้ไข"
+            setPaymentFieldsState(false);
+            btn.disabled = false;
         }
 
         async function updateLineToken(btn) {
