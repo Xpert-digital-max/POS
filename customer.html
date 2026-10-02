@@ -383,8 +383,26 @@
                 btn.innerText = "⏳ กำลังให้ AI ตรวจสลิป...";
                 
                 // ค้นหาบรรทัดนี้ใน submitOrder
-                if (vendorData.slip_check_mode === 'auto' && vendorData.slip_quota > 0) {
+                // --- เพิ่ม Debug ---
+                const shouldAutoVerify = vendorData.slip_check_mode === 'auto' && Number(vendorData.slip_quota) > 0;
+                console.log("SLIP CHECK CONFIG:", {
+                    slip_check_mode: vendorData.slip_check_mode,
+                    slip_quota: vendorData.slip_quota,
+                    vendor_id: vendorId,
+                    amount: total,
+                    slip_url: slipUrl
+                });
+                console.log("SHOULD AUTO VERIFY:", shouldAutoVerify);
+                
+                // หาก false ให้แจ้งลูกค้าว่าข้ามเป็น Manual Review
+                if (!shouldAutoVerify) {
+                    console.log("ข้ามการตรวจสลิปอัตโนมัติ เนื่องจากค่าโหมด/โควต้าไม่ตรงเงื่อนไข");
+                }
+
+                if (shouldAutoVerify) {
                     try {
+                        console.log("VERIFY REQUEST:", { action: "verify_customer_slip", slip_url: slipUrl, amount: Number(total), vendor_id: vendorId });
+                        
                         const gasRes = await fetch(CONFIG.gasWebhookUrl, {
                             method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
                             body: JSON.stringify({ action: 'verify_customer_slip', vendor_promptpay: vendorData.promptpay_number, slip_url: slipUrl, amount: total, vendor_id: vendorId })
@@ -394,29 +412,22 @@
                         console.log("VERIFY RESPONSE:", result);
 
                         if (result.status === 'success') {
-                            // สลิปถูกต้องและยอดตรง
                             orderStatus = 'processing'; 
                         } else {
-                            // 🟢 [แก้ไขแล้ว] ตรวจสอบสาเหตุที่สลิปไม่ผ่าน และแสดงข้อความแจ้งลูกค้าทันที
                             const errCode = (result.debug && result.debug.code) ? result.debug.code : "";
-
+                            
                             if (errCode === "AMOUNT_UNMATCHED") {
-                                // ⚠️ ยอดผิด: แจ้งลูกค้า และอนุญาตให้ผ่านเป็น Pending 
                                 orderStatus = 'pending';
                                 if (cart.length > 0) {
-                                    cart[0].note = (cart[0].note ? cart[0].note + " | " : "") + `⚠️ เตือน: ${result.msg}`;
+                                    cart[0].note = (cart[0].note ? cart[0].note + " | " : "") + `⚠️️ เตือน: ${result.msg}`;
                                 }
                                 alert(`⚠️ แจ้งเตือน: ยอดโอนไม่ตรงกับค่าอาหาร\n(${result.msg})\n\nระบบจะส่งออเดอร์ให้ร้านค้าตรวจสอบอีกครั้งครับ`);
                             } else {
-                                // ❌ สลิปซ้ำ (DUPLICATE_SLIP) หรืออ่านไม่ได้: บล็อกทันที ห้ามส่งออเดอร์ และแจ้งลูกค้า
-                                alert(`❌ ตรวจสลิปไม่ผ่าน:\n${result.msg}\n\nกรุณาแนบสลิปที่ถูกต้องใหม่อีกครั้งครับ`);
-                                
-                                // ปลดล็อกปุ่มให้กดใหม่ได้
+                                // ❌ สลิปซ้ำ หรือ Error อื่นจาก Thunder: บล็อกการส่งออเดอร์ทันที
+                                alert(`❌ ตรวจสลิปไม่ผ่าน:\n${result.msg}\n[Code: ${errCode}]\n\nกรุณาแนบสลิปที่ถูกต้องใหม่อีกครั้งครับ`);
                                 btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
                                 if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
-                                
-                                // 🛑 หยุดการทำงานของฟังก์ชัน submitOrder ทันที! (นี่คือสาเหตุที่ทำไมมันยังทะลุไปโชว์ว่า "ส่งออเดอร์เรียบร้อยแล้ว")
-                                return; 
+                                return; // 🛑 บังคับหยุดการบันทึกออเดอร์
                             }
                         }
                     } catch (e) {
