@@ -327,42 +327,16 @@
             let orderStatus = 'pending';
             
             // ---------------------------------------------------------
-            // [NEW] 1. ขอเลขอ้างอิงและคิวจาก GAS ก่อนบันทึกลง Supabase
+            // [PATCH] 1. ข้ามระบบขอเลขคิวจาก GAS ชั่วคราว ป้องกันระบบค้าง
             // ---------------------------------------------------------
-            btn.innerText = "⏳ กำลังจองคิว...";
-            if(cashBtn) cashBtn.innerText = "⏳ กำลังจองคิว...";
+            btn.innerText = "⏳ กำลังดำเนินการ...";
+            if(cashBtn) cashBtn.innerText = "⏳ กำลังดำเนินการ...";
 
-            let referenceNo = "-";
-            let queueNo = 0;
-
-            try {
-                const numberRes = await fetch(CONFIG.gasWebhookUrl, {
-                    method: 'POST',
-                    redirect: 'follow', // 👈 เพิ่มคำสั่งนี้ให้ทำตาม Redirect ของ GAS
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // 👈 แก้ตรงนี้เพื่อหลบ CORS
-                    body: JSON.stringify({
-                        action: 'generate_order_number',
-                        vendor_id: vendorId
-                    })
-                });
-                const numberResult = await numberRes.json();
-                
-                if (numberResult.status !== "success") {
-                    alert('ข้อผิดพลาด: ไม่สามารถจองคิวได้ ' + (numberResult.msg || ''));
-                    btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
-                    if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
-                    return; // หยุดการทำงาน ไม่สร้าง Order
-                }
-                
-                referenceNo = numberResult.reference_no;
-                queueNo = numberResult.queue_no;
-            } catch (e) {
-                console.error("Queue Error:", e);
-                alert('ข้อผิดพลาด: ระบบจองคิวขัดข้อง กรุณาลองใหม่อีกครั้ง');
-                btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
-                if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
-                return; // หยุดการทำงาน
-            }
+            // สร้างเลขอ้างอิงและคิวแบบสุ่มชั่วคราวให้ระบบเดินหน้าต่อไปตรวจสลิปได้
+            const d = new Date();
+            const dateStr = d.getFullYear().toString().slice(-2) + ('0' + (d.getMonth() + 1)).slice(-2) + ('0' + d.getDate()).slice(-2);
+            let referenceNo = `${dateStr}-${Math.floor(1000 + Math.random() * 9000)}`;
+            let queueNo = Math.floor(1 + Math.random() * 99); 
             // ---------------------------------------------------------
 
             if (paymentMethod === 'transfer') {
