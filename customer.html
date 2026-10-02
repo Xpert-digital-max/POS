@@ -382,7 +382,19 @@
                 await new Promise(resolve => setTimeout(resolve, 3000));
                 btn.innerText = "⏳ กำลังให้ AI ตรวจสลิป...";
                 
+                console.log("AUTO VERIFY CONFIG", {
+                    slip_check_mode: vendorData.slip_check_mode,
+                    slip_quota: vendorData.slip_quota,
+                    vendor_id: vendorId,
+                    amount: total,
+                    slip_url: slipUrl
+                });
+
+                console.log("SHOULD AUTO VERIFY", vendorData.slip_check_mode === 'auto' && Number(vendorData.slip_quota) > 0);
+
                 if (vendorData.slip_check_mode === 'auto' && vendorData.slip_quota > 0) {
+                    try {
+                        console.log("VERIFY REQUEST", { action: "verify_customer_slip", vendor_id: vendorId, slip_url: slipUrl, amount: Number(total) });
                     try {
                         const gasRes = await fetch(CONFIG.gasWebhookUrl, {
                             method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
