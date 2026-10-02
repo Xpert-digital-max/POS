@@ -214,7 +214,6 @@
                     </div>
                     
                     <label style="font-size: 13px; font-weight: bold; color: #555;">แนบสลิปเพื่อยืนยัน</label>
-                    <!-- [แก้ไข] ปรับช่องสลิปและปุ่มให้อยู่คนละบรรทัดและเต็มหน้าจอ -->
                     <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 8px;">
                         <input type="file" id="renewSlipImage" accept="image/*" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius:6px; box-sizing:border-box;">
                         <button onclick="verifyAndRenewSubscription(this)" id="renewBtn" style="background: #2196F3; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; width: 100%;">ยืนยันการต่ออายุ</button>
@@ -236,7 +235,6 @@
                     </div>
                     
                     <label style="font-size: 13px; font-weight: bold; color: #555;">แนบสลิปเพื่อยืนยัน</label>
-                    <!-- [แก้ไข] ปรับช่องสลิปและปุ่มให้อยู่คนละบรรทัดและเต็มหน้าจอ -->
                     <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 8px;">
                         <input type="file" id="quotaSlipImage" accept="image/*" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius:6px; box-sizing:border-box;">
                         <button onclick="verifyAndTopupQuota(this)" id="topupBtn" style="background: #06C755; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; width: 100%;">ยืนยันการเติมโควต้า</button>
@@ -248,7 +246,6 @@
             <div class="card" style="background: #f9f9f9; border: 1px dashed #ccc;">
                 <h3 style="margin-top: 0; color: #333;">⚙️ ข้อมูลร้านค้าและช่องทางรับเงิน (สาขาหลัก)</h3>
                 
-                <!-- [แก้ไข] จัดกลุ่มฟอร์มข้อมูลร้านค้าและช่องทางรับเงินเพื่อทำเอฟเฟกต์จาง/แก้ไข -->
                 <div id="storeSettingsGroup">
                     <label style="font-size: 13px; font-weight: bold; color: #555;">รูปโลโก้ร้าน</label>
                     <input type="file" id="settingStoreLogo" accept="image/*" style="margin-bottom: 15px; width: 100%; margin-top: 5px;">
@@ -277,7 +274,6 @@
                         <textarea id="settingBankInfo" placeholder="เช่น ธ.กสิกรไทย เลขบัญชี 123-4-56789-0 ชื่อ นายใจดี" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px; resize: none;" rows="3"></textarea>
                     </div>
 
-                    <!-- [แก้ไข] เพิ่มปุ่ม Toggle อนุญาตรับเงินสด -->
                     <label style="display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: bold; color: #555; margin-bottom: 15px; cursor: pointer; padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 6px;">
                         <input type="checkbox" id="settingAllowCash" style="width: 18px; height: 18px; cursor: pointer; accent-color: #06C755;">
                         อนุญาตให้ลูกค้ารับชำระด้วยเงินสดที่หน้าร้าน
@@ -332,35 +328,68 @@
         let editingCategoryId = null;
         let copiedImageUrl = null;
         let branchCount = 1;
-        let lastOrderCount = -1; 
 
         // ตัวแปรสำหรับระบบแท็บสาขาในหน้าออเดอร์
         let branchListData = []; 
         let currentOrderBranchFilter = 'all'; 
 
-        // 🔊 ฟังก์ชันสร้างเสียงเตือนออเดอร์เข้า
-        function playNotificationSound() {
+        // ==================== [PATCH 3 & 4] Audio & Wake Lock ====================
+        let wakeLock = null;
+        let notificationAudioContext = null;
+        let audioUnlocked = false;
+        
+        let orderPollingTimer = null;
+        let lastSeenOrderId = null;
+        let initialOrderLoadDone = false;
+
+        async function requestWakeLock() {
+            if (!('wakeLock' in navigator)) { console.warn("Wake Lock not supported"); return; }
             try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioCtx.createOscillator();
-                const gainNode = audioCtx.createGain();
-                
-                oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
-                oscillator.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.2);
-                
-                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
-                
-                oscillator.connect(gainNode);
-                gainNode.connect(audioCtx.destination);
-                
-                oscillator.start();
-                oscillator.stop(audioCtx.currentTime + 0.2);
-            } catch (e) {
-                console.log("Audio context blocked");
-            }
+                if (wakeLock && !wakeLock.released) return;
+                wakeLock = await navigator.wakeLock.request('screen');
+                console.log("SCREEN WAKE LOCK ACTIVE");
+            } catch (err) { console.warn("WAKE LOCK ERROR:", err); }
         }
+
+        document.addEventListener("visibilitychange", async () => { if (document.visibilityState === "visible") await requestWakeLock(); });
+        window.addEventListener("pagehide", async () => { if (wakeLock && !wakeLock.released) { try { await wakeLock.release(); } catch(e) {} } });
+
+        async function unlockNotificationAudio() {
+            if (!notificationAudioContext) {
+                notificationAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (notificationAudioContext.state === 'suspended') {
+                await notificationAudioContext.resume();
+            }
+            audioUnlocked = true;
+        }
+
+        document.addEventListener("click", unlockNotificationAudio, { once: true });
+        document.addEventListener("touchstart", unlockNotificationAudio, { once: true });
+
+        // 🔊 ฟังก์ชันสร้างเสียงเตือนออเดอร์เข้า (อัปเดตใหม่)
+        function playNotificationSound() {
+            if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
+            if (!notificationAudioContext || !audioUnlocked) return;
+
+            const playBeep = (startTime) => {
+                const osc = notificationAudioContext.createOscillator();
+                const gainNode = notificationAudioContext.createGain();
+                osc.connect(gainNode);
+                gainNode.connect(notificationAudioContext.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, startTime);
+                gainNode.gain.setValueAtTime(0.1, startTime);
+                osc.start(startTime);
+                osc.stop(startTime + 0.15);
+            };
+
+            const now = notificationAudioContext.currentTime;
+            playBeep(now);
+            playBeep(now + 0.3);
+            playBeep(now + 0.6);
+        }
+        // =====================================================================
 
         function switchTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -410,8 +439,12 @@
                 await loadBranches(); 
                 await loadOrders(); 
 
-                // ⏱️ สั่งให้ระบบวิ่งเช็กออเดอร์ใหม่ทุกๆ 5 วินาทีอัตโนมัติ
-                setInterval(loadOrders, 5000);
+                // ==================== [PATCH 4 & 5] ====================
+                await requestWakeLock(); // กันจอดับ
+                
+                if (orderPollingTimer) clearInterval(orderPollingTimer);
+                orderPollingTimer = setInterval(loadOrders, 5000); // Polling ออเดอร์
+                // =======================================================
 
             } catch(e) { console.error(e); }
         }
@@ -743,37 +776,34 @@
             }
         }
 
+        // ==================== [PATCH 1] แก้ Billing ค้าง กำลังโหลด ====================
         async function loadBillingInfo() {
-    try {
-        const planId = (vendorData && vendorData.subscription_plan) ? vendorData.subscription_plan : 'trial';
-        let planDb = null;
-        
-        // 🟢 ดึงข้อมูลจาก CONFIG.pricingPlans ตรงๆ ตามรหัส ID ของ config.js
-        const confPlan = CONFIG.pricingPlans.find(p => p.id === planId);
-        if (confPlan) {
-            planDb = { 
-                plan_name: confPlan.name, 
-                monthly_price: confPlan.price, 
-                included_branches: 1, 
-                included_slips: confPlan.quota || 0, 
-                extra_branch_price: 300, 
-                extra_slip_unit: 100, 
-                extra_slip_price: 100 
-            };
-        } else {
-            planDb = { 
-                plan_name: 'ฟรี/ทดลองใช้', 
-                monthly_price: 0, 
-                included_branches: 1, 
-                included_slips: 0, 
-                extra_branch_price: 300, 
-                extra_slip_unit: 100, 
-                extra_slip_price: 100 
-            };
-        }
+            try {
+                console.log("=== BILLING DEBUG ===");
+                console.log("vendorData:", vendorData);
+                console.log("subscription_plan:", vendorData?.subscription_plan);
+                console.log("pricingPlans:", CONFIG?.pricingPlans);
+
+                const planId = vendorData?.subscription_plan || 'trial';
+                const confPlan = CONFIG?.pricingPlans?.find(p => String(p.id) === String(planId));
+
+                console.log("PLAN ID:", planId);
+                console.log("MATCHED PLAN:", confPlan);
+
+                // Render ทันทีกันค้าง
+                document.getElementById('billPlanName').innerText = confPlan ? confPlan.name : 'ฟรี/ทดลองใช้';
+                document.getElementById('billBasePrice').innerText = `฿${Number(confPlan?.price || 0).toFixed(2)}`;
+                document.getElementById('billSlipIncluded').innerText = Number(confPlan?.quota || 0);
+                document.getElementById('slipQuotaText').innerText = Number(vendorData?.slip_quota || 0);
+
+                let planDb = confPlan ? 
+                    { plan_name: confPlan.name, monthly_price: confPlan.price, included_branches: 1, included_slips: confPlan.quota || 0, extra_branch_price: 300, extra_slip_unit: 100, extra_slip_price: 100 } : 
+                    { plan_name: 'ฟรี/ทดลองใช้', monthly_price: 0, included_branches: 1, included_slips: 0, extra_branch_price: 300, extra_slip_unit: 100, extra_slip_price: 100 };
 
                 const d = new Date(); const firstDay = new Date(d.getFullYear(), d.getMonth(), 1).toISOString();
-                const { count: slipUsed } = await supabaseClient.from('slip_logs').select('*', { count: 'exact', head: true }).eq('merchant_id', vendorData.id).neq('status', 'error').gte('created_at', firstDay);
+                const { count: slipUsed, error: slipErr } = await supabaseClient.from('slip_logs').select('*', { count: 'exact', head: true }).eq('merchant_id', vendorData.id).neq('status', 'error').gte('created_at', firstDay);
+
+                if(slipErr) console.error("Slip Error:", slipErr);
 
                 const basePrice = parseFloat(planDb.monthly_price || 0);
                 let extraBranchCount = Math.max(0, branchCount - (planDb.included_branches || 1));
@@ -785,19 +815,19 @@
 
                 const totalEstimatedBill = basePrice + extraBranchPrice + extraSlipPrice;
 
-                document.getElementById('billPlanName').innerText = planDb.plan_name;
-                document.getElementById('billBasePrice').innerText = `฿${basePrice.toFixed(2)}`;
                 document.getElementById('billBranchCount').innerText = branchCount;
                 document.getElementById('billBranchIncluded').innerText = planDb.included_branches || 1;
                 document.getElementById('billBranchExtra').innerText = `+ ฿${extraBranchPrice.toFixed(2)}`;
                 document.getElementById('billSlipUsed').innerText = used;
-                document.getElementById('billSlipIncluded').innerText = incSlip;
                 document.getElementById('billSlipExtra').innerText = `+ ฿${extraSlipPrice.toFixed(2)}`;
                 document.getElementById('billTotalAmount').innerText = `฿${totalEstimatedBill.toFixed(2)}`;
-                document.getElementById('slipQuotaText').innerText = vendorData.slip_quota || 0;
 
-            } catch(e) { console.error("Billing Info Error:", e); document.getElementById('billPlanName').innerText = "โหลดล้มเหลว"; }
+            } catch(e) { 
+                console.error("Billing Info Error:", e); 
+                document.getElementById('billPlanName').innerText = "โหลดล้มเหลว"; 
+            }
         }
+        // =================================================================================
 
         function updateRenewQr() {
             const opt = document.getElementById('renewPlanSelect').options[document.getElementById('renewPlanSelect').selectedIndex];
@@ -833,6 +863,7 @@
             }
         }
 
+        // ==================== [PATCH 2] อัปเดตการคิดค่า Affiliate Commission ====================
         async function verifyAndRenewSubscription(btn) {
             const fileInput = document.getElementById('renewSlipImage'); const select = document.getElementById('renewPlanSelect');
             const opt = select.options[select.selectedIndex]; 
@@ -840,7 +871,13 @@
             if (fileInput.files.length === 0) { alert("กรุณาเลือกไฟล์สลิป"); return; }
             const expectedPrice = opt.getAttribute('data-price'); const planDays = parseInt(opt.getAttribute('data-days'));
             const addedQuota = parseInt(opt.getAttribute('data-quota') || 0);
-            const planId = select.value; const selectedPlanObj = CONFIG.pricingPlans.find(p => p.id === planId);
+            const planId = select.value; 
+            
+            const selectedPlanObj = CONFIG.pricingPlans.find(p => p.id === planId);
+            if (!selectedPlanObj) {
+                alert("เกิดข้อผิดพลาด: ไม่พบแพ็กเกจในระบบ"); 
+                throw new Error("ไม่พบแพ็กเกจใน CONFIG.pricingPlans: " + planId);
+            }
 
             btn.innerText = "⏳ กำลังตรวจสอบ..."; btn.disabled = true;
             try {
@@ -871,15 +908,21 @@
                         slip_check_mode: selectedPlanObj.mode, is_subscription_active: true, slip_quota: newQuota
                     }).eq('id', vendorData.id);
 
-                    if (vendorData.referrer_id && selectedPlanObj.comm > 0) {
-                        try {
-                            const { data: refData } = await supabaseClient.from('vendors').select('wallet_balance').eq('id', vendorData.referrer_id).single();
-                            if (refData) {
-                                const newBalance = (refData.wallet_balance || 0) + selectedPlanObj.comm;
-                                await supabaseClient.from('vendors').update({ wallet_balance: newBalance }).eq('id', vendorData.referrer_id);
-                            }
-                        } catch (commErr) {}
+                    // ================= [PATCH 2] Affiliate Commission Logic =================
+                    const commission = vendorData.referrer_id ? Number(selectedPlanObj.comm || 0) : 0;
+                    console.log("AFFILIATE DEBUG:", { buyer_vendor_id: vendorData.id, referrer_id: vendorData.referrer_id, plan_id: planId, commission: commission });
+
+                    if (vendorData.referrer_id && commission > 0) {
+                        const { data: refData, error: refError } = await supabaseClient.from('vendors').select('id, wallet_balance').eq('id', vendorData.referrer_id).single();
+                        if (refError) {
+                            console.error("AFFILIATE COMMISSION ERROR:", refError);
+                        } else {
+                            const oldBalance = Number(refData.wallet_balance || 0);
+                            const newBalance = oldBalance + commission;
+                            await supabaseClient.from('vendors').update({ wallet_balance: newBalance }).eq('id', vendorData.referrer_id);
+                        }
                     }
+                    // =========================================================================
 
                     vendorData.subscription_plan = planId; vendorData.subscription_expires_at = baseDate.toISOString(); 
                     vendorData.slip_check_mode = selectedPlanObj.mode; vendorData.is_subscription_active = true; vendorData.slip_quota = newQuota;
@@ -888,12 +931,14 @@
                         method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
                         body: JSON.stringify({
                             action: 'notify_admin_payment', 
-                            type: 'renew', 
+                            type: 'renew',
+                            vendor_id: vendorData.id,
                             store_name: vendorData.name, 
                             plan_name: selectedPlanObj.name, 
                             amount: expectedPrice, 
                             referrer_id: vendorData.referrer_id || null, 
-                            commission: (vendorData.referrer_id ? selectedPlanObj.comm : 0)
+                            commission: commission,
+                            expire_date: baseDate.toISOString()
                         })
                     }).catch(e => console.log(e));
 
@@ -903,6 +948,7 @@
             } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); }
             btn.innerText = "ยืนยันการต่ออายุ"; btn.disabled = false;
         }
+        // ========================================================================================
 
         async function verifyAndTopupQuota(btn) {
             const fileInput = document.getElementById('quotaSlipImage'); const select = document.getElementById('quotaPlanSelect');
@@ -936,6 +982,7 @@
                         body: JSON.stringify({
                             action: 'notify_admin_payment', 
                             type: 'topup', 
+                            vendor_id: vendorData.id,
                             store_name: vendorData.name, 
                             plan_name: opt.text.split(' - ')[0], 
                             amount: expectedPrice, 
@@ -1094,6 +1141,7 @@
             else { btn.innerText = "🔴 ปิดร้าน"; btn.style.background = "#ff4d4f"; btn.style.color = "white"; }
         }
 
+        // ==================== [PATCH 5] แก้ไขระบบการเช็กออเดอร์ใหม่ ====================
         async function loadOrders() {
             if (!vendorData) return; 
             const orderListDiv = document.getElementById('orderList'); 
@@ -1112,14 +1160,19 @@
             const { data, error } = await query.order('created_at', { ascending: true });
             if (error) return;
 
-            const currentCount = data ? data.length : 0;
+            // -------- เช็กออเดอร์ใหม่ด้วย ID อันสุดท้าย แทนการนับจำนวน --------
+            const latestOrder = (data && data.length > 0) ? data[data.length - 1] : null;
 
-            if (lastOrderCount !== -1 && currentCount > lastOrderCount) {
+            if (!initialOrderLoadDone) {
+                lastSeenOrderId = latestOrder ? latestOrder.id : null;
+                initialOrderLoadDone = true;
+            } else if (latestOrder && String(latestOrder.id) !== String(lastSeenOrderId)) {
+                lastSeenOrderId = latestOrder.id;
                 playNotificationSound();
-                if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
             }
-            lastOrderCount = currentCount;
+            // -----------------------------------------------------------
 
+            const currentCount = data ? data.length : 0;
             if (currentCount === 0) { 
                 orderListDiv.innerHTML = '<p style="text-align: center; color: #888;">ยังไม่มีออเดอร์เข้าในขณะนี้</p>'; 
                 return; 
@@ -1139,13 +1192,7 @@
                 const d = new Date(order.created_at);
                 const orderTime = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }); 
                 
-                // -------------------------------------------------------------
-                // [MODIFIED] ดึงเลขอ้างอิงและคิวจากระบบใหม่ (ตาราง Orders)
-                // -------------------------------------------------------------
-                // ถ้าเป็นออเดอร์เก่าที่ยังไม่มี reference_no ให้แสดงของเก่าแทน
                 const orderRef = order.reference_no ? order.reference_no : `${d.getFullYear().toString().slice(-2) + ('0' + (d.getMonth()+1)).slice(-2) + ('0' + d.getDate()).slice(-2)}-${order.id.substring(0,4).toUpperCase()}`; 
-                
-                // ถ้าเป็นออเดอร์เก่าที่ไม่มี queue_no ให้แสดงเป็น ?
                 const queueNum = order.queue_no ? order.queue_no : "?";
                 const custUid = order.customer_uid || '';
 
