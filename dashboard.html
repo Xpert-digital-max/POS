@@ -744,18 +744,33 @@
         }
 
         async function loadBillingInfo() {
-            try {
-                const planId = vendorData.subscription_plan || 'trial';
-                let planDb = null;
-                
-                const { data: dbData } = await supabaseClient.from('plans').select('*').eq('plan_id', planId).maybeSingle();
-                if(dbData) planDb = dbData;
-                
-                if (!planDb) {
-                    const confPlan = CONFIG.pricingPlans.find(p => p.id === planId);
-                    if (confPlan) planDb = { plan_name: confPlan.name, monthly_price: confPlan.price, included_branches: 1, included_slips: confPlan.quota || 0, extra_branch_price: 300, extra_slip_unit: 100, extra_slip_price: 100 };
-                    else planDb = { plan_name: 'ฟรี/ทดลองใช้', monthly_price: 0, included_branches: 1, included_slips: 0, extra_branch_price: 300, extra_slip_unit: 100, extra_slip_price: 100 };
-                }
+    try {
+        const planId = (vendorData && vendorData.subscription_plan) ? vendorData.subscription_plan : 'trial';
+        let planDb = null;
+        
+        // 🟢 ดึงข้อมูลจาก CONFIG.pricingPlans ตรงๆ ตามรหัส ID ของ config.js
+        const confPlan = CONFIG.pricingPlans.find(p => p.id === planId);
+        if (confPlan) {
+            planDb = { 
+                plan_name: confPlan.name, 
+                monthly_price: confPlan.price, 
+                included_branches: 1, 
+                included_slips: confPlan.quota || 0, 
+                extra_branch_price: 300, 
+                extra_slip_unit: 100, 
+                extra_slip_price: 100 
+            };
+        } else {
+            planDb = { 
+                plan_name: 'ฟรี/ทดลองใช้', 
+                monthly_price: 0, 
+                included_branches: 1, 
+                included_slips: 0, 
+                extra_branch_price: 300, 
+                extra_slip_unit: 100, 
+                extra_slip_price: 100 
+            };
+        }
 
                 const d = new Date(); const firstDay = new Date(d.getFullYear(), d.getMonth(), 1).toISOString();
                 const { count: slipUsed } = await supabaseClient.from('slip_logs').select('*', { count: 'exact', head: true }).eq('merchant_id', vendorData.id).neq('status', 'error').gte('created_at', firstDay);
