@@ -175,7 +175,7 @@
                     await loadCategories(); 
                     await loadMenu(); 
                     
-                    // ⭐️️ เรียกตะกร้าเก่ากลับมา หลังจากหน้าเว็บโหลดเสร็จ
+                    // ⭐ เรียกตะกร้าเก่ากลับมา หลังจากหน้าเว็บโหลดเสร็จ
                     loadSavedCart();
 
                     // ⭐️ เช็คว่าลูกค้าค้างอยู่หน้าชำระเงินหรือเปล่า ถ้าใช่ให้เปิดหน้าต่างขึ้นมาเลย
@@ -382,57 +382,74 @@
                 await new Promise(resolve => setTimeout(resolve, 3000));
                 btn.innerText = "⏳ กำลังให้ AI ตรวจสลิป...";
                 
-                // ค้นหาบรรทัดนี้ใน submitOrder
-                // --- เพิ่ม Debug ---
-                const shouldAutoVerify = vendorData.slip_check_mode === 'auto' && Number(vendorData.slip_quota) > 0;
-                console.log("SLIP CHECK CONFIG:", {
-                    slip_check_mode: vendorData.slip_check_mode,
-                    slip_quota: vendorData.slip_quota,
-                    vendor_id: vendorId,
-                    amount: total,
-                    slip_url: slipUrl
-                });
-                console.log("SHOULD AUTO VERIFY:", shouldAutoVerify);
+                // --- เพิ่ม LOG ชั่วคราวตาม PHASE 1 เพื่อ Debug ---
+                console.log("=== SLIP VERIFY DEBUG START ===");
+                console.log("VENDOR:", vendorData);
+                console.log("SLIP CHECK MODE RAW:", vendorData.slip_check_mode);
+                console.log("SLIP QUOTA RAW:", vendorData.slip_quota);
+                console.log("SLIP QUOTA NUMBER:", Number(vendorData.slip_quota));
                 
-                // หาก false ให้แจ้งลูกค้าว่าข้ามเป็น Manual Review
-                if (!shouldAutoVerify) {
-                    console.log("ข้ามการตรวจสลิปอัตโนมัติ เนื่องจากค่าโหมด/โควต้าไม่ตรงเงื่อนไข");
-                }
+                const shouldAutoVerify = vendorData.slip_check_mode === 'auto' && Number(vendorData.slip_quota) > 0;
+                console.log("SHOULD AUTO VERIFY:", shouldAutoVerify);
+                console.log("SLIP URL:", slipUrl);
+                console.log("EXPECTED AMOUNT:", Number(total));
 
                 if (shouldAutoVerify) {
                     try {
-                        console.log("VERIFY REQUEST:", { action: "verify_customer_slip", slip_url: slipUrl, amount: Number(total), vendor_id: vendorId });
-                        
+                        console.log("VERIFY REQUEST:", {
+                            action: "verify_customer_slip",
+                            vendor_promptpay: vendorData.promptpay_number,
+                            slip_url: slipUrl,
+                            amount: Number(total),
+                            vendor_id: vendorId
+                        });
+
                         const gasRes = await fetch(CONFIG.gasWebhookUrl, {
                             method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
                             body: JSON.stringify({ action: 'verify_customer_slip', vendor_promptpay: vendorData.promptpay_number, slip_url: slipUrl, amount: total, vendor_id: vendorId })
                         });
-                        const result = await gasRes.json();
                         
+                        console.log("GAS HTTP STATUS:", gasRes.status);
+                        console.log("GAS OK:", gasRes.ok);
+
+                        const gasText = await gasRes.text();
+                        console.log("GAS RAW RESPONSE:", gasText);
+
+                        let result;
+                        try {
+                            result = JSON.parse(gasText);
+                        } catch (err) {
+                            console.error("GAS JSON PARSE ERROR:", err);
+                            throw new Error("GAS ตอบกลับไม่ใช่ JSON: " + gasText);
+                        }
+
                         console.log("VERIFY RESPONSE:", result);
 
                         if (result.status === 'success') {
                             orderStatus = 'processing'; 
+                            console.log("FINAL ORDER STATUS:", orderStatus);
                         } else {
                             const errCode = (result.debug && result.debug.code) ? result.debug.code : "";
-                            
+
                             if (errCode === "AMOUNT_UNMATCHED") {
                                 orderStatus = 'pending';
                                 if (cart.length > 0) {
-                                    cart[0].note = (cart[0].note ? cart[0].note + " | " : "") + `⚠️️ เตือน: ${result.msg}`;
+                                    cart[0].note = (cart[0].note ? cart[0].note + " | " : "") + `⚠️ เตือน: ${result.msg}`;
                                 }
-                                alert(`⚠️ แจ้งเตือน: ยอดโอนไม่ตรงกับค่าอาหาร\n(${result.msg})\n\nระบบจะส่งออเดอร์ให้ร้านค้าตรวจสอบอีกครั้งครับ`);
+                                alert(`⚠️ แจ้งเตือน: ยอดโอนไม่ตรงกับค่าอาหาร\n(${result.msg})\nระบบจะส่งออเดอร์ให้ร้านค้าตรวจสอบอีกครั้งครับ`);
                             } else {
-                                // ❌ สลิปซ้ำ หรือ Error อื่นจาก Thunder: บล็อกการส่งออเดอร์ทันที
-                                alert(`❌ ตรวจสลิปไม่ผ่าน:\n${result.msg}\n[Code: ${errCode}]\n\nกรุณาแนบสลิปที่ถูกต้องใหม่อีกครั้งครับ`);
+                                alert(`❌ ตรวจสลิปไม่ผ่าน:\n${result.msg}\nกรุณาแนบสลิปที่ถูกต้องใหม่อีกครั้งครับ`);
                                 btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
                                 if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
-                                return; // 🛑 บังคับหยุดการบันทึกออเดอร์
+                                return; // 🛑 หยุดเพื่อไม่ให้ Fail Open
                             }
                         }
                     } catch (e) {
-                        console.error("AI Verify Error:", e);
-                        alert("⚠️ ระบบตรวจสลิปขัดข้องชั่วคราว ออเดอร์จะถูกส่งให้ร้านค้าตรวจสอบด้วยตนเองครับ");
+                        console.error("VERIFY EXCEPTION:", e);
+                        alert("ระบบตรวจสลิปเกิดข้อผิดพลาด:\n" + e.message);
+                        btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
+                        if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
+                        return; // 🛑 หยุดเพื่อไม่ให้ Fail Open ในรอบ Debug
                     }
                 }
                 btn.innerText = "⏳ กำลังบันทึกออเดอร์...";
