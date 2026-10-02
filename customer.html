@@ -306,7 +306,7 @@
             document.getElementById('checkoutModal').style.display = 'none'; 
         }
 
-        // ==================== ระบบส่งออเดอร์ ====================
+        // ==================== ระบบส่งออเดอร์ (อัปเดตระบบตรวจสอบเข้มงวด + รันคิว) ====================
         async function submitOrder(paymentMethod = 'transfer') {
             const fileInput = document.getElementById('slipImage');
             const btn = document.getElementById('confirmOrderBtn');
@@ -327,7 +327,7 @@
             let orderStatus = 'pending';
             
             // ---------------------------------------------------------
-            // [RESTORED] ขอเลขอ้างอิงและคิวของจริงจาก GAS
+            // [NEW] 1. ขอเลขอ้างอิงและคิวจาก GAS ก่อนบันทึกลง Supabase
             // ---------------------------------------------------------
             btn.innerText = "⏳ กำลังจองคิว...";
             if(cashBtn) cashBtn.innerText = "⏳ กำลังจองคิว...";
@@ -338,8 +338,8 @@
             try {
                 const numberRes = await fetch(CONFIG.gasWebhookUrl, {
                     method: 'POST',
-                    redirect: 'follow',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    redirect: 'follow', // 👈 เพิ่มคำสั่งนี้ให้ทำตาม Redirect ของ GAS
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // 👈 แก้ตรงนี้เพื่อหลบ CORS
                     body: JSON.stringify({
                         action: 'generate_order_number',
                         vendor_id: vendorId
@@ -351,7 +351,7 @@
                     alert('ข้อผิดพลาด: ไม่สามารถจองคิวได้ ' + (numberResult.msg || ''));
                     btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
                     if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
-                    return; 
+                    return; // หยุดการทำงาน ไม่สร้าง Order
                 }
                 
                 referenceNo = numberResult.reference_no;
@@ -361,7 +361,7 @@
                 alert('ข้อผิดพลาด: ระบบจองคิวขัดข้อง กรุณาลองใหม่อีกครั้ง');
                 btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
                 if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
-                return; 
+                return; // หยุดการทำงาน
             }
             // ---------------------------------------------------------
 
@@ -382,74 +382,68 @@
                 await new Promise(resolve => setTimeout(resolve, 3000));
                 btn.innerText = "⏳ กำลังให้ AI ตรวจสลิป...";
                 
-                if (vendorData.slip_check_mode === 'auto' && vendorData.slip_quota > 0) {
+                // ค้นหาบรรทัดนี้ใน submitOrder
+                // --- เพิ่ม Debug ---
+                const shouldAutoVerify = vendorData.slip_check_mode === 'auto' && Number(vendorData.slip_quota) > 0;
+                console.log("SLIP CHECK CONFIG:", {
+                    slip_check_mode: vendorData.slip_check_mode,
+                    slip_quota: vendorData.slip_quota,
+                    vendor_id: vendorId,
+                    amount: total,
+                    slip_url: slipUrl
+                });
+                console.log("SHOULD AUTO VERIFY:", shouldAutoVerify);
+                
+                // หาก false ให้แจ้งลูกค้าว่าข้ามเป็น Manual Review
+                if (!shouldAutoVerify) {
+                    console.log("ข้ามการตรวจสลิปอัตโนมัติ เนื่องจากค่าโหมด/โควต้าไม่ตรงเงื่อนไข");
+                }
+
+                if (shouldAutoVerify) {
                     try {
+                        console.log("VERIFY REQUEST:", { action: "verify_customer_slip", slip_url: slipUrl, amount: Number(total), vendor_id: vendorId });
+                        
                         const gasRes = await fetch(CONFIG.gasWebhookUrl, {
                             method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
                             body: JSON.stringify({ action: 'verify_customer_slip', vendor_promptpay: vendorData.promptpay_number, slip_url: slipUrl, amount: total, vendor_id: vendorId })
                         });
                         const result = await gasRes.json();
                         
+                        console.log("VERIFY RESPONSE:", result);
+
                         if (result.status === 'success') {
                             orderStatus = 'processing'; 
                         } else {
                             const errCode = (result.debug && result.debug.code) ? result.debug.code : "";
-
+                            
                             if (errCode === "AMOUNT_UNMATCHED") {
                                 orderStatus = 'pending';
                                 if (cart.length > 0) {
-                                    cart[0].note = (cart[0].note ? cart[0].note + " | " : "") + `⚠️ เตือน: ${result.msg}`;
+                                    cart[0].note = (cart[0].note ? cart[0].note + " | " : "") + `⚠️️ เตือน: ${result.msg}`;
                                 }
-                                alert(`⚠️ แจ้งเตือน: ยอดโอนไม่ตรงกับค่าอาหาร\n(${result.msg})\nระบบจะส่งออเดอร์ให้ร้านค้าตรวจสอบอีกครั้งครับ`);
+                                alert(`⚠️ แจ้งเตือน: ยอดโอนไม่ตรงกับค่าอาหาร\n(${result.msg})\n\nระบบจะส่งออเดอร์ให้ร้านค้าตรวจสอบอีกครั้งครับ`);
                             } else {
-                                // 🔴 เพิ่ม return; เพื่อหยุดการทำงานหากสลิปซ้ำ หรืออ่านไม่ได้
-                                alert(`❌ ตรวจสลิปไม่ผ่าน:\n${result.msg}\nกรุณาแนบสลิปที่ถูกต้องใหม่อีกครั้งครับ`);
+                                // ❌ สลิปซ้ำ หรือ Error อื่นจาก Thunder: บล็อกการส่งออเดอร์ทันที
+                                alert(`❌ ตรวจสลิปไม่ผ่าน:\n${result.msg}\n[Code: ${errCode}]\n\nกรุณาแนบสลิปที่ถูกต้องใหม่อีกครั้งครับ`);
                                 btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
                                 if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
-                                return; // <--- สำคัญมาก ตรงนี้คือสาเหตุที่มันทะลุไปสั่งอาหารสำเร็จ
+                                return; // 🛑 บังคับหยุดการบันทึกออเดอร์
                             }
                         }
                     } catch (e) {
                         console.error("AI Verify Error:", e);
                         alert("⚠️ ระบบตรวจสลิปขัดข้องชั่วคราว ออเดอร์จะถูกส่งให้ร้านค้าตรวจสอบด้วยตนเองครับ");
-                        // ไม่ต้องใส่ return ตรงนี้ เพื่อให้มันเซฟออเดอร์แบบ pending ต่อไปให้ร้านค้าตรวจเองได้
                     }
                 }
                 btn.innerText = "⏳ กำลังบันทึกออเดอร์...";
 
             } else {
+                // กรณีเลือกชำระเงินสด
                 orderStatus = 'pending';
                 if (cart.length > 0) {
                     cart[0].note = (cart[0].note ? cart[0].note + " | " : "") + "💵 ชำระเงินสดหน้าร้าน (กรุณาเก็บเงินก่อนยืนยันออเดอร์)";
                 }
             }
-
-            const orderPayload = { 
-                vendor_id: vendorId, customer_uid: customerUid, items: cart, total_price: parseFloat(total), 
-                slip_image_url: slipUrl, status: orderStatus, reference_no: referenceNo, queue_no: queueNo 
-            };
-            if (branchId) orderPayload.branch_id = branchId;
-
-            const { data: newOrder, error: orderError } = await supabaseClient.from('orders').insert([orderPayload]).select().single();
-
-            if (!orderError && newOrder) {
-                alert(orderStatus === 'processing' ? "✅ รับออเดอร์เรียบร้อย กำลังเตรียมอาหาร!" : "ส่งออเดอร์เรียบร้อยแล้ว!\n(รอร้านตรวจสอบและยืนยันสักครู่นะครับ)");
-                
-                if (customerUid) {
-                    fetch(CONFIG.gasWebhookUrl, {
-                        method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
-                        body: JSON.stringify({ action: 'notify_customer', vendor_id: vendorId, uid: customerUid, order_status: orderStatus, store_name: vendorData.name, order_ref: referenceNo, queue_num: queueNo })
-                    }).catch(e => console.log(e)); 
-                }
-
-                clearSavedCart();
-                if (liff.isInClient()) { liff.closeWindow(); } else { window.location.reload(); }
-            } else {
-                alert("บันทึกออเดอร์ไม่สำเร็จ: " + orderError.message);
-                btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
-                if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
-            }
-        }
 
             // ---------------------------------------------------------
             // [NEW] 2. นำ Reference No. และ Queue No. ใส่เข้าไปใน Payload
