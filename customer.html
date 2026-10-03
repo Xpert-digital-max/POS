@@ -175,10 +175,8 @@
                     await loadCategories(); 
                     await loadMenu(); 
                     
-                    // ⭐ เรียกตะกร้าเก่ากลับมา หลังจากหน้าเว็บโหลดเสร็จ
                     loadSavedCart();
 
-                    // ⭐️ เช็คว่าลูกค้าค้างอยู่หน้าชำระเงินหรือเปล่า ถ้าใช่ให้เปิดหน้าต่างขึ้นมาเลย
                     const isCheckoutOpen = localStorage.getItem(`checkoutState_${vendorId}`);
                     if (isCheckoutOpen === 'open' && cart.length > 0) {
                         goToCheckout();
@@ -277,14 +275,12 @@
                 }
             }
             
-            // ⭐️ ตรวจสอบว่าร้านค้าเปิดรับเงินสดในหลังบ้านหรือไม่
             if (vendorData.allow_cash_payment === true) {
                 document.getElementById('cashOrderBtn').style.display = 'block';
             } else {
                 document.getElementById('cashOrderBtn').style.display = 'none';
             }
 
-            // จดจำสถานะว่าลูกค้าเปิดหน้าชำระเงินค้างไว้
             localStorage.setItem(`checkoutState_${vendorId}`, 'open');
             document.getElementById('checkoutModal').style.display = 'flex';
         }
@@ -306,7 +302,7 @@
             document.getElementById('checkoutModal').style.display = 'none'; 
         }
 
-        // ==================== ระบบส่งออเดอร์ (อัปเดตระบบตรวจสอบเข้มงวด + รันคิวผ่าน RPC) ====================
+        // ==================== ระบบส่งออเดอร์ (อัปเกรดความไวแบบ RPC) ====================
         async function submitOrder(paymentMethod = 'transfer') {
             const fileInput = document.getElementById('slipImage');
             const btn = document.getElementById('confirmOrderBtn');
@@ -340,52 +336,55 @@
                 const { data: publicUrlData } = supabaseClient.storage.from('slip-images').getPublicUrl(fileName); 
                 slipUrl = publicUrlData.publicUrl;
 
-                await new Promise(resolve => setTimeout(resolve, 3000));
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                // === โค้ดใหม่: ตรวจสลิปผ่าน Supabase RPC ตรงๆ ไม่ง้อ GAS ===
                 btn.innerText = "⏳ กำลังให้ AI ตรวจสลิป...";
                 
-                const shouldAutoVerify = true; 
-                
-                if (shouldAutoVerify) {
-                    try {
-                        const gasRes = await fetch(CONFIG.gasWebhookUrl, {
-                            method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
-                            body: JSON.stringify({ action: 'verify_customer_slip', vendor_promptpay: vendorData.promptpay_number, slip_url: slipUrl, amount: total, vendor_id: vendorId })
-                        });
-                        
-                        const gasText = await gasRes.text();
-                        let result;
-                        try {
-                            result = JSON.parse(gasText);
-                        } catch (err) {
-                            console.error("GAS JSON PARSE ERROR:", err);
-                            throw new Error("GAS ตอบกลับไม่ใช่ JSON: " + gasText);
+                try {
+                    // ⚠️ สำคัญมาก: กรุณานำ API KEY ของ THUNDER มาใส่ในเครื่องหมายคำพูดด้านล่างนี้
+                    const thunderApiKey = "fdbee7b3-64f3-44d6-9a36-b63be5b531b6"; 
+                    
+                    const { data: verifyResult, error: verifyError } = await supabaseClient.rpc(
+                        'verify_slip_thunder',
+                        { 
+                            p_slip_url: slipUrl, 
+                            p_amount: Number(total), 
+                            p_api_key: thunderApiKey 
                         }
+                    );
 
-                        if (result.status === 'success') {
-                            orderStatus = 'processing'; 
-                        } else {
-                            const errCode = (result.debug && result.debug.code) ? result.debug.code : "";
-                            if (errCode === "AMOUNT_UNMATCHED") {
-                                orderStatus = 'pending';
-                                if (cart.length > 0) {
-                                    cart[0].note = (cart[0].note ? cart[0].note + " | " : "") + `⚠️ เตือน: ${result.msg}`;
-                                }
-                                alert(`⚠️ แจ้งเตือน: ยอดโอนไม่ตรงกับค่าอาหาร\n(${result.msg})\nระบบจะส่งออเดอร์ให้ร้านค้าตรวจสอบอีกครั้งครับ`);
-                            } else {
-                                alert(`❌ ตรวจสลิปไม่ผ่าน:\n${result.msg}\nกรุณาแนบสลิปที่ถูกต้องใหม่อีกครั้งครับ`);
-                                btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
-                                if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
-                                return;
-                            }
-                        }
-                    } catch (e) {
-                        console.error("VERIFY EXCEPTION:", e);
-                        alert("ระบบตรวจสลิปเกิดข้อผิดพลาด:\n" + e.message);
-                        btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
-                        if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
-                        return;
+                    if (verifyError || !verifyResult) {
+                        throw new Error(verifyError ? verifyError.message : "ไม่มีการตอบกลับจากระบบตรวจสอบ");
                     }
+
+                    if (verifyResult.status === 'success') {
+                        orderStatus = 'processing'; 
+                    } else {
+                        const errCode = (verifyResult.debug && verifyResult.debug.code) ? verifyResult.debug.code : "";
+                        
+                        if (errCode === "AMOUNT_UNMATCHED") {
+                            orderStatus = 'pending';
+                            if (cart.length > 0) {
+                                cart[0].note = (cart[0].note ? cart[0].note + " | " : "") + `⚠️ เตือน: ${verifyResult.msg}`;
+                            }
+                            alert(`⚠️ แจ้งเตือน: ยอดโอนไม่ตรงกับค่าอาหาร\n(${verifyResult.msg})\nระบบจะส่งออเดอร์ให้ร้านค้าตรวจสอบอีกครั้งครับ`);
+                        } else {
+                            // สลิปซ้ำ สลิปปลอม หรือดึงรูปไม่ได้
+                            alert(`❌ ตรวจสลิปไม่ผ่าน:\n${verifyResult.msg}\nกรุณาแนบสลิปที่ถูกต้องใหม่อีกครั้งครับ`);
+                            btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
+                            if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
+                            return; // 🛑 หยุด ไม่สร้างออเดอร์
+                        }
+                    }
+                } catch (e) {
+                    console.error("VERIFY EXCEPTION:", e);
+                    alert("ระบบตรวจสลิปเกิดข้อผิดพลาด:\n" + e.message);
+                    btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
+                    if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
+                    return; // 🛑 หยุด
                 }
+                
                 btn.innerText = "⏳ กำลังบันทึกออเดอร์...";
 
             } else {
@@ -397,9 +396,7 @@
                 if(cashBtn) cashBtn.innerText = "⏳ กำลังบันทึกออเดอร์...";
             }
 
-            // ---------------------------------------------------------
-            // [NEW] ใช้งาน RPC ของ Supabase (สร้างคิว + Insert ทันที)
-            // ---------------------------------------------------------
+            // === สร้างคิวและ Insert ออเดอร์แบบ Atomic ===
             const orderPayload = { 
                 vendor_id: vendorId, 
                 customer_uid: customerUid, 
@@ -410,7 +407,6 @@
             };
             if (branchId) orderPayload.branch_id = branchId;
 
-            // ยิงไปที่ RPC ฟังก์ชันที่เราสร้างใน Supabase ทีเดียวจบ
             const { data: insertedOrder, error: rpcError } = await supabaseClient.rpc(
                 'submit_order_with_number',
                 { p_payload: orderPayload }
@@ -418,24 +414,20 @@
 
             if (rpcError || !insertedOrder) {
                 console.error("Order RPC Error:", rpcError);
-                // ⭐️ ดึงข้อความ Error จริงๆ จาก Database มาโชว์
                 const exactError = rpcError ? (rpcError.message || rpcError.details || JSON.stringify(rpcError)) : "ไม่พบข้อมูลตอบกลับจาก Database";
-                
-                alert(`❌ ระบบขัดข้อง ไม่สามารถสร้างออเดอร์ได้\n\nสาเหตุจากฐานข้อมูล:\n${exactError}\n\n(รบกวนแคปหน้าจอนี้ให้ผมดูหน่อยนะครับ)`);
-                
+                alert(`❌ ระบบขัดข้อง ไม่สามารถสร้างออเดอร์ได้\n\nสาเหตุจากฐานข้อมูล:\n${exactError}`);
                 btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
                 if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
                 return;
             }
 
-            // รับเลขออเดอร์กลับมาจาก RPC
             const referenceNo = insertedOrder.reference_no;
             const queueNo = insertedOrder.queue_no;
 
             alert(orderStatus === 'processing' ? "✅ รับออเดอร์เรียบร้อย กำลังเตรียมอาหาร!" : "ส่งออเดอร์เรียบร้อยแล้ว!\n(รอร้านตรวจสอบและยืนยันสักครู่นะครับ)");
             
             if (customerUid) {
-                // ส่ง Notify กลับไปหาลูกค้าพร้อมแจ้งเลขคิว
+                // ยิง LINE แจ้งเตือนลูกค้าผ่าน GAS
                 fetch(CONFIG.gasWebhookUrl, {
                     method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
                     body: JSON.stringify({ 
