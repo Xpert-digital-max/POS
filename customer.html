@@ -418,7 +418,11 @@
 
             if (rpcError || !insertedOrder) {
                 console.error("Order RPC Error:", rpcError);
-                alert("ระบบจองคิวขัดข้อง ไม่สามารถสร้างออเดอร์ได้ กรุณาลองใหม่อีกครั้ง");
+                // ⭐️ ดึงข้อความ Error จริงๆ จาก Database มาโชว์
+                const exactError = rpcError ? (rpcError.message || rpcError.details || JSON.stringify(rpcError)) : "ไม่พบข้อมูลตอบกลับจาก Database";
+                
+                alert(`❌ ระบบขัดข้อง ไม่สามารถสร้างออเดอร์ได้\n\nสาเหตุจากฐานข้อมูล:\n${exactError}\n\n(รบกวนแคปหน้าจอนี้ให้ผมดูหน่อยนะครับ)`);
+                
                 btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
                 if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
                 return;
