@@ -60,7 +60,7 @@
                     <button onclick="closeCheckout()" style="flex: 1; padding: 12px; border: none; border-radius: 8px; background: #eee; font-weight: bold; cursor: pointer;">ยกเลิก</button>
                     <button id="confirmOrderBtn" onclick="submitOrder('transfer')" style="flex: 2; padding: 12px; border: none; border-radius: 8px; background: #06C755; color: white; font-weight: bold; cursor: pointer;">ยืนยันการสั่งซื้อ</button>
                 </div>
-                <!-- ปุ่มชำระเงินสดจะซ่อนไว้เป็นค่าเริ่มต้น (เปิดเมื่อตั้งค่าอนุญาต) -->
+                <!-- ปุ่มชำระเงินสดจะซ่อนไว้เป็นค่าเริ่มต้น -->
                 <button id="cashOrderBtn" onclick="submitOrder('cash')" style="display: none; padding: 12px; border: none; border-radius: 8px; background: #FF9800; color: white; font-weight: bold; cursor: pointer;">💵 ชำระด้วยเงินสดที่หน้าร้าน</button>
             </div>
         </div>
@@ -334,20 +334,12 @@
 
                 await new Promise(resolve => setTimeout(resolve, 2000));
                 
-                // === โค้ดใหม่: ตรวจสลิปผ่าน Supabase RPC พร้อมระบบป้องกันลืมใส่ API Key ===
                 btn.innerText = "⏳ กำลังให้ AI ตรวจสลิป...";
                 
                 try {
-                    // ⚠️ ใส่ API Key ของคุณในเครื่องหมายคำพูดด้านล่างนี้
+                    // ใส่ API Key ของ Thunder ตรงบรรทัดนี้ได้เลยครับ (ผมลบตัวเช็กกันลืมทิ้งไปแล้ว)
                     const thunderApiKey = "fdbee7b3-64f3-44d6-9a36-b63be5b531b6"; 
                     
-                    if (thunderApiKey === "ใส่_API_KEY_THUNDER_ที่นี่" || thunderApiKey === "xxxxxxxxxxxxxxxxx") {
-                        alert("⚠️ ระบบยังไม่พร้อมใช้งาน: กรุณาใส่ API Key ของ Thunder ในไฟล์ customer.html บรรทัดที่ 348 ก่อนครับ");
-                        btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
-                        if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
-                        return;
-                    }
-
                     const { data: verifyResult, error: verifyError } = await supabaseClient.rpc(
                         'verify_slip_thunder',
                         { 
