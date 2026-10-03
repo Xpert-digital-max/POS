@@ -790,13 +790,27 @@
                 CONFIG.pricingPlans.filter(p => p.price > 0).forEach(p => { 
                     optionsHtml += `<option value="${p.id}" data-price="${p.price}" data-days="${p.days}" data-quota="${p.quota}">${p.name} - ฿${p.price}</option>`; 
                 });
-                renewSelect.innerHTML = optionsHtml; updateRenewQr();
+                renewSelect.innerHTML = optionsHtml; 
+                
+                // === [PATCH] ดึงค่าที่เคยเลือกไว้กลับมาแสดง ไม่ให้เด้งกลับไปค่าเริ่มต้น ===
+                const savedRenew = localStorage.getItem('savedRenewPlan_' + vendorData.id);
+                if (savedRenew && document.querySelector(`#renewPlanSelect option[value="${savedRenew}"]`)) {
+                    renewSelect.value = savedRenew;
+                }
+                updateRenewQr();
             }
 
             const quotaSelect = document.getElementById('quotaPlanSelect'); let qHtml = '';
             if(CONFIG.quotaPlans) { 
                 CONFIG.quotaPlans.forEach(q => { qHtml += `<option value="${q.id}" data-price="${q.price}" data-quota="${q.quota}">${q.name} - ฿${q.price}</option>`; }); 
-                quotaSelect.innerHTML = qHtml; updateQuotaQr();
+                quotaSelect.innerHTML = qHtml; 
+                
+                // === [PATCH] ดึงค่าที่เคยเลือกไว้กลับมาแสดง ===
+                const savedQuota = localStorage.getItem('savedQuotaPlan_' + vendorData.id);
+                if (savedQuota && document.querySelector(`#quotaPlanSelect option[value="${savedQuota}"]`)) {
+                    quotaSelect.value = savedQuota;
+                }
+                updateQuotaQr();
             }
         }
 
@@ -854,8 +868,13 @@
         // =================================================================================
 
         function updateRenewQr() {
-            const opt = document.getElementById('renewPlanSelect').options[document.getElementById('renewPlanSelect').selectedIndex];
+            const select = document.getElementById('renewPlanSelect');
+            const opt = select.options[select.selectedIndex];
             if (!opt) return;
+            
+            // === [PATCH] บันทึกแพ็กเกจที่เลือกลง Memory ===
+            localStorage.setItem('savedRenewPlan_' + vendorData.id, select.value);
+
             const price = opt.getAttribute('data-price');
             document.getElementById('renewAmountText').innerText = `ยอดชำระ: ฿${price}`;
 
@@ -871,8 +890,13 @@
         }
 
         function updateQuotaQr() {
-            const opt = document.getElementById('quotaPlanSelect').options[document.getElementById('quotaPlanSelect').selectedIndex];
+            const select = document.getElementById('quotaPlanSelect');
+            const opt = select.options[select.selectedIndex];
             if (!opt) return;
+            
+            // === [PATCH] บันทึกแพ็กเกจโควต้าที่เลือกลง Memory ===
+            localStorage.setItem('savedQuotaPlan_' + vendorData.id, select.value);
+
             const price = opt.getAttribute('data-price');
             document.getElementById('quotaAmountText').innerText = `ยอดชำระ: ฿${price}`;
 
