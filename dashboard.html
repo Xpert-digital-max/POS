@@ -887,13 +887,15 @@
             }
         }
 
-        // ==================== [PATCH 2] อัปเดตการคิดค่า Affiliate Commission ====================
+        // ==================== อัปเดตการชำระแพ็กเกจ (เรียกใช้ Edge Function เดิม) ====================
         async function verifyAndRenewSubscription(btn) {
-            const fileInput = document.getElementById('renewSlipImage'); const select = document.getElementById('renewPlanSelect');
+            const fileInput = document.getElementById('renewSlipImage'); 
+            const select = document.getElementById('renewPlanSelect');
             const opt = select.options[select.selectedIndex]; 
 
             if (fileInput.files.length === 0) { alert("กรุณาเลือกไฟล์สลิป"); return; }
-            const expectedPrice = opt.getAttribute('data-price'); const planDays = parseInt(opt.getAttribute('data-days'));
+            const expectedPrice = opt.getAttribute('data-price'); 
+            const planDays = parseInt(opt.getAttribute('data-days'));
             const addedQuota = parseInt(opt.getAttribute('data-quota') || 0);
             const planId = select.value; 
             
@@ -905,20 +907,48 @@
 
             btn.innerText = "⏳ กำลังตรวจสอบ..."; btn.disabled = true;
             try {
-                const file = fileInput.files[0]; const fileName = `sub-slip-${vendorData.id}-${Date.now()}.${file.name.split('.').pop()}`;
+                const file = fileInput.files[0]; 
+                const fileName = `sub-slip-${vendorData.id}-${Date.now()}.${file.name.split('.').pop()}`;
                 const { error: uploadError } = await supabaseClient.storage.from('slip-images').upload(fileName, file);
                 if (uploadError) throw uploadError;
 
                 const { data: publicData } = supabaseClient.storage.from('slip-images').getPublicUrl(fileName);
                 const slipUrl = publicData.publicUrl;
 
-                const gasRes = await fetch(CONFIG.gasWebhookUrl, {
-                    method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
-                    body: JSON.stringify({ action: 'verify_subscription_slip', vendor_id: vendorData.id, slip_url: slipUrl, amount: expectedPrice })
-                });
+                // === เรียก Edge Function ตัวเดียวกับที่ลูกค้าใช้ ===
+                const { data: verifyResult, error: verifyError } = await supabaseClient.functions.invoke(
+                    'verify-slip-thunder',
+                    {
+                        body: {
+                            slip_url: slipUrl,
+                            amount: Number(expectedPrice),
+                            vendor_id: vendorData.id,
+                            branch_id: null,
+                            payment_context: 'SUBSCRIPTION_PAYMENT'
+                        }
+                    }
+                );
 
-                const result = await gasRes.json();
-                if (result.status === 'success') {
+                if (verifyError || !verifyResult) {
+                    throw new Error(verifyError ? verifyError.message : "ไม่มีการตอบกลับจากระบบตรวจสลิป");
+                }
+
+                // === บันทึก Log การชำระเงินส่วนกลาง ===
+                const isDuplicate = verifyResult.data?.isDuplicate === true || verifyResult.debug?.code === 'DUPLICATE_SLIP';
+                await supabaseClient.from('payment_transactions').insert([{
+                    vendor_id: vendorData.id,
+                    payment_context: 'SUBSCRIPTION_PAYMENT',
+                    amount_expected: Number(expectedPrice),
+                    amount_in_slip: verifyResult.data?.amountInSlip || null,
+                    slip_url: slipUrl,
+                    verification_status: verifyResult.status,
+                    is_duplicate: isDuplicate,
+                    raw_response: verifyResult
+                }]);
+
+                // === เช็คผลลัพธ์การตรวจสอบสลิป ===
+                if (verifyResult.status === 'success') {
+                    // [BUSINESS LOGIC หลังตรวจสลิปผ่าน]
                     let baseDate = new Date();
                     if (vendorData.subscription_expires_at) {
                         const currentExp = new Date(vendorData.subscription_expires_at);
@@ -932,25 +962,21 @@
                         slip_check_mode: selectedPlanObj.mode, is_subscription_active: true, slip_quota: newQuota
                     }).eq('id', vendorData.id);
 
-                    // ================= [PATCH 2] Affiliate Commission Logic =================
+                    // หักคอมมิชชั่น Affiliate
                     const commission = vendorData.referrer_id ? Number(selectedPlanObj.comm || 0) : 0;
-                    console.log("AFFILIATE DEBUG:", { buyer_vendor_id: vendorData.id, referrer_id: vendorData.referrer_id, plan_id: planId, commission: commission });
-
                     if (vendorData.referrer_id && commission > 0) {
                         const { data: refData, error: refError } = await supabaseClient.from('vendors').select('id, wallet_balance').eq('id', vendorData.referrer_id).single();
-                        if (refError) {
-                            console.error("AFFILIATE COMMISSION ERROR:", refError);
-                        } else {
-                            const oldBalance = Number(refData.wallet_balance || 0);
-                            const newBalance = oldBalance + commission;
+                        if (!refError) {
+                            const newBalance = Number(refData.wallet_balance || 0) + commission;
                             await supabaseClient.from('vendors').update({ wallet_balance: newBalance }).eq('id', vendorData.referrer_id);
                         }
                     }
-                    // =========================================================================
 
+                    // อัปเดต UI ชั่วคราว
                     vendorData.subscription_plan = planId; vendorData.subscription_expires_at = baseDate.toISOString(); 
                     vendorData.slip_check_mode = selectedPlanObj.mode; vendorData.is_subscription_active = true; vendorData.slip_quota = newQuota;
 
+                    // ยิง GAS แจ้งเตือนแอดมินตามเดิม
                     fetch(CONFIG.gasWebhookUrl, {
                         method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
                         body: JSON.stringify({
@@ -968,35 +994,72 @@
 
                     alert(`🎉 ต่ออายุแพ็กเกจเรียบร้อยแล้ว\nใช้งานได้ถึง ${baseDate.toLocaleDateString('th-TH')}`);
                     renderSubscriptionInfo(); await loadBillingInfo(); fileInput.value = '';
-                } else { alert("❌ ตรวจสอบไม่ผ่าน: " + (result.msg || "สลิปไม่ถูกต้อง")); }
+
+                } else { 
+                    // [กรณีสลิปไม่ผ่าน ยอดไม่ตรง ซ้ำ]
+                    let errorMsg = verifyResult.msg;
+                    if (verifyResult.debug?.code === 'AMOUNT_UNMATCHED') {
+                        errorMsg = `ยอดโอนไม่ตรง! (ในสลิป ${verifyResult.debug.amountInSlip || 0} ฿, ต้องชำระ ${expectedPrice} ฿)`;
+                    }
+                    alert(`❌ ตรวจสลิปไม่ผ่าน:\n${errorMsg}`);
+                }
             } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); }
             btn.innerText = "ยืนยันการต่ออายุ"; btn.disabled = false;
         }
-        // ========================================================================================
 
+        // ==================== อัปเดตการซื้อโควต้า (เรียกใช้ Edge Function เดิม) ====================
         async function verifyAndTopupQuota(btn) {
-            const fileInput = document.getElementById('quotaSlipImage'); const select = document.getElementById('quotaPlanSelect');
+            const fileInput = document.getElementById('quotaSlipImage'); 
+            const select = document.getElementById('quotaPlanSelect');
             const opt = select.options[select.selectedIndex]; 
 
             if (fileInput.files.length === 0) { alert("กรุณาเลือกไฟล์สลิป"); return; }
-            const expectedPrice = opt.getAttribute('data-price'); const addedQuota = parseInt(opt.getAttribute('data-quota'));
+            const expectedPrice = opt.getAttribute('data-price'); 
+            const addedQuota = parseInt(opt.getAttribute('data-quota'));
 
             btn.innerText = "⏳ กำลังตรวจสอบ..."; btn.disabled = true;
             try {
-                const file = fileInput.files[0]; const fileName = `quota-slip-${vendorData.id}-${Date.now()}.${file.name.split('.').pop()}`;
+                const file = fileInput.files[0]; 
+                const fileName = `quota-slip-${vendorData.id}-${Date.now()}.${file.name.split('.').pop()}`;
                 const { error: uploadError } = await supabaseClient.storage.from('slip-images').upload(fileName, file);
                 if (uploadError) throw uploadError;
 
                 const { data: publicData } = supabaseClient.storage.from('slip-images').getPublicUrl(fileName);
                 const slipUrl = publicData.publicUrl;
 
-                const gasRes = await fetch(CONFIG.gasWebhookUrl, {
-                    method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
-                    body: JSON.stringify({ action: 'verify_subscription_slip', vendor_id: vendorData.id, slip_url: slipUrl, amount: expectedPrice })
-                });
+                // === เรียก Edge Function ตัวเดียวกับที่ลูกค้าใช้ ===
+                const { data: verifyResult, error: verifyError } = await supabaseClient.functions.invoke(
+                    'verify-slip-thunder',
+                    {
+                        body: {
+                            slip_url: slipUrl,
+                            amount: Number(expectedPrice),
+                            vendor_id: vendorData.id,
+                            branch_id: null,
+                            payment_context: 'QUOTA_TOPUP'
+                        }
+                    }
+                );
 
-                const result = await gasRes.json();
-                if (result.status === 'success') {
+                if (verifyError || !verifyResult) {
+                    throw new Error(verifyError ? verifyError.message : "ไม่มีการตอบกลับจากระบบตรวจสลิป");
+                }
+
+                // === บันทึก Log การชำระเงินส่วนกลาง ===
+                const isDuplicate = verifyResult.data?.isDuplicate === true || verifyResult.debug?.code === 'DUPLICATE_SLIP';
+                await supabaseClient.from('payment_transactions').insert([{
+                    vendor_id: vendorData.id,
+                    payment_context: 'QUOTA_TOPUP',
+                    amount_expected: Number(expectedPrice),
+                    amount_in_slip: verifyResult.data?.amountInSlip || null,
+                    slip_url: slipUrl,
+                    verification_status: verifyResult.status,
+                    is_duplicate: isDuplicate,
+                    raw_response: verifyResult
+                }]);
+
+                if (verifyResult.status === 'success') {
+                    // [BUSINESS LOGIC หลังตรวจสลิปผ่าน]
                     const newQuota = (vendorData.slip_quota || 0) + addedQuota;
                     await supabaseClient.from('vendors').update({ slip_quota: newQuota }).eq('id', vendorData.id);
                     vendorData.slip_quota = newQuota;
@@ -1014,9 +1077,18 @@
                             commission: 0
                         })
                     }).catch(e => console.log(e));
+
                     alert(`🎉 เติมโควต้าสำเร็จ ได้รับเพิ่ม ${addedQuota} บิล\nโควต้าคงเหลือ: ${newQuota} บิล`);
                     renderSubscriptionInfo(); await loadBillingInfo(); fileInput.value = '';
-                } else { alert("❌ ตรวจสอบไม่ผ่าน: " + (result.msg || "สลิปไม่ถูกต้อง")); }
+
+                } else { 
+                    // [กรณีสลิปไม่ผ่าน ยอดไม่ตรง ซ้ำ]
+                    let errorMsg = verifyResult.msg;
+                    if (verifyResult.debug?.code === 'AMOUNT_UNMATCHED') {
+                        errorMsg = `ยอดโอนไม่ตรง! (ในสลิป ${verifyResult.debug.amountInSlip || 0} ฿, ต้องชำระ ${expectedPrice} ฿)`;
+                    }
+                    alert(`❌ ตรวจสลิปไม่ผ่าน:\n${errorMsg}`);
+                }
             } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); }
             btn.innerText = "ยืนยันการเติมโควต้า"; btn.disabled = false;
         }
