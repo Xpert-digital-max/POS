@@ -367,27 +367,50 @@
         document.addEventListener("click", unlockNotificationAudio, { once: true });
         document.addEventListener("touchstart", unlockNotificationAudio, { once: true });
 
-        // 🔊 ฟังก์ชันสร้างเสียงเตือนออเดอร์เข้า (อัปเดตใหม่)
-        function playNotificationSound() {
-            if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
-            if (!notificationAudioContext || !audioUnlocked) return;
+        // ==================== [PATCH] อัปเดตเสียงแจ้งเตือนออเดอร์ ====================
+        let isPlayingNotification = false; // ตัวแปรป้องกันเสียงทับกัน (Locking)
 
-            const playBeep = (startTime) => {
+        // 🔊 ฟังก์ชันสร้างเสียงเตือนออเดอร์เข้า (ดังยาว 6 วินาที และไม่ซ้อนกัน)
+        function playNotificationSound() {
+            // คง vibration ไว้ตามเดิม
+            if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
+            
+            // เช็กสิทธิ์ Audio และสถานะการเล่น
+            if (!notificationAudioContext || !audioUnlocked) return;
+            if (isPlayingNotification) return; // หากกำลังส่งเสียงอยู่ ให้ข้ามการเรียกซ้ำทันที
+
+            isPlayingNotification = true;
+            const now = notificationAudioContext.currentTime;
+            
+            // วางแผนลูปเสียงเตือนเป็นเวลา 6 วินาที (ดัง 12 ครั้ง ครั้งละ 0.4 วินาที)
+            const totalBeeps = 12;
+            const beepInterval = 0.5; // ระยะห่างแต่ละเสียง
+
+            for (let i = 0; i < totalBeeps; i++) {
+                const startTime = now + (i * beepInterval);
+                
                 const osc = notificationAudioContext.createOscillator();
                 const gainNode = notificationAudioContext.createGain();
+                
                 osc.connect(gainNode);
                 gainNode.connect(notificationAudioContext.destination);
+                
+                // ใช้คลื่น sine 880Hz แบบเดิม 
                 osc.type = 'sine';
                 osc.frequency.setValueAtTime(880, startTime);
-                gainNode.gain.setValueAtTime(0.1, startTime);
+                
+                // ปรับเสียงให้ดังขึ้นเป็น 50% (0.5) และค่อยๆ เฟดเสียงลงตอนปลายเพื่อไม่ให้เสียงแตก (Pop sound)
+                gainNode.gain.setValueAtTime(0.5, startTime);
+                gainNode.gain.setTargetAtTime(0, startTime + 0.3, 0.05);
+                
                 osc.start(startTime);
-                osc.stop(startTime + 0.15);
-            };
+                osc.stop(startTime + 0.4); // จบเสียงแต่ละรอบ
+            }
 
-            const now = notificationAudioContext.currentTime;
-            playBeep(now);
-            playBeep(now + 0.3);
-            playBeep(now + 0.6);
+            // ปลดล็อคสถานะเมื่อเสียงเล่นจบแบบอัตโนมัติ (6 วินาที)
+            setTimeout(() => {
+                isPlayingNotification = false;
+            }, (totalBeeps * beepInterval) * 1000);
         }
         // =====================================================================
 
