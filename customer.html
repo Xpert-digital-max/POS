@@ -337,44 +337,18 @@
                 btn.innerText = "⏳ กำลังให้ AI ตรวจสลิป...";
                 
                 try {
-                    // ใส่ API Key ของ Thunder ตรงบรรทัดนี้ได้เลยครับ (ผมลบตัวเช็กกันลืมทิ้งไปแล้ว)
-                    const thunderApiKey = "fdbee7b3-64f3-44d6-9a36-b63be5b531b6"; 
-                    
-                    // === เรียกใช้งาน Supabase Edge Function ตัวใหม่ (ปลอดภัย ไม่ต้องใช้ API Key บนหน้าเว็บ) ===
-const { data: verifyResult, error: verifyError } = await supabaseClient.functions.invoke(
-    'verify-slip-thunder',
-    {
-        body: {
-            slip_url: slipUrl,
-            amount: Number(total),
-            vendor_id: vendorId,
-            branch_id: branchId || null
-        }
-    }
-);
-
-if (verifyError || !verifyResult) {
-    throw new Error(verifyError ? verifyError.message : "ไม่มีการตอบกลับจากระบบตรวจสอบ");
-}
-
-if (verifyResult.status === 'success') {
-    orderStatus = 'processing'; 
-} else {
-    const errCode = (verifyResult.debug && verifyResult.debug.code) ? verifyResult.debug.code : "";
-    
-    if (errCode === "AMOUNT_UNMATCHED") {
-        orderStatus = 'pending';
-        if (cart.length > 0) {
-            cart[0].note = (cart[0].note ? cart[0].note + " | " : "") + `⚠️ เตือน: ${verifyResult.msg}`;
-        }
-        alert(`⚠️ แจ้งเตือน: ยอดโอนไม่ตรงกับค่าอาหาร\n(${verifyResult.msg})\nระบบจะส่งออเดอร์ให้ร้านค้าตรวจสอบอีกครั้งครับ`);
-    } else {
-        alert(`❌ ตรวจสลิปไม่ผ่าน:\n${verifyResult.msg}\nกรุณาแนบสลิปที่ถูกต้องใหม่อีกครั้งครับ`);
-        btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
-        if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
-        return; 
-    }
-}
+                    // === เรียกใช้งาน Supabase Edge Function ตัวใหม่แบบปลอดภัย 100% ===
+                    const { data: verifyResult, error: verifyError } = await supabaseClient.functions.invoke(
+                        'verify-slip-thunder',
+                        {
+                            body: {
+                                slip_url: slipUrl,
+                                amount: Number(total),
+                                vendor_id: vendorId,
+                                branch_id: branchId || null
+                            }
+                        }
+                    );
 
                     if (verifyError || !verifyResult) {
                         throw new Error(verifyError ? verifyError.message : "ไม่มีการตอบกลับจากระบบตรวจสอบ");
@@ -392,7 +366,6 @@ if (verifyResult.status === 'success') {
                             }
                             alert(`⚠️ แจ้งเตือน: ยอดโอนไม่ตรงกับค่าอาหาร\n(${verifyResult.msg})\nระบบจะส่งออเดอร์ให้ร้านค้าตรวจสอบอีกครั้งครับ`);
                         } else {
-                            // สลิปซ้ำ สลิปปลอม หรือดึงรูปไม่ได้
                             alert(`❌ ตรวจสลิปไม่ผ่าน:\n${verifyResult.msg}\nกรุณาแนบสลิปที่ถูกต้องใหม่อีกครั้งครับ`);
                             btn.innerText = "ยืนยันการสั่งซื้อ"; btn.disabled = false;
                             if(cashBtn){ cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
@@ -410,7 +383,6 @@ if (verifyResult.status === 'success') {
                 btn.innerText = "⏳ กำลังบันทึกออเดอร์...";
 
             } else {
-                // กรณีเลือกชำระเงินสด
                 orderStatus = 'pending';
                 if (cart.length > 0) {
                     cart[0].note = (cart[0].note ? cart[0].note + " | " : "") + "💵 ชำระเงินสดหน้าร้าน (กรุณาเก็บเงินก่อนยืนยันออเดอร์)";
@@ -418,7 +390,6 @@ if (verifyResult.status === 'success') {
                 if(cashBtn) cashBtn.innerText = "⏳ กำลังบันทึกออเดอร์...";
             }
 
-            // === สร้างคิวและ Insert ออเดอร์ ===
             const orderPayload = { 
                 vendor_id: vendorId, 
                 customer_uid: customerUid, 
