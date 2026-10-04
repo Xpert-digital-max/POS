@@ -67,7 +67,7 @@
         <div style="background: white; width: 90%; max-width: 320px; border-radius: 12px; padding: 20px; box-sizing: border-box; text-align: center;">
             <h3 style="margin-top: 0; color: #06C755;">🤝 ให้เพื่อนสแกน QR นี้</h3>
             <p style="font-size: 13px; color: #666; margin-bottom: 15px;">เมื่อเพื่อนสมัครใช้งาน คุณจะได้รับค่าแนะนำ</p>
-            <div id="affiliateQrImage" style="width: 200px; height: 200px; margin: 0 auto 15px auto; border: 1px solid #ddd; padding: 10px; border-radius: 8px;"></div>
+            <img id="affiliateQrImage" src="" style="width: 200px; height: 200px; margin: 0 auto 15px auto; border: 1px solid #ddd; padding: 10px; border-radius: 8px; display: block; box-sizing: border-box;">
             <button onclick="closeQrModal()" style="width: 100%; padding: 12px; border: none; border-radius: 6px; background: #eee; font-weight: bold; cursor: pointer; color: #555;">ปิดหน้าต่าง</button>
         </div>
     </div>
@@ -77,9 +77,24 @@
         <div style="background: white; width: 90%; max-width: 320px; border-radius: 12px; padding: 20px; box-sizing: border-box; text-align: center;">
             <h3 style="margin-top: 0; color: #00BCD4;">🍽️ สแกนเพื่อสั่งอาหาร</h3>
             <p style="font-size: 13px; color: #666; margin-bottom: 15px;">บันทึกรูปนี้ไปปริ้นตั้งโต๊ะให้ลูกค้าสแกนได้เลย</p>
-            <div id="customerQrImage" style="width: 200px; height: 200px; margin: 0 auto 10px auto; border: 1px solid #ddd; padding: 10px; border-radius: 8px;"></div>
+            <img id="customerQrImage" src="" style="width: 200px; height: 200px; margin: 0 auto 10px auto; border: 1px solid #ddd; padding: 10px; border-radius: 8px; display: block; box-sizing: border-box;">
             <p style="font-size: 11px; color: #888; margin-top: 0; margin-bottom: 15px;">(สามารถจับภาพหน้าจอเพื่อนำไปพิมพ์ได้เลย)</p>
             <button onclick="closeCustomerQrModal()" style="width: 100%; padding: 10px; border: none; border-radius: 6px; background: #eee; font-weight: bold; cursor: pointer; color: #555;">ปิดหน้าต่าง</button>
+        </div>
+    </div>
+
+    <!-- [NEW PATCH] Modal เพิ่มเมนูแบบรวดเร็ว (Text Import) -->
+    <div id="bulkAddModal" style="display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 400; justify-content: center; align-items: center;">
+        <div style="background: white; width: 90%; max-width: 500px; border-radius: 12px; padding: 20px; box-sizing: border-box;">
+            <h3 style="margin-top: 0; color: #06C755;">⚡ เพิ่มเมนูแบบข้อความ (หลายรายการ)</h3>
+            <p style="font-size: 13px; color: #666; margin-bottom: 10px;">ก๊อปปี้ข้อความเมนูมาวางได้เลย ระบบจะแยกชื่อ ราคา และหมวดหมู่ให้อัตโนมัติ</p>
+            
+            <textarea id="bulkMenuText" style="width: 100%; height: 200px; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; resize: none; font-size: 14px; background: #fafafa;" placeholder="-- รูปแบบการพิมพ์ --&#10;ชื่อเมนู, ราคา, หมวดหมู่, ตัวเลือก (ถ้ามี)&#10;&#10;-- ตัวอย่าง --&#10;ข้าวกะเพราหมูสับ, 50, อาหารจานเดียว, ความเผ็ด: เผ็ดมาก, เผ็ดน้อย&#10;ข้าวผัดกุ้ง, 60, อาหารจานเดียว&#10;น้ำเปล่า, 10, เครื่องดื่ม"></textarea>
+            
+            <div style="display: flex; gap: 10px;">
+                <button onclick="closeBulkAddModal()" style="flex: 1; padding: 12px; border: none; border-radius: 6px; background: #eee; font-weight: bold; cursor: pointer; color: #555;">ยกเลิก</button>
+                <button onclick="processBulkAdd()" id="bulkSaveBtn" style="flex: 2; padding: 12px; border: none; border-radius: 6px; background: #06C755; color: white; font-weight: bold; cursor: pointer;">💾 นำเข้าข้อมูล</button>
+            </div>
         </div>
     </div>
 
@@ -129,7 +144,12 @@
             </div>
 
             <div class="card" style="background: #f9f9f9; border: 1px dashed #ccc;">
-                <h3 style="margin-top: 0;" id="formTitle">🍔 เพิ่มเมนูใหม่</h3>
+                <!-- [PATCH] เปลี่ยน Header เพิ่มปุ่มนำเข้าแบบข้อความ -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h3 style="margin-top: 0; margin-bottom: 0;" id="formTitle">🍔 เพิ่มเมนูใหม่</h3>
+                    <button onclick="openBulkAddModal()" style="background: #e8f5e9; color: #06C755; border: 1px solid #06C755; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer;">⚡ นำเข้าแบบข้อความ</button>
+                </div>
+                
                 <input type="text" id="menuName" placeholder="ชื่อเมนู (เช่น ข้าวกะเพราหมูสับ)" style="width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
                 <label style="font-size: 13px; font-weight: bold; color: #555;">หมวดหมู่อาหาร</label>
                 <select id="menuCategorySelect" style="width: 100%; padding: 10px; margin-bottom: 10px; margin-top: 4px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
@@ -208,7 +228,6 @@
                     
                     <div style="background: white; padding: 12px; border-radius: 8px; text-align: center; margin-bottom: 10px; border: 1px solid #e0e0e0;">
                         <p style="margin: 0 0 6px 0; font-size: 13px; font-weight: bold; color: #333;">ชำระค่าบริการ</p>
-                        <!-- [PATCH] เปลี่ยน div เป็น img เพื่อใช้งานร่วมกับ QRious -->
                         <img id="adminQrImage" src="" style="width: 180px; height: 180px; margin: 0 auto 10px auto; display:none; border: 1px solid #ddd; padding: 4px; border-radius: 6px; box-sizing: border-box;">
                         <div id="adminBankInfoBox" class="admin-bank-box"></div>
                         <p id="renewAmountText" style="margin: 6px 0 0 0; font-size: 14px; font-weight: bold; color: #06C755;">ยอดชำระ: ฿0</p>
@@ -230,7 +249,6 @@
                     
                     <div style="background: white; padding: 12px; border-radius: 8px; text-align: center; margin-bottom: 10px; border: 1px solid #e0e0e0;">
                         <p style="margin: 0 0 6px 0; font-size: 13px; font-weight: bold; color: #333;">ชำระค่าโควต้าสลิป</p>
-                        <!-- [PATCH] เปลี่ยน div เป็น img เพื่อใช้งานร่วมกับ QRious -->
                         <img id="quotaQrImage" src="" style="width: 180px; height: 180px; margin: 0 auto 10px auto; display:none; border: 1px solid #ddd; padding: 4px; border-radius: 6px; box-sizing: border-box;">
                         <div id="quotaBankInfoBox" class="admin-bank-box"></div>
                         <p id="quotaAmountText" style="margin: 6px 0 0 0; font-size: 14px; font-weight: bold; color: #06C755;">ยอดชำระ: ฿0</p>
@@ -267,7 +285,7 @@
                     </select>
                     
                     <div id="divPromptpay">
-                        <label style="font-size: 13px; font-weight: bold; color: #555;">เบอร์พร้อมเพย์ (ตัวเลขล้วน)</label>
+                        <label style="font-size: 13px; font-weight: bold; color: #555;">เบอร์พร้อมเพย์ (ตัวเลขล้วน 10 หรือ 13 หลัก)</label>
                         <input type="text" id="settingPromptpay" placeholder="เช่น 0812345678" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
                     </div>
                     
@@ -386,27 +404,23 @@
             return payload + crcHex;
         }
 
-        // ==================== [PATCH] ระบบวาด QR Code กลาง (Dynamic Redraw) ====================
+        // ==================== ระบบวาด QR Code กลาง (Dynamic Redraw) ====================
         function renderPromptPayQR({ containerId, promptpayId, amount, logPrefix }) {
             const qrImg = document.getElementById(containerId);
             if (!qrImg) return;
 
-            // 1. ลบ QR เดิมทิ้งก่อนเสมอ
             qrImg.src = '';
             qrImg.style.display = 'none';
 
-            // 2. สร้าง Payload ใหม่
             const payload = generatePromptPayPayload(promptpayId, amount);
             if (!payload) {
                 console.error(`[${logPrefix}] Error: ข้อมูลพร้อมเพย์ไม่ถูกต้อง`);
                 return;
             }
 
-            // 3. ปรินท์ Log Debug ยืนยันการเปลี่ยนแปลง Payload
             const payloadSuffix = payload.length > 8 ? payload.substring(payload.length - 8) : payload;
             console.log(`[${logPrefix}] AMOUNT = ${amount} | PAYLOAD_LEN = ${payload.length} | SUFFIX = ${payloadSuffix}`);
 
-            // 4. วาด QR อันใหม่
             try {
                 const qr = new QRious({ 
                     value: payload, 
@@ -980,7 +994,6 @@
             }
         }
 
-        // ==================== [PATCH] อัปเดตแพ็กเกจด้วย Dynamic QR (ออฟไลน์) ====================
         function updateRenewQr() {
             const select = document.getElementById('renewPlanSelect');
             const opt = select.options[select.selectedIndex];
@@ -991,28 +1004,21 @@
             const price = opt.getAttribute('data-price');
             document.getElementById('renewAmountText').innerText = `ยอดชำระ: ฿${price}`;
 
-            const qrContainer = document.getElementById('adminQrImage');
-            qrContainer.src = ''; // ล้างแคชรูปเก่าออกทุกครั้ง
-
             if (CONFIG.adminPaymentType === 'bank') {
-                qrContainer.style.display = 'none';
+                document.getElementById('adminQrImage').style.display = 'none';
                 document.getElementById('adminBankInfoBox').style.display = 'block';
                 document.getElementById('adminBankInfoBox').innerHTML = `<b>โอนเข้าบัญชีผู้ให้บริการ:</b><br>${CONFIG.adminBankInfo}<br>เลขบัญชี: ${CONFIG.adminPromptpay}`;
             } else {
                 document.getElementById('adminBankInfoBox').style.display = 'none';
-                qrContainer.style.display = 'block';
-                
-                // คำนวณ Payload และวาดใหม่ทันที
-                let payload = generatePromptPayPayload(CONFIG.adminPromptpay || '0812345678', price);
-                if (payload) {
-                    const qr = new QRious({ value: payload, size: 250, level: 'L' });
-                    qrContainer.src = qr.toDataURL();
-                    console.log(`[RENEW] AMOUNT = ${price} | PAYLOAD = ${payload.length > 8 ? payload.substring(payload.length - 8) : payload}`);
-                }
+                renderPromptPayQR({
+                    containerId: 'adminQrImage',
+                    promptpayId: CONFIG.adminPromptpay || '0812345678',
+                    amount: price,
+                    logPrefix: 'RENEW'
+                });
             }
         }
 
-        // ==================== [PATCH] อัปเดตซื้อโควต้าด้วย Dynamic QR (ออฟไลน์) ====================
         function updateQuotaQr() {
             const select = document.getElementById('quotaPlanSelect');
             const opt = select.options[select.selectedIndex];
@@ -1023,24 +1029,18 @@
             const price = opt.getAttribute('data-price');
             document.getElementById('quotaAmountText').innerText = `ยอดชำระ: ฿${price}`;
 
-            const qrContainer = document.getElementById('quotaQrImage');
-            qrContainer.src = ''; // ล้างแคชรูปเก่าออกทุกครั้ง
-
             if (CONFIG.adminPaymentType === 'bank') {
-                qrContainer.style.display = 'none';
+                document.getElementById('quotaQrImage').style.display = 'none';
                 document.getElementById('quotaBankInfoBox').style.display = 'block';
                 document.getElementById('quotaBankInfoBox').innerHTML = `<b>โอนเข้าบัญชีผู้ให้บริการ:</b><br>${CONFIG.adminBankInfo}<br>เลขบัญชี: ${CONFIG.adminPromptpay}`;
             } else {
                 document.getElementById('quotaBankInfoBox').style.display = 'none';
-                qrContainer.style.display = 'block';
-                
-                // คำนวณ Payload และวาดใหม่ทันที
-                let payload = generatePromptPayPayload(CONFIG.adminPromptpay || '0812345678', price);
-                if (payload) {
-                    const qr = new QRious({ value: payload, size: 250, level: 'L' });
-                    qrContainer.src = qr.toDataURL();
-                    console.log(`[QUOTA] AMOUNT = ${price} | PAYLOAD = ${payload.length > 8 ? payload.substring(payload.length - 8) : payload}`);
-                }
+                renderPromptPayQR({
+                    containerId: 'quotaQrImage',
+                    promptpayId: CONFIG.adminPromptpay || '0812345678',
+                    amount: price,
+                    logPrefix: 'QUOTA'
+                });
             }
         }
 
@@ -1235,6 +1235,103 @@
                 }
             } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); }
             btn.innerText = "ยืนยันการเติมโควต้า"; btn.disabled = false;
+        }
+
+        // ==================== [PATCH] ระบบเพิ่มเมนูแบบข้อความรวดเร็ว (Bulk Add) ====================
+        function openBulkAddModal() {
+            document.getElementById('bulkAddModal').style.display = 'flex';
+        }
+
+        function closeBulkAddModal() {
+            document.getElementById('bulkAddModal').style.display = 'none';
+            document.getElementById('bulkMenuText').value = '';
+        }
+
+        async function processBulkAdd() {
+            const text = document.getElementById('bulkMenuText').value.trim();
+            if (!text) return alert("กรุณาวางข้อมูลเมนูที่ต้องการเพิ่ม");
+
+            const lines = text.split('\n');
+            const insertPayload = [];
+            let errorLines = [];
+
+            const btn = document.getElementById('bulkSaveBtn');
+            btn.innerText = "⏳ กำลังประมวลผล..."; btn.disabled = true;
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line || line.startsWith('--')) continue; 
+
+                const parts = line.split(',').map(p => p.trim());
+                
+                if (parts.length < 2) {
+                    errorLines.push(`บรรทัด ${i+1}: ข้อมูลไม่ครบ (${line})`);
+                    continue;
+                }
+
+                const name = parts[0];
+                const price = parseFloat(parts[1]);
+
+                if (isNaN(price)) {
+                    errorLines.push(`บรรทัด ${i+1}: ราคาไม่ใช่ตัวเลข (${line})`);
+                    continue;
+                }
+
+                const catName = parts[2] ? parts[2] : null;
+                let catId = null;
+                const options = parts.length > 3 ? parts.slice(3).join(', ').trim() : ''; 
+
+                if (catName) {
+                    let existingCat = categories.find(c => c.name.toLowerCase() === catName.toLowerCase());
+                    if (existingCat) {
+                        catId = existingCat.id;
+                    } else {
+                        const { data: newCat, error: catErr } = await supabaseClient.from('categories')
+                            .insert([{ vendor_id: vendorData.id, name: catName }]).select().single();
+                        if (newCat) {
+                            categories.push(newCat);
+                            catId = newCat.id;
+                        }
+                    }
+                }
+
+                insertPayload.push({
+                    vendor_id: vendorData.id,
+                    name: name,
+                    price: price,
+                    category_id: catId,
+                    options: options,
+                    is_available: true
+                });
+            }
+
+            if (insertPayload.length === 0) {
+                alert("ไม่มีข้อมูลที่ถูกต้องให้บันทึก\n\nข้อผิดพลาดที่พบ:\n" + errorLines.join('\n'));
+                btn.innerText = "💾 นำเข้าข้อมูล"; btn.disabled = false;
+                return;
+            }
+
+            if (errorLines.length > 0) {
+                const confirmMsg = `พบข้อผิดพลาดบางบรรทัด (ถูกข้ามไป):\n${errorLines.join('\n')}\n\nต้องการบันทึกรายการที่ถูกต้อง (${insertPayload.length} รายการ) เลยหรือไม่?`;
+                if (!confirm(confirmMsg)) {
+                    btn.innerText = "💾 นำเข้าข้อมูล"; btn.disabled = false;
+                    return;
+                }
+            }
+
+            try {
+                const { error } = await supabaseClient.from('menu_items').insert(insertPayload);
+                if (error) throw error;
+
+                alert(`🎉 บันทึกสำเร็จทั้งหมด ${insertPayload.length} รายการ!`);
+                closeBulkAddModal();
+                await loadCategories(); 
+                loadMenuItems(); 
+            } catch (err) {
+                alert("เกิดข้อผิดพลาดในการบันทึก: " + err.message);
+            }
+            
+            btn.innerText = "💾 นำเข้าข้อมูล"; btn.disabled = false;
         }
 
         // ==================== ระบบหมวดหมู่ & จัดการเมนู ====================
