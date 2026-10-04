@@ -7,7 +7,6 @@
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <!-- [PATCH] นำเข้าไลบรารี QRious เพื่อรองรับการวาด QR แบบใหม่ -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
     <script src="config.js"></script>
     <style>
@@ -33,7 +32,6 @@
         .billing-total { display: flex; justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px dashed #bcdcff; font-weight: bold; font-size: 16px; color: #0d47a1; }
         .admin-bank-box { background: #e3f2fd; padding: 10px; border-radius: 6px; border: 1px dashed #2196F3; font-size: 13px; color: #0d47a1; margin-bottom: 10px; display: none; text-align: left;}
 
-        /* สไตล์เสริมสำหรับแท็บตัวกรองสาขา */
         .branch-filter-btn { padding: 8px 14px; border: none; border-radius: 20px; cursor: pointer; white-space: nowrap; font-size: 13px; font-weight: bold; transition: 0.2s; }
         .branch-filter-btn.active { background: #06C755; color: white; box-shadow: 0 2px 5px rgba(6,199,85,0.3); }
         .branch-filter-btn.inactive { background: #e0e0e0; color: #555; }
@@ -83,13 +81,21 @@
         </div>
     </div>
 
-    <!-- [NEW PATCH] Modal เพิ่มเมนูแบบรวดเร็ว (Text Import) -->
+    <!-- [PATCH] Modal เพิ่มเมนูแบบรวดเร็ว (อัปเดต UI คำแนะนำ) -->
     <div id="bulkAddModal" style="display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 400; justify-content: center; align-items: center;">
         <div style="background: white; width: 90%; max-width: 500px; border-radius: 12px; padding: 20px; box-sizing: border-box;">
-            <h3 style="margin-top: 0; color: #06C755;">⚡ เพิ่มเมนูแบบข้อความ (หลายรายการ)</h3>
-            <p style="font-size: 13px; color: #666; margin-bottom: 10px;">ก๊อปปี้ข้อความเมนูมาวางได้เลย ระบบจะแยกชื่อ ราคา และหมวดหมู่ให้อัตโนมัติ</p>
+            <h3 style="margin-top: 0; color: #06C755;">⚡ เพิ่มเมนูแบบข้อความ</h3>
+            <p style="font-size: 13px; color: #666; margin-bottom: 8px;">ก๊อปปี้ข้อความเมนูมาวางได้เลย ระบบจะแยกให้อัตโนมัติ</p>
             
-            <textarea id="bulkMenuText" style="width: 100%; height: 200px; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; resize: none; font-size: 14px; background: #fafafa;" placeholder="-- รูปแบบการพิมพ์ --&#10;ชื่อเมนู, ราคา, หมวดหมู่, ตัวเลือก (ถ้ามี)&#10;&#10;-- ตัวอย่าง --&#10;ข้าวกะเพราหมูสับ, 50, อาหารจานเดียว, ความเผ็ด: เผ็ดมาก, เผ็ดน้อย&#10;ข้าวผัดกุ้ง, 60, อาหารจานเดียว&#10;น้ำเปล่า, 10, เครื่องดื่ม"></textarea>
+            <!-- กล่องไกด์ไลน์ (แสดงถาวร ไม่หายไปตอนพิมพ์) -->
+            <div style="background: #f5f5f5; padding: 10px; border-radius: 6px; margin-bottom: 10px; border-left: 3px solid #06C755;">
+                <span style="font-size: 12px; font-weight: bold; color: #333;">รูปแบบ:</span><br>
+                <span style="font-size: 12px; color: #555;">ชื่อเมนู, ราคา, หมวดหมู่, ตัวเลือก(ถ้ามี)</span><br><br>
+                <span style="font-size: 12px; font-weight: bold; color: #333;">ตัวอย่าง:</span><br>
+                <span style="font-size: 12px; color: #555;">ข้าวกะเพราหมูสับ, 50, อาหารจานเดียว, ไข่: ไข่ดาว, ไข่เจียว<br>ข้าวผัดกุ้ง, 60, อาหารจานเดียว</span>
+            </div>
+            
+            <textarea id="bulkMenuText" placeholder="วางข้อมูลเมนูที่นี่..." style="width: 100%; height: 150px; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; resize: none; font-size: 14px; background: #fafafa;"></textarea>
             
             <div style="display: flex; gap: 10px;">
                 <button onclick="closeBulkAddModal()" style="flex: 1; padding: 12px; border: none; border-radius: 6px; background: #eee; font-weight: bold; cursor: pointer; color: #555;">ยกเลิก</button>
@@ -144,7 +150,6 @@
             </div>
 
             <div class="card" style="background: #f9f9f9; border: 1px dashed #ccc;">
-                <!-- [PATCH] เปลี่ยน Header เพิ่มปุ่มนำเข้าแบบข้อความ -->
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <h3 style="margin-top: 0; margin-bottom: 0;" id="formTitle">🍔 เพิ่มเมนูใหม่</h3>
                     <button onclick="openBulkAddModal()" style="background: #e8f5e9; color: #06C755; border: 1px solid #06C755; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer;">⚡ นำเข้าแบบข้อความ</button>
@@ -373,7 +378,6 @@
         let lastSeenOrderId = null;
         let initialOrderLoadDone = false;
 
-        // ================= EMVCo PromptPay Generator =================
         function generatePromptPayPayload(promptpayId, amount) {
             let id = promptpayId.replace(/\D/g, '');
             if (id.length !== 10 && id.length !== 13 && id.length !== 15) return null;
@@ -404,7 +408,6 @@
             return payload + crcHex;
         }
 
-        // ==================== ระบบวาด QR Code กลาง (Dynamic Redraw) ====================
         function renderPromptPayQR({ containerId, promptpayId, amount, logPrefix }) {
             const qrImg = document.getElementById(containerId);
             if (!qrImg) return;
@@ -1044,7 +1047,6 @@
             }
         }
 
-        // ==================== อัปเดตการชำระแพ็กเกจ (เรียกใช้ Edge Function เดิม) ====================
         async function verifyAndRenewSubscription(btn) {
             const fileInput = document.getElementById('renewSlipImage'); 
             const select = document.getElementById('renewPlanSelect');
@@ -1237,7 +1239,7 @@
             btn.innerText = "ยืนยันการเติมโควต้า"; btn.disabled = false;
         }
 
-        // ==================== [PATCH] ระบบเพิ่มเมนูแบบข้อความรวดเร็ว (Bulk Add) ====================
+        // ==================== [NEW PATCH] ระบบเพิ่มเมนูแบบข้อความรวดเร็ว (Bulk Add) ====================
         function openBulkAddModal() {
             document.getElementById('bulkAddModal').style.display = 'flex';
         }
@@ -1260,7 +1262,8 @@
 
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i].trim();
-                if (!line || line.startsWith('--')) continue; 
+                // ข้ามบรรทัดว่าง
+                if (!line) continue; 
 
                 const parts = line.split(',').map(p => p.trim());
                 
@@ -1279,13 +1282,16 @@
 
                 const catName = parts[2] ? parts[2] : null;
                 let catId = null;
+                // ถ้าร้านใส่ตัวเลือกมา จะเอามารวมกันคืนด้วยคอมม่า
                 const options = parts.length > 3 ? parts.slice(3).join(', ').trim() : ''; 
 
                 if (catName) {
+                    // หา ID ของหมวดหมู่
                     let existingCat = categories.find(c => c.name.toLowerCase() === catName.toLowerCase());
                     if (existingCat) {
                         catId = existingCat.id;
                     } else {
+                        // ถ้าไม่มีหมวดหมู่นี้ สร้างใหม่ให้อัตโนมัติทันที
                         const { data: newCat, error: catErr } = await supabaseClient.from('categories')
                             .insert([{ vendor_id: vendorData.id, name: catName }]).select().single();
                         if (newCat) {
