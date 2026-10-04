@@ -6,7 +6,8 @@
     <title>สั่งอาหาร</title>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- [PATCH] เปลี่ยนไลบรารี QR เป็น QRious เพื่อแก้ปัญหา DOM display:none -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
     <script src="config.js"></script>
     <style>body{font-family:sans-serif;margin:0;background-color:#f4f6f8;padding-bottom:80px;}.header{background:white;padding:12px 16px;display:flex;align-items:center;gap:14px;border-bottom:1px solid #e0e0e0;box-shadow:0 1px 3px rgba(0,0,0,0.05);}.header img{width:52px;height:52px;border-radius:50%;object-fit:cover;border:2px solid #06C755;flex-shrink:0;}.header-info{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;}.header h2{margin:0 0 3px 0;font-size:17px;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.status-badge{display:inline-block;width:fit-content;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:bold;}.status-open{background:#e8f5e9;color:#4caf50;}.status-closed{background:#ffebee;color:#f44336;}.category-bar{display:flex;gap:8px;overflow-x:auto;white-space:nowrap;padding:10px 15px;background:white;border-bottom:1px solid #eee;-webkit-overflow-scrolling:touch;}.category-bar::-webkit-scrollbar{display:none;}.cat-btn{background:#f0f0f0;border:none;padding:7px 15px;border-radius:20px;font-size:13px;font-weight:bold;color:#555;cursor:pointer;flex-shrink:0;transition:all 0.2s;}.cat-btn.active{background:#06C755;color:white;}.menu-container{padding:15px;}.menu-card{background:white;border-radius:10px;padding:15px;margin-bottom:15px;display:flex;gap:15px;box-shadow:0 2px 5px rgba(0,0,0,0.05);}.menu-img{width:80px;height:80px;border-radius:8px;object-fit:cover;}.menu-info{flex:1;display:flex;flex-direction:column;justify-content:space-between;}.menu-info h4{margin:0 0 5px 0;font-size:16px;}.menu-info p{margin:0;color:#06C755;font-weight:bold;font-size:14px;}.add-btn{background:#e8f5e9;color:#06C755;border:none;padding:6px 15px;border-radius:20px;font-size:13px;font-weight:bold;cursor:pointer;}.cart-footer{position:fixed;bottom:0;left:0;right:0;background:white;padding:15px 20px;box-shadow:0 -2px 10px rgba(0,0,0,0.1);display:flex;justify-content:space-between;align-items:center;z-index:100;transform:translateY(100%);transition:transform 0.3s;}.cart-footer.show{transform:translateY(0);}.cart-total{font-size:18px;font-weight:bold;color:#333;}.checkout-btn{background:#06C755;color:white;border:none;padding:12px 25px;border-radius:25px;font-size:16px;font-weight:bold;cursor:pointer;}#closedOverlay{display:none;background:rgba(255,255,255,0.9);position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;justify-content:center;align-items:center;flex-direction:column;}.modal-overlay{display:none;background:rgba(0,0,0,0.5);position:fixed;top:0;left:0;right:0;bottom:0;z-index:300;justify-content:center;align-items:flex-end;}.modal-content{background:white;width:100%;max-height:85vh;border-radius:20px 20px 0 0;padding:20px;box-sizing:border-box;overflow-y:auto;}.qty-control{display:flex;align-items:center;gap:15px;}.qty-btn{background:#f0f0f0;border:none;width:32px;height:32px;border-radius:50%;font-size:18px;font-weight:bold;cursor:pointer;color:#333;}.qty-btn.add{background:#06C755;color:white;}.copy-bank-btn{background:#e0f7fa;color:#00838f;border:1px solid #b2ebf2;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;margin-bottom:10px;}</style>
 </head>
@@ -42,12 +43,12 @@
             <h3 style="text-align: right; color: #06C755;">ยอดโอน: <span id="checkoutTotal">0</span> บาท</h3>
             
             <div style="background: #f9f9f9; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 15px;">
-                <!-- ปรับโครงสร้างเพื่อรองรับ QR แบบ Local Canvas -->
                 <div id="paymentQRWrapper">
                     <p style="margin: 0 0 10px 0; font-weight: bold;">สแกนจ่ายผ่าน QR Code</p>
-                    <div id="paymentQRContainer" style="display: none; justify-content: center; align-items: center; margin-bottom: 10px; border: 1px solid #ddd; padding: 5px; border-radius: 8px; background: white;">
-                        <!-- QR Code จะถูกวาดด้วย qrcode.js ที่นี่ -->
+                    <div id="paymentQRContainer" style="display: none; justify-content: center; align-items: center; margin-bottom: 10px; border: 1px solid #ddd; padding: 10px; border-radius: 8px; background: white;">
+                        <img id="qrCodeImage" src="" style="width: 180px; height: 180px; display: block; margin: 0 auto;">
                     </div>
+                    <div id="qrErrorMsg" style="display:none; padding:15px; border:1px solid #ff4d4f; border-radius:8px; background:#fff1f0; color:#cf1322; text-align:center; margin-bottom:10px;"></div>
                 </div>
 
                 <div id="paymentBankContainer" style="display: none;">
@@ -65,7 +66,6 @@
                     <button onclick="closeCheckout()" style="flex: 1; padding: 12px; border: none; border-radius: 8px; background: #eee; font-weight: bold; cursor: pointer;">ยกเลิก</button>
                     <button id="confirmOrderBtn" onclick="submitOrder('transfer')" style="flex: 2; padding: 12px; border: none; border-radius: 8px; background: #06C755; color: white; font-weight: bold; cursor: pointer;">ยืนยันการสั่งซื้อ</button>
                 </div>
-                <!-- ปุ่มชำระเงินสดจะซ่อนไว้เป็นค่าเริ่มต้น -->
                 <button id="cashOrderBtn" onclick="submitOrder('cash')" style="display: none; padding: 12px; border: none; border-radius: 8px; background: #FF9800; color: white; font-weight: bold; cursor: pointer;">💵 ชำระด้วยเงินสดที่หน้าร้าน</button>
             </div>
         </div>
@@ -82,16 +82,13 @@
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
         let vendorId = null;
         let branchId = null; 
-        let branchData = null; // เพิ่มตัวแปรสำหรับเก็บข้อมูลสาขา
+        let branchData = null; 
         let vendorData = null; let menuData = []; let cart = []; let customerUid = null; let selectedCategory = 'all';
         let currentModalItem = null; let currentModalQty = 1;
 
         // ================= EMVCo PromptPay Generator =================
         function generatePromptPayPayload(promptpayId, amount) {
-            // Normalize: ลบทุกอย่างที่ไม่ใช่ตัวเลขออก
             let id = promptpayId.replace(/\D/g, '');
-            
-            // เช็กความยาวว่าถูกต้องตามมาตรฐานหรือไม่ (10 = เบอร์มือถือ, 13 = บัตรปชช/เลขนิติบุคคล, 15 = E-Wallet)
             if (id.length !== 10 && id.length !== 13 && id.length !== 15) return null;
 
             let target = '';
@@ -99,18 +96,15 @@
             else if (id.length === 13) { target = '0213' + id; } 
             else if (id.length === 15) { target = '0315' + id; }
 
-            // ร่าง Payload (AID + Target + Currency + Country)
             let payload = "00020101021229370016A000000677010111" + target + "53037645802TH";
             
-            // เติมยอดเงิน (Dynamic Amount)
             if (amount && amount > 0) {
                 let amountStr = parseFloat(amount).toFixed(2);
                 let amountLen = amountStr.length.toString().padStart(2, '0');
                 payload += "54" + amountLen + amountStr;
             }
-            payload += "6304"; // เตรียมต่อด้วย CRC16
+            payload += "6304"; 
 
-            // คำนวณ Checksum CRC16-CCITT
             let crc = 0xFFFF;
             for (let i = 0; i < payload.length; i++) {
                 crc ^= payload.charCodeAt(i) << 8;
@@ -185,10 +179,9 @@
                 if (branchId) {
                     const { data: bData } = await supabaseClient.from('branches').select('*').eq('id', branchId).single();
                     if (bData) {
-                        branchData = bData; // เก็บข้อมูลสาขาลงตัวแปรที่แยกต่างหาก
+                        branchData = bData; 
                         vendorData.name = `${vendorData.name} (${bData.branch_name})`;
                         
-                        // ระบบเก่าเก็บ promptpay อย่างเดียว เราต้องตรวจจับ Legacy Schema
                         if (!branchData.payment_type && branchData.promptpay) {
                              if (branchData.promptpay.match(/[ก-๙a-zA-Z]/)) {
                                  branchData.payment_type = 'bank';
@@ -250,7 +243,8 @@
             if (filtered.length === 0) { container.innerHTML = '<p style="text-align: center; color: #888; padding: 20px 0;">ไม่มีเมนูในหมวดหมู่นี้</p>'; return; }
             let html = '';
             filtered.forEach(item => {
-                const imgSrc = item.image_url ? item.image_url : 'https://via.placeholder.com/80?text=Food';
+                // [PATCH] ดักจับกรณีเว้นวรรคเปล่าๆ ให้แสดงภาพ Placeholder
+                const imgSrc = (item.image_url && item.image_url.trim() !== '') ? item.image_url : 'https://via.placeholder.com/80?text=Food';
                 const currentQty = cart.filter(c => c.id === item.id).reduce((sum, c) => sum + c.qty, 0);
                 html += `<div class="menu-card"><img src="${imgSrc}" class="menu-img"><div class="menu-info"><div><h4>${item.name}</h4><p>฿${item.price}</p></div><div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;"><span style="font-size: 12px; color: #888;">ในตะกร้า: <strong style="color:#06C755;">${currentQty}</strong></span><button class="add-btn" onclick="openItemModal('${item.id}')">+ เลือก</button></div></div></div>`;
             });
@@ -259,7 +253,11 @@
 
         function openItemModal(id) {
             const item = menuData.find(m => m.id === id); if (!item) return; currentModalItem = item; currentModalQty = 1;
-            document.getElementById('modalItemImg').src = item.image_url || 'https://via.placeholder.com/200?text=Food'; document.getElementById('modalItemName').innerText = item.name; document.getElementById('modalItemPrice').innerText = '฿' + item.price; document.getElementById('modalItemNote').value = ''; document.getElementById('modalItemQty').innerText = currentModalQty; updateModalTotal();
+            // [PATCH] ดักจับกรณีเว้นวรรคเปล่าๆ ไม่ให้รูปภาพใน Modal แตก
+            const imgSrc = (item.image_url && item.image_url.trim() !== '') ? item.image_url : 'https://via.placeholder.com/200?text=Food';
+            document.getElementById('modalItemImg').src = imgSrc; 
+            document.getElementById('modalItemName').innerText = item.name; 
+            document.getElementById('modalItemPrice').innerText = '฿' + item.price; document.getElementById('modalItemNote').value = ''; document.getElementById('modalItemQty').innerText = currentModalQty; updateModalTotal();
 
             const optContainer = document.getElementById('modalOptionsContainer'); const optList = document.getElementById('modalOptionsList');
             if (item.options && item.options.trim() !== '') {
@@ -309,18 +307,17 @@
             const totalAmount = document.getElementById('totalPrice').innerText;
             document.getElementById('checkoutTotal').innerText = totalAmount;
 
-            // =============== ระบบเลือกช่องทางชำระเงิน (Priority: Branch > Main) ===============
             let targetPaymentType = 'promptpay';
             let targetPromptpay = '';
             let targetBankInfo = '';
             let paymentSource = 'main';
 
-            if (branchData && branchData.id) { // ถ้ามีข้อมูลสาขา ใช้ตั้งค่าของสาขาก่อน
+            if (branchData && branchData.id) { 
                 paymentSource = 'branch';
                 targetPaymentType = branchData.payment_type || 'promptpay';
                 targetPromptpay = branchData.promptpay_number || branchData.promptpay || '';
                 targetBankInfo = branchData.bank_info || '';
-            } else if (vendorData) { // ไม่มีสาขา ใช้สาขาหลัก (Main)
+            } else if (vendorData) { 
                 paymentSource = 'main';
                 targetPaymentType = vendorData.payment_type || 'promptpay';
                 targetPromptpay = vendorData.promptpay_number || '';
@@ -329,14 +326,14 @@
 
             const qrWrapper = document.getElementById('paymentQRWrapper');
             const qrContainer = document.getElementById('paymentQRContainer');
+            const qrImage = document.getElementById('qrCodeImage');
+            const qrErrorMsg = document.getElementById('qrErrorMsg');
             const bankContainer = document.getElementById('paymentBankContainer');
-            qrContainer.innerHTML = ''; // เคลียร์ QR เดิมทิ้งก่อนสร้างใหม่
 
             if (targetPaymentType === 'bank') {
                 qrWrapper.style.display = 'none';
                 bankContainer.style.display = 'block';
                 document.getElementById('bankInfoText').innerText = targetBankInfo || 'ไม่พบข้อมูลบัญชี กรุณาติดต่อร้านค้า';
-                console.log(`PAYMENT_SOURCE = ${paymentSource} | TYPE = bank | AMOUNT = ${totalAmount}`);
             } else {
                 bankContainer.style.display = 'none';
                 qrWrapper.style.display = 'block';
@@ -346,22 +343,22 @@
                     let payload = generatePromptPayPayload(normalizedId, totalAmount);
                     
                     if (payload) {
+                        // [PATCH] ใช้ QRious สร้าง QR แบบ Offline 100% ไม่ต้องสนเรื่อง display:none
+                        let qr = new QRious({ value: payload, size: 250, level: 'L' });
+                        qrImage.src = qr.toDataURL();
                         qrContainer.style.display = 'flex';
-                        // วาด QR Code แบบ Local
-                        new QRCode(qrContainer, {
-                            text: payload, width: 180, height: 180,
-                            colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.L
-                        });
+                        qrErrorMsg.style.display = 'none';
                         console.log(`PAYMENT_SOURCE = ${paymentSource} | TYPE = promptpay | NORMALIZED_ID_LENGTH = ${normalizedId.length} | AMOUNT = ${totalAmount} | QR_GENERATION = SUCCESS`);
                     } else {
-                        // ดัก Error ข้อมูลผิด
-                        qrContainer.style.display = 'block';
-                        qrContainer.innerHTML = '<div style="padding:15px; border:1px solid #ff4d4f; border-radius:8px; background:#fff1f0; color:#cf1322; text-align:center;"><p style="margin:0; font-weight:bold; font-size:14px;">❌ ข้อมูลพร้อมเพย์ของร้านไม่ถูกต้อง</p><p style="margin:5px 0 0 0; font-size:12px;">กรุณาแจ้งพนักงานหรือติดต่อร้านค้าเพื่อชำระเงิน</p></div>';
+                        qrContainer.style.display = 'none';
+                        qrErrorMsg.innerHTML = '<p style="margin:0; font-weight:bold; font-size:14px;">❌ ข้อมูลพร้อมเพย์ของร้านไม่ถูกต้อง</p><p style="margin:5px 0 0 0; font-size:12px;">กรุณาแจ้งพนักงานหรือติดต่อร้านค้าเพื่อชำระเงิน</p>';
+                        qrErrorMsg.style.display = 'block';
                         console.error(`PAYMENT_SOURCE = ${paymentSource} | TYPE = promptpay | NORMALIZED_ID_LENGTH = ${normalizedId.length} | AMOUNT = ${totalAmount} | QR_GENERATION = ERROR_INVALID_LENGTH`);
                     }
                 } else {
-                    qrContainer.style.display = 'block';
-                    qrContainer.innerHTML = '<p style="color:red; font-size:12px; text-align:center;">ไม่ได้ระบุข้อมูลรับชำระเงิน กรุณาติดต่อร้านค้า</p>';
+                    qrContainer.style.display = 'none';
+                    qrErrorMsg.innerHTML = 'ไม่ได้ระบุข้อมูลรับชำระเงิน กรุณาติดต่อร้านค้า';
+                    qrErrorMsg.style.display = 'block';
                 }
             }
             
@@ -431,7 +428,6 @@
                 btn.innerText = "⏳ กำลังให้ AI ตรวจสลิป...";
                 
                 try {
-                    // === เรียกใช้งาน Supabase Edge Function ตัวใหม่แบบปลอดภัย 100% ===
                     const { data: verifyResult, error: verifyError } = await supabaseClient.functions.invoke(
                         'verify-slip-thunder',
                         {
