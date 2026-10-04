@@ -298,7 +298,7 @@
                     <button onclick="addBranch()" style="background: #9c27b0; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%;">+ บันทึกสาขาใหม่</button>
                 </div>
                 
-                <div id="branchListContainer" style="background: white; border: 1px solid #e1bee7; border-radius: 8px; padding: 10px;">
+                <div id="branchListContainer">
                     <p style="text-align: center; color: #888; font-size: 13px; margin: 0;">กำลังโหลดสาขา...</p>
                 </div>
             </div>
@@ -479,33 +479,52 @@
             const container = document.getElementById('branchListContainer');
             branchListData = data || []; 
             
+            // ลิงก์พื้นฐานสำหรับลูกค้า (Customer Order Link)
             const liffToUse = vendorData.liff_customer_id ? vendorData.liff_customer_id : CONFIG.liffIdCustomer;
-            const mainLink = `https://liff.line.me/${liffToUse}?vid=${vendorData.id}`;
+            const mainCustomerLink = `https://liff.line.me/${liffToUse}?vid=${vendorData.id}`;
+            
+            // ลิงก์พื้นฐานสำหรับหน้ารับออเดอร์พนักงาน (Staff Screen Link) - แก้ไข path ตามโครงสร้างโฟลเดอร์บนโฮสต์ของคุณ
+            const basePath = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+            const staffBaseUrl = `${basePath}/branch-orders.html`;
 
-            let html = `<div style="padding:10px; border-bottom:1px solid #f0f0f0; margin-bottom:8px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div><strong style="color:#6a1b9a;">👑 สาขาหลัก</strong><br><span style="font-size:12px; color:#666;">รับเงิน: ${vendorData.promptpay_number || vendorData.bank_info || '-'}</span></div>
-                    <span style="font-size:11px; background:#e1bee7; padding:3px 8px; border-radius:10px;">เปิดใช้งาน</span>
-                </div>
-                <div style="display:flex; gap:5px; margin-top:8px;">
-                    <button onclick="navigator.clipboard.writeText('${mainLink}'); alert('คัดลอกลิงก์สาขาหลักแล้ว!');" style="flex:1; background:#00838F; color:white; border:none; padding:6px; border-radius:4px; font-size:11px; cursor:pointer;">🔗 คัดลอกลิงก์</button>
-                    <button onclick="showBranchQr('${mainLink}', 'สาขาหลัก')" style="flex:1; background:#00BCD4; color:white; border:none; padding:6px; border-radius:4px; font-size:11px; cursor:pointer;">📷 QR Code สาขาหลัก</button>
-                </div>
-            </div>`;
-
-            branchCount = 1; 
+            let html = '';
+            branchCount = 0; 
+            
             if (data && data.length > 0) {
-                branchCount += data.length;
+                branchCount = data.length;
                 data.forEach(b => {
-                    const branchLink = `https://liff.line.me/${liffToUse}?vid=${vendorData.id}&bid=${b.id}`;
-                    html += `<div style="padding:10px; border-bottom:1px solid #f0f0f0; margin-bottom:8px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <div><strong>🏢 ${b.branch_name}</strong><br><span style="font-size:12px; color:#666;">รับเงิน: ${b.promptpay}</span></div>
-                            <button onclick="deleteBranch('${b.id}')" style="background:#ff4d4f; color:white; border:none; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;">ลบ</button>
+                    const customerLink = `${mainCustomerLink}&bid=${b.id}`;
+                    const staffLink = `${staffBaseUrl}?bid=${b.id}`;
+                    const isPasswordSet = b.staff_password_hash ? "✅ ตั้งรหัสผ่านแล้ว" : "⚠️ ยังไม่ตั้งรหัสผ่าน";
+
+                    html += `<div style="padding:15px; border-bottom:1px solid #f0f0f0; margin-bottom:10px; background:#fff; border-radius:8px; border: 1px solid #e1bee7;">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 10px;">
+                            <div>
+                                <strong style="font-size:16px;">🏢 ${b.branch_name}</strong><br>
+                                <span style="font-size:12px; color:#666;">รับเงิน: ${b.promptpay}</span>
+                            </div>
+                            ${b.branch_name !== 'สาขาหลัก' ? `<button onclick="deleteBranch('${b.id}')" style="background:#ff4d4f; color:white; border:none; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;">ลบสาขา</button>` : `<span style="background:#e1bee7; color:#6a1b9a; padding:3px 8px; border-radius:12px; font-size:11px;">สาขาหลัก</span>`}
                         </div>
-                        <div style="display:flex; gap:5px; margin-top:8px;">
-                            <button onclick="navigator.clipboard.writeText('${branchLink}'); alert('คัดลอกลิงก์ ${b.branch_name}แล้ว!');" style="flex:1; background:#00838F; color:white; border:none; padding:6px; border-radius:4px; font-size:11px; cursor:pointer;">🔗 คัดลอกลิงก์</button>
-                            <button onclick="showBranchQr('${branchLink}', '${b.branch_name}')" style="flex:1; background:#00BCD4; color:white; border:none; padding:6px; border-radius:4px; font-size:11px; cursor:pointer;">📷 QR Code สาขานี้</button>
+                        
+                        <div style="background:#f4fdf6; padding:10px; border-radius:6px; margin-bottom:10px; border: 1px dashed #00B900;">
+                            <label style="font-size:12px; font-weight:bold; color:#00B900;">🍔 1. ช่องทางสั่งอาหารของลูกค้า (Customer QR)</label>
+                            <div style="display:flex; gap:5px; margin-top:5px;">
+                                <button onclick="navigator.clipboard.writeText('${customerLink}'); alert('คัดลอกลิงก์สั่งอาหารของลูกค้าแล้ว!');" style="flex:1; background:#00B900; color:white; border:none; padding:8px; border-radius:4px; font-size:12px; cursor:pointer; font-weight:bold;">🔗 คัดลอกลิงก์</button>
+                                <button onclick="showBranchQr('${customerLink}', '${b.branch_name}')" style="flex:1; background:#00BCD4; color:white; border:none; padding:8px; border-radius:4px; font-size:12px; cursor:pointer; font-weight:bold;">📷 โชว์ QR Code</button>
+                            </div>
+                        </div>
+
+                        <div style="background:#fff8e1; padding:10px; border-radius:6px; border: 1px dashed #ff9800;">
+                            <label style="font-size:12px; font-weight:bold; color:#e65100;">👨‍‍🍳 2. หน้ารับออเดอร์ของพนักงาน (Staff Access)</label>
+                            <p style="font-size:11px; margin: 3px 0 8px 0; color:#555;">สถานะ: ${isPasswordSet}</p>
+                            <div style="display:flex; gap:5px;">
+                                <input type="password" id="pw_${b.id}" placeholder="ตั้งรหัสผ่านสาขา" style="flex:1; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:12px;">
+                                <button onclick="setBranchPassword('${b.id}')" style="background:#ff9800; color:white; border:none; padding:6px 10px; border-radius:4px; font-size:12px; cursor:pointer; font-weight:bold;">💾 บันทึกรหัส</button>
+                            </div>
+                            <div style="display:flex; gap:5px; margin-top:8px;">
+                                <button onclick="navigator.clipboard.writeText('${staffLink}'); alert('คัดลอกลิงก์เข้าสู่ระบบของพนักงานแล้ว! ส่งให้พนักงานทางแชทได้เลยครับ');" style="flex:1; background:#fff; color:#ff9800; border:1px solid #ff9800; padding:8px; border-radius:4px; font-size:12px; cursor:pointer; font-weight:bold;">📋 คัดลอกลิงก์ให้พนักงาน</button>
+                            </div>
+                            <p style="font-size:10px; margin: 5px 0 0 0; color:#888;">*หากเปลี่ยนรหัส พนักงานคนเดิมจะถูกเตะออกจากระบบทันที</p>
                         </div>
                     </div>`;
                 });
@@ -514,12 +533,35 @@
             renderBranchOrderTabs();
         }
 
+        async function setBranchPassword(branchId) {
+            const pwInput = document.getElementById(`pw_${branchId}`).value;
+            if(!pwInput || pwInput.length < 4) return alert("รหัสผ่านพนักงานต้องมีอย่างน้อย 4 ตัวอักษร");
+            
+            if(!confirm("ต้องการบันทึก/เปลี่ยนรหัสผ่านพนักงานใช่หรือไม่?\n\nพนักงานที่เข้าสู่ระบบสาขานี้อยู่ทั้งหมดจะถูกบังคับให้ออกจากระบบทันที")) return;
+
+            try {
+                // เรียก RPC เพื่อเข้ารหัสรหัสผ่านฝั่ง Server และลบ Session เก่า
+                const { error } = await supabaseClient.rpc('set_branch_password', {
+                    p_branch_id: branchId,
+                    p_password: pwInput
+                });
+
+                if (error) throw error;
+                
+                alert("✅ ตั้งรหัสผ่านและลบ Session เก่าของพนักงานสำเร็จ!");
+                document.getElementById(`pw_${branchId}`).value = '';
+                loadBranches(); // รีเฟรชสถานะรหัสผ่าน
+            } catch (err) {
+                console.error("Set PW Error:", err);
+                alert("เกิดข้อผิดพลาดในการตั้งรหัส: " + err.message);
+            }
+        }
+
         function renderBranchOrderTabs() {
             const container = document.getElementById('orderBranchTabs');
             if (!container) return;
 
             let html = `<button onclick="filterOrdersByBranch('all')" class="branch-filter-btn ${currentOrderBranchFilter === 'all' ? 'active' : 'inactive'}">🌐 รวมทุกสาขา</button>`;
-            html += `<button onclick="filterOrdersByBranch('main')" class="branch-filter-btn ${currentOrderBranchFilter === 'main' ? 'active' : 'inactive'}">👑 สาขาหลัก</button>`;
 
             branchListData.forEach(b => {
                 const isActive = currentOrderBranchFilter === b.id;
