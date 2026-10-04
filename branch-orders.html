@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>หน้ารับออเดอร์สาขา | NPX POS</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 0; background-color: #f4f6f8; }
+        .header { background: #06C755; color: white; padding: 15px 20px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .content { padding: 20px; max-width: 600px; margin: 0 auto; }
+        .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 15px; }
+        input[type="password"] { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; text-align: center; letter-spacing: 2px; }
+        .btn-main { background: #06C755; color: white; border: none; padding: 12px; border-radius: 6px; width: 100%; font-size: 16px; font-weight: bold; cursor: pointer; }
+        .btn-action { color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: bold; }
+        
+        /* Loading Overlay */
+        #loader { display: flex; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.9); z-index: 1000; justify-content: center; align-items: center; font-size: 18px; font-weight: bold; color: #555; }
+        
+        /* Order Screen */
+        #orderScreen { display: none; }
+        .status-badge { display: inline-block; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div id="loader">กำลังโหลดข้อมูล...</div>
+
+    <!-- หน้า Login รหัสผ่าน -->
+    <div id="loginScreen" style="display: none;">
+        <div class="header">
+            <h2 style="margin:0;">NPX POS ORDER</h2>
+            <p style="margin:5px 0 0 0; font-size: 14px; opacity: 0.9;">สำหรับพนักงานประจำสาขา</p>
+        </div>
+        <div class="content">
+            <div class="card" style="text-align: center;">
+                <h3 style="margin-top:0; color:#333;">🔒 ยืนยันตัวตน</h3>
+                <p style="color:#666; font-size: 14px;">กรุณาใส่รหัสผ่านสาขาเพื่อเข้าสู่ระบบ</p>
+                <input type="password" id="staffPassword" placeholder="รหัสผ่านสาขา">
+                <button onclick="loginStaff()" id="loginBtn" class="btn-main">เข้าสู่ระบบรับออเดอร์</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- หน้ารับออเดอร์ (Staff Dashboard) -->
+    <div id="orderScreen">
+        <div class="header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="text-align: left;">
+                <h3 style="margin:0; font-size: 16px;">🍔 <span id="displayBranchName">กำลังโหลด...</span></h3>
+                <p style="margin:3px 0 0 0; font-size: 12px; opacity: 0.9;">🟢 พร้อมรับออเดอร์</p>
+            </div>
+            <button onclick="logoutStaff()" style="background: rgba(255,255,255,0.2); border: 1px solid white; color: white; padding: 6px 12px; border-radius: 20px; font-size: 12px; cursor: pointer;">ออกจากระบบ</button>
+        </div>
+        
+        <div class="content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2 style="margin:0; color:#333;">รายการออเดอร์</h2>
+                <button onclick="loadBranchOrders()" style="background:none; border:none; color:#06C755; font-size:14px; cursor:pointer;">🔄 รีเฟรช</button>
+            </div>
+            <div id="orderList"><p style="text-align: center; color: #888;">กำลังโหลด...</p></div>
+        </div>
+    </div>
+
+    <script>
+        const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
+        
+        let branchId = null;
+        let sessionToken = null;
+        let currentVendorId = null;
+        
+        // Audio Notification Context
+        let notificationAudioContext = null;
+        let audioUnlocked = false;
+        let isPlayingNotification = false;
+        let orderPollingTimer = null;
+        let lastSeenOrderId = null;
+        let initialOrderLoadDone = false;
+        
+        function getUrlParameter(name) {
+            const regex = new RegExp('[?&]' + name.replace(/[\[\]]/g, '\\$&') + '(=([^&#]*)|&|#|$)');
+            const results = regex.exec(window.location.href);
+            return results && results[2] ? decodeURIComponent(results[2].replace(/\+/g, ' ')) : null;
+        }
+
+        async function initStaffApp() {
+            branchId = getUrlParameter('bid');
+            if (!branchId) {
+                alert("ลิงก์ไม่ถูกต้อง: ไม่พบรหัสสาขา (bid)");
+                document.getElementById('loader').innerText = "❌ เกิดข้อผิดพลาด: ไม่พบรหัสสาขาใน URL";
+                return;
+            }
+
+            sessionToken = localStorage.getItem(`staff_session_${branchId}`);
+            
+            if (sessionToken) {
+                // ถ้ามี Token แล้ว ลองดึงออเดอร์เลย เป็นการ Validate Token ไปในตัว
+                await validateAndLoadOrders();
+            } else {
+                // ไม่มี Token แสดงหน้าล็อกอิน
+                showLogin();
+            }
+        }
+
+        function showLogin() {
+            document.getElementById('loader').style.display = 'none';
+            document.getElementById('orderScreen').style.display = 'none';
+            document.getElementById('loginScreen').style.display = 'block';
+        }
+
+        async function loginStaff() {
+            const pw = document.getElementById('staffPassword').value;
+            if(!pw) return alert("กรุณาใส่รหัสผ่าน");
+            
+            const btn = document.getElementById('loginBtn');
+            btn.innerText = "⏳ กำลังตรวจสอบ..."; btn.disabled = true;
+
+            try {
+                // เรียก RPC ไปตรวจสอบรหัสฝั่ง Server
+                const { data, error } = await supabaseClient.rpc('branch_staff_login', {
+                    p_branch_id: branchId,
+                    p_password: pw
+                });
+
+                if (error) throw error;
+                if (!data.success) throw new Error(data.message);
+
+                // ล็อกอินสำเร็จ เก็บ Token
+                sessionToken = data.token;
+                currentVendorId = data.vendor_id;
+                localStorage.setItem(`staff_session_${branchId}`, sessionToken);
+                
+                document.getElementById('displayBranchName').innerText = data.branch_name;
+                
+                alert("✅ เข้าสู่ระบบสำเร็จ!");
+                await validateAndLoadOrders();
+
+            } catch (err) {
+                alert("❌ การเข้าสู่ระบบล้มเหลว: " + err.message);
+                btn.innerText = "เข้าสู่ระบบรับออเดอร์"; btn.disabled = false;
+            }
+        }
+
+        function logoutStaff() {
+            if(confirm("ต้องการออกจากระบบรับออเดอร์ใช่หรือไม่?")) {
+                localStorage.removeItem(`staff_session_${branchId}`);
+                if(orderPollingTimer) clearInterval(orderPollingTimer);
+                window.location.reload();
+            }
+        }
+
+        // ==================== ระบบดึงออเดอร์ด้วย Session Token ====================
+        async function validateAndLoadOrders() {
+            document.getElementById('loader').style.display = 'flex';
+            document.getElementById('loginScreen').style.display = 'none';
+            
+            await loadBranchOrders();
+            
+            if (sessionToken) { // ถ้าโหลดผ่านแล้ว Session ไม่หลุด
+                document.getElementById('loader').style.display = 'none';
+                document.getElementById('orderScreen').style.display = 'block';
+
+                // ปลดล็อคเสียงและเริ่ม Polling
+                document.addEventListener("click", unlockAudio, { once: true });
+                document.addEventListener("touchstart", unlockAudio, { once: true });
+                
+                if (orderPollingTimer) clearInterval(orderPollingTimer);
+                orderPollingTimer = setInterval(loadBranchOrders, 5000);
+            }
+        }
+
+        async function loadBranchOrders() {
+            if (!sessionToken) return;
+
+            try {
+                // เรียก RPC ส่ง Token ไปเพื่อดึงออเดอร์ (Server-side validation)
+                const { data, error } = await supabaseClient.rpc('get_branch_orders', { p_token: sessionToken });
+                
+                if (error) throw error;
+                if (!data.success) {
+                    // Session หมดอายุหรือโดน Revoke
+                    alert("⚠️ เซสชั่นหมดอายุ หรือรหัสผ่านสาขาถูกเปลี่ยนแปลง\nกรุณาเข้าสู่ระบบใหม่");
+                    logoutStaff();
+                    return;
+                }
+
+                const orders = data.data;
+                renderOrderList(orders);
+                
+                // ระบบเช็กเสียงแจ้งเตือนออเดอร์ใหม่
+                const latestOrder = (orders && orders.length > 0) ? orders[orders.length - 1] : null;
+                if (!initialOrderLoadDone) {
+                    lastSeenOrderId = latestOrder ? latestOrder.id : null;
+                    initialOrderLoadDone = true;
+                } else if (latestOrder && String(latestOrder.id) !== String(lastSeenOrderId)) {
+                    lastSeenOrderId = latestOrder.id;
+                    playNotificationSound();
+                }
+
+            } catch (err) {
+                console.error("Load Orders Error:", err);
+            }
+        }
+
+        function renderOrderList(orders) {
+            const listDiv = document.getElementById('orderList');
+            if (!orders || orders.length === 0) {
+                listDiv.innerHTML = '<p style="text-align: center; color: #888;">ยังไม่มีออเดอร์ในขณะนี้</p>';
+                return;
+            }
+
+            let html = '';
+            orders.forEach(order => {
+                const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items; 
+                let itemsHtml = ''; 
+                const itemsArray = Array.isArray(items) ? items : Object.values(items);
+                itemsArray.forEach(item => {
+                    let optStr = item.option ? `<br><small style="color:#00BCD4;">👉 ${item.option}</small>` : '';
+                    let noteStr = item.note ? `<br><small style="color:#ff4d4f;">📝 หมายเหตุ: ${item.note}</small>` : '';
+                    itemsHtml += `<li style="font-size: 15px; margin-bottom: 8px; border-bottom: 1px dashed #eee; padding-bottom: 5px;"><b>${item.qty}x</b> ${item.name} ${optStr} ${noteStr}</li>`;
+                });
+                
+                const d = new Date(order.created_at);
+                const orderTime = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }); 
+                const orderRef = order.reference_no || '-'; 
+                const queueNum = order.queue_no || "?";
+                const custUid = order.customer_uid || '';
+                
+                // ใช้ข้อมูลจาก Record ปัจจุบัน (vendor_id มาจากตาราง orders) เพื่อส่ง Notification
+                currentVendorId = order.vendor_id; 
+
+                let statusBadge = ''; let actionButtons = '';
+                if (order.status === 'pending') { 
+                    statusBadge = '<span class="status-badge" style="background: #fff3cd; color: #856404;">รอยืนยันสลิป</span>'; 
+                    actionButtons = `<button onclick="updateOrderStatus('${order.id}', 'processing', '${custUid}', '${orderRef}', '${queueNum}', this)" class="btn-action" style="background: #06C755; flex: 1;">✅ รับออเดอร์</button> <button onclick="updateOrderStatus('${order.id}', 'rejected', '${custUid}', '${orderRef}', '${queueNum}', this)" class="btn-action" style="background: #ff4d4f; flex: 1;">❌ ปฏิเสธ</button>`; 
+                } 
+                else if (order.status === 'processing') { 
+                    statusBadge = '<span class="status-badge" style="background: #cce5ff; color: #004085;">กำลังทำอาหาร 🍳</span>'; 
+                    actionButtons = `<button onclick="updateOrderStatus('${order.id}', 'completed', '${custUid}', '${orderRef}', '${queueNum}', this)" class="btn-action" style="background: #2196F3; width: 100%;">🏁 อาหารเสร็จแล้ว</button>`; 
+                }
+
+                html += `
+                    <div class="card" style="border-left: 4px solid #06C755;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                            <h3 style="margin: 0; display:flex; flex-direction:column;">
+                                <div>คิวที่ ${queueNum}</div>
+                                <span style="font-size: 12px; color: #888; font-weight: normal; margin-top:3px;">อ้างอิง: ${orderRef} • ${orderTime}</span>
+                            </h3>
+                            <div>${statusBadge}</div>
+                        </div>
+                        <div style="margin-bottom: 15px; background: #f9f9f9; padding: 10px; border-radius: 8px;">
+                            <ul style="margin: 0; padding-left: 20px; color: #333; list-style-type: square;">${itemsHtml}</ul>
+                            <p style="margin: 10px 0 0 0; font-weight: bold; color: #06C755;">ยอดบิล: ฿${order.total_price}</p>
+                        </div>
+                        <div style="display: flex; gap: 10px;">${actionButtons}</div>
+                    </div>`;
+            });
+            listDiv.innerHTML = html;
+        }
+
+        // ==================== ระบบอัปเดตสถานะ (แจ้ง GAS ด้วย) ====================
+        async function updateOrderStatus(orderId, newStatus, customerUid, orderRef, queueNum, btnElement) {
+            let confirmMsg = newStatus === 'processing' ? "ตรวจสอบสลิปถูกต้อง และรับคิวนี้ใช่หรือไม่?" : newStatus === 'completed' ? "อาหารเสร็จแล้ว ส่งมอบเรียบร้อยใช่หรือไม่?" : "ต้องการยกเลิกออเดอร์นี้ใช่หรือไม่?";
+            if (!confirm(confirmMsg)) return;
+
+            const originalText = btnElement.innerText;
+            btnElement.innerText = "⏳ กำลังส่งข้อมูล...";
+            btnElement.disabled = true;
+
+            try {
+                // อัปเดตข้อมูลผ่าน RPC เพื่อความปลอดภัย
+                const { data, error } = await supabaseClient.rpc('update_branch_order_status', {
+                    p_token: sessionToken,
+                    p_order_id: orderId,
+                    p_new_status: newStatus
+                });
+                
+                if (error) throw error;
+                if (!data.success) throw new Error(data.message);
+
+                // หากฝั่งฐานข้อมูล Update สำเร็จ ให้ยิงหา GAS Webhook ของร้านค้านี้เพื่อแจ้ง LINE ให้ลูกค้าทันที
+                if (customerUid && customerUid !== '' && currentVendorId) { 
+                    fetch(CONFIG.gasWebhookUrl, { 
+                        method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
+                        body: JSON.stringify({ action: 'notify_customer', vendor_id: currentVendorId, uid: customerUid, order_status: newStatus, store_name: document.getElementById('displayBranchName').innerText, order_ref: orderRef, queue_num: queueNum }) 
+                    }).catch(e => console.log(e)); 
+                }
+
+                loadBranchOrders();
+
+            } catch(err) {
+                alert("การเปลี่ยนสถานะล้มเหลว: " + err.message);
+                btnElement.innerText = originalText;
+                btnElement.disabled = false;
+            }
+        }
+
+        // ==================== ระบบ Audio / Wake Lock ====================
+        function unlockAudio() {
+            if (!notificationAudioContext) {
+                notificationAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (notificationAudioContext.state === 'suspended') notificationAudioContext.resume();
+            audioUnlocked = true;
+        }
+
+        function playNotificationSound() {
+            if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
+            if (!notificationAudioContext || !audioUnlocked || isPlayingNotification) return;
+
+            isPlayingNotification = true;
+            const now = notificationAudioContext.currentTime;
+            const totalBeeps = 12;
+            const beepInterval = 0.5; 
+
+            for (let i = 0; i < totalBeeps; i++) {
+                const startTime = now + (i * beepInterval);
+                const osc = notificationAudioContext.createOscillator();
+                const gainNode = notificationAudioContext.createGain();
+                
+                osc.connect(gainNode);
+                gainNode.connect(notificationAudioContext.destination);
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, startTime);
+                
+                gainNode.gain.setValueAtTime(0.5, startTime);
+                gainNode.gain.setTargetAtTime(0, startTime + 0.3, 0.05);
+                
+                osc.start(startTime);
+                osc.stop(startTime + 0.4); 
+            }
+            setTimeout(() => { isPlayingNotification = false; }, (totalBeeps * beepInterval) * 1000);
+        }
+
+        window.onload = initStaffApp;
+    </script>
+</body>
+</html>
