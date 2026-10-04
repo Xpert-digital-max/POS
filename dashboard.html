@@ -7,6 +7,8 @@
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- [PATCH] นำเข้าไลบรารี QRious เพื่อรองรับการวาด QR แบบใหม่ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
     <script src="config.js"></script>
     <style>
         body { font-family: sans-serif; margin: 0; background-color: #f4f6f8; }
@@ -206,7 +208,8 @@
                     
                     <div style="background: white; padding: 12px; border-radius: 8px; text-align: center; margin-bottom: 10px; border: 1px solid #e0e0e0;">
                         <p style="margin: 0 0 6px 0; font-size: 13px; font-weight: bold; color: #333;">ชำระค่าบริการ</p>
-                        <div id="adminQrImage" style="width: 130px; height: 130px; margin: 0 auto; display:none; border: 1px solid #ddd; padding: 4px; border-radius: 6px;"></div>
+                        <!-- [PATCH] เปลี่ยน div เป็น img เพื่อใช้งานร่วมกับ QRious -->
+                        <img id="adminQrImage" src="" style="width: 180px; height: 180px; margin: 0 auto 10px auto; display:none; border: 1px solid #ddd; padding: 4px; border-radius: 6px; box-sizing: border-box;">
                         <div id="adminBankInfoBox" class="admin-bank-box"></div>
                         <p id="renewAmountText" style="margin: 6px 0 0 0; font-size: 14px; font-weight: bold; color: #06C755;">ยอดชำระ: ฿0</p>
                     </div>
@@ -227,7 +230,8 @@
                     
                     <div style="background: white; padding: 12px; border-radius: 8px; text-align: center; margin-bottom: 10px; border: 1px solid #e0e0e0;">
                         <p style="margin: 0 0 6px 0; font-size: 13px; font-weight: bold; color: #333;">ชำระค่าโควต้าสลิป</p>
-                        <div id="quotaQrImage" style="width: 130px; height: 130px; margin: 0 auto; display:none; border: 1px solid #ddd; padding: 4px; border-radius: 6px;"></div>
+                        <!-- [PATCH] เปลี่ยน div เป็น img เพื่อใช้งานร่วมกับ QRious -->
+                        <img id="quotaQrImage" src="" style="width: 180px; height: 180px; margin: 0 auto 10px auto; display:none; border: 1px solid #ddd; padding: 4px; border-radius: 6px; box-sizing: border-box;">
                         <div id="quotaBankInfoBox" class="admin-bank-box"></div>
                         <p id="quotaAmountText" style="margin: 6px 0 0 0; font-size: 14px; font-weight: bold; color: #06C755;">ยอดชำระ: ฿0</p>
                     </div>
@@ -263,7 +267,7 @@
                     </select>
                     
                     <div id="divPromptpay">
-                        <label style="font-size: 13px; font-weight: bold; color: #555;">เบอร์พร้อมเพย์ (ตัวเลขล้วน 10 หรือ 13 หลัก)</label>
+                        <label style="font-size: 13px; font-weight: bold; color: #555;">เบอร์พร้อมเพย์ (ตัวเลขล้วน)</label>
                         <input type="text" id="settingPromptpay" placeholder="เช่น 0812345678" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
                     </div>
                     
@@ -286,7 +290,6 @@
                 <h3 style="margin-top: 0; color: #6a1b9a;">🏢 จัดการสาขาย่อย (Branches)</h3>
                 <p style="font-size: 13px; color: #666; margin-bottom: 15px;">เพิ่มสาขาเพื่อแยก QR Code และบัญชีรับเงิน</p>
                 
-                <!-- ====== [PATCH] แบบฟอร์มเพิ่มสาขาแบบใหม่ ====== -->
                 <div style="background: white; padding: 15px; border: 1px solid #e1bee7; border-radius: 8px; margin-bottom: 15px;">
                     <label style="font-size: 13px; font-weight: bold; color: #555;">ชื่อสาขา</label>
                     <input type="text" id="newBranchName" placeholder="เช่น สาขา 2" style="width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
@@ -315,7 +318,7 @@
                 </div>
             </div>
 
-            <!-- ====== [NEW] ตั้งค่า LINE TOKEN & LIFF ====== -->
+            <!-- ====== ตั้งค่า LINE TOKEN & LIFF ====== -->
             <div class="card" style="border-left: 4px solid #00B900; background: #f4fdf6;">
                 <h3 style="margin-top: 0; color: #00B900;">💬 ตั้งค่า LINE บอทของร้านค้าตัวเอง</h3>
                 <p style="font-size: 13px; color: #666; margin-bottom: 15px;">หากต้องการให้ระบบแจ้งเตือนลูกค้าผ่าน LINE OA ของร้านคุณเอง กรุณาสร้าง Provider ใหม่และระบุข้อมูลด้านล่าง (หากเว้นว่างไว้ ระบบจะใช้บอทส่วนกลาง)</p>
@@ -381,6 +384,40 @@
             }
             let crcHex = crc.toString(16).toUpperCase().padStart(4, '0');
             return payload + crcHex;
+        }
+
+        // ==================== [PATCH] ระบบวาด QR Code กลาง (Dynamic Redraw) ====================
+        function renderPromptPayQR({ containerId, promptpayId, amount, logPrefix }) {
+            const qrImg = document.getElementById(containerId);
+            if (!qrImg) return;
+
+            // 1. ลบ QR เดิมทิ้งก่อนเสมอ
+            qrImg.src = '';
+            qrImg.style.display = 'none';
+
+            // 2. สร้าง Payload ใหม่
+            const payload = generatePromptPayPayload(promptpayId, amount);
+            if (!payload) {
+                console.error(`[${logPrefix}] Error: ข้อมูลพร้อมเพย์ไม่ถูกต้อง`);
+                return;
+            }
+
+            // 3. ปรินท์ Log Debug ยืนยันการเปลี่ยนแปลง Payload
+            const payloadSuffix = payload.length > 8 ? payload.substring(payload.length - 8) : payload;
+            console.log(`[${logPrefix}] AMOUNT = ${amount} | PAYLOAD_LEN = ${payload.length} | SUFFIX = ${payloadSuffix}`);
+
+            // 4. วาด QR อันใหม่
+            try {
+                const qr = new QRious({ 
+                    value: payload, 
+                    size: 250, 
+                    level: 'L' 
+                });
+                qrImg.src = qr.toDataURL();
+                qrImg.style.display = 'block';
+            } catch (err) {
+                console.error(`[${logPrefix}] QR Render Error:`, err);
+            }
         }
 
         async function requestWakeLock() {
@@ -525,7 +562,6 @@
                     const staffLink = `${staffBaseUrl}?bid=${b.id}`;
                     const isPasswordSet = b.staff_password_hash ? "✅ ตั้งรหัสผ่านแล้ว" : "⚠️ ยังไม่ตั้งรหัสผ่าน";
 
-                    // เลือกแสดงข้อมูลตามประเภทการรับเงินของสาขา
                     let branchPaymentInfo = "";
                     if (b.payment_type === 'bank') {
                         branchPaymentInfo = `<span style="font-size:12px; color:#666;">🏦 รับเงินโอน: ${b.bank_info || 'ยังไม่ได้ระบุ'}</span>`;
@@ -612,12 +648,9 @@
         }
 
         function showBranchQr(link, branchName) {
-            document.getElementById('customerQrImage').innerHTML = ''; // Clear old QR
-            new QRCode(document.getElementById('customerQrImage'), {
-                text: link,
-                width: 180, height: 180,
-                colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.L
-            });
+            document.getElementById('customerQrImage').src = '';
+            const qr = new QRious({ value: link, size: 300, level: 'L' });
+            document.getElementById('customerQrImage').src = qr.toDataURL();
             document.querySelector('#customerQrModal h3').innerText = `🍽️ สแกนสั่งอาหาร\n(${branchName})`;
             document.getElementById('customerQrModal').style.display = 'flex';
         }
@@ -644,7 +677,6 @@
             if(payType === 'bank' && !bBank) return alert("กรุณาระบุรายละเอียดบัญชีธนาคาร");
             
             try {
-                // Sanitize พร้อมเพย์ก่อนลงฐานข้อมูล (ลบขีดออก)
                 const cleanPromptpay = bPrompt ? bPrompt.replace(/\D/g, '') : null;
 
                 const { error } = await supabaseClient.from('branches').insert([{ 
@@ -653,7 +685,7 @@
                     payment_type: payType,
                     promptpay_number: cleanPromptpay,
                     bank_info: bBank,
-                    promptpay: bPrompt, // เก็บไว้ชั่วคราวเผื่อระบบเก่าเรียกหา
+                    promptpay: bPrompt, 
                     is_active: true 
                 }]);
 
@@ -670,7 +702,7 @@
 
             } catch (err) {
                 console.error("Add Branch Error:", err);
-                alert(`❌ เกิดข้อผิดพลาดในการบันทึก:\n${err.message}\n\n(เช็กด่วน: คุณได้สร้างตาราง "branches" ใน Supabase หรือตั้งค่า RLS ปลดล็อกการ Insert แล้วหรือยัง?)`);
+                alert(`❌ เกิดข้อผิดพลาดในการบันทึก:\n${err.message}`);
             }
         }
 
@@ -694,10 +726,6 @@
         }
 
         function closeCustomerQrModal() { document.getElementById('customerQrModal').style.display = 'none'; }
-
-        function downloadCustomerQr() {
-            alert('คุณสามารถกดค้างที่รูป QR Code แล้วกด "บันทึกรูปภาพ" (Save Image) ในเครื่องของคุณได้เลยครับ');
-        }
 
         function shareCustomerFlex() {
             if (!liff.isLoggedIn()) return;
@@ -813,12 +841,9 @@
         function showAffiliateQr() {
             const refLink = document.getElementById('affiliateLink').value;
             if(!refLink) return alert("ไม่พบลิงก์แนะนำ กรุณารอโหลดข้อมูลสักครู่");
-            document.getElementById('affiliateQrImage').innerHTML = '';
-            new QRCode(document.getElementById('affiliateQrImage'), {
-                text: refLink,
-                width: 180, height: 180,
-                colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.L
-            });
+            document.getElementById('affiliateQrImage').src = '';
+            const qr = new QRious({ value: refLink, size: 300, level: 'L' });
+            document.getElementById('affiliateQrImage').src = qr.toDataURL();
             document.getElementById('qrModal').style.display = 'flex';
         }
         function closeQrModal() { document.getElementById('qrModal').style.display = 'none'; }
@@ -920,7 +945,6 @@
                 const planId = vendorData?.subscription_plan || 'trial';
                 const confPlan = CONFIG?.pricingPlans?.find(p => String(p.id) === String(planId));
 
-                // Render ทันทีกันค้าง
                 document.getElementById('billPlanName').innerText = confPlan ? confPlan.name : 'ฟรี/ทดลองใช้';
                 document.getElementById('billBasePrice').innerText = `฿${Number(confPlan?.price || 0).toFixed(2)}`;
                 document.getElementById('billSlipIncluded').innerText = Number(confPlan?.quota || 0);
@@ -932,8 +956,6 @@
 
                 const d = new Date(); const firstDay = new Date(d.getFullYear(), d.getMonth(), 1).toISOString();
                 const { count: slipUsed, error: slipErr } = await supabaseClient.from('slip_logs').select('*', { count: 'exact', head: true }).eq('merchant_id', vendorData.id).neq('status', 'error').gte('created_at', firstDay);
-
-                if(slipErr) console.error("Slip Error:", slipErr);
 
                 const basePrice = parseFloat(planDb.monthly_price || 0);
                 let extraBranchCount = Math.max(0, branchCount - (planDb.included_branches || 1));
@@ -958,6 +980,7 @@
             }
         }
 
+        // ==================== [PATCH] อัปเดตแพ็กเกจด้วย Dynamic QR (ออฟไลน์) ====================
         function updateRenewQr() {
             const select = document.getElementById('renewPlanSelect');
             const opt = select.options[select.selectedIndex];
@@ -969,7 +992,7 @@
             document.getElementById('renewAmountText').innerText = `ยอดชำระ: ฿${price}`;
 
             const qrContainer = document.getElementById('adminQrImage');
-            qrContainer.innerHTML = ''; 
+            qrContainer.src = ''; // ล้างแคชรูปเก่าออกทุกครั้ง
 
             if (CONFIG.adminPaymentType === 'bank') {
                 qrContainer.style.display = 'none';
@@ -978,15 +1001,18 @@
             } else {
                 document.getElementById('adminBankInfoBox').style.display = 'none';
                 qrContainer.style.display = 'block';
-                // สร้าง PromptPay Payload EMVCo แทนการเรียกใช้เว็บ promptpay.io
+                
+                // คำนวณ Payload และวาดใหม่ทันที
                 let payload = generatePromptPayPayload(CONFIG.adminPromptpay || '0812345678', price);
-                new QRCode(qrContainer, {
-                    text: payload, width: 120, height: 120,
-                    colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.L
-                });
+                if (payload) {
+                    const qr = new QRious({ value: payload, size: 250, level: 'L' });
+                    qrContainer.src = qr.toDataURL();
+                    console.log(`[RENEW] AMOUNT = ${price} | PAYLOAD = ${payload.length > 8 ? payload.substring(payload.length - 8) : payload}`);
+                }
             }
         }
 
+        // ==================== [PATCH] อัปเดตซื้อโควต้าด้วย Dynamic QR (ออฟไลน์) ====================
         function updateQuotaQr() {
             const select = document.getElementById('quotaPlanSelect');
             const opt = select.options[select.selectedIndex];
@@ -998,7 +1024,7 @@
             document.getElementById('quotaAmountText').innerText = `ยอดชำระ: ฿${price}`;
 
             const qrContainer = document.getElementById('quotaQrImage');
-            qrContainer.innerHTML = '';
+            qrContainer.src = ''; // ล้างแคชรูปเก่าออกทุกครั้ง
 
             if (CONFIG.adminPaymentType === 'bank') {
                 qrContainer.style.display = 'none';
@@ -1007,11 +1033,14 @@
             } else {
                 document.getElementById('quotaBankInfoBox').style.display = 'none';
                 qrContainer.style.display = 'block';
+                
+                // คำนวณ Payload และวาดใหม่ทันที
                 let payload = generatePromptPayPayload(CONFIG.adminPromptpay || '0812345678', price);
-                new QRCode(qrContainer, {
-                    text: payload, width: 120, height: 120,
-                    colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.L
-                });
+                if (payload) {
+                    const qr = new QRious({ value: payload, size: 250, level: 'L' });
+                    qrContainer.src = qr.toDataURL();
+                    console.log(`[QUOTA] AMOUNT = ${price} | PAYLOAD = ${payload.length > 8 ? payload.substring(payload.length - 8) : payload}`);
+                }
             }
         }
 
@@ -1278,7 +1307,7 @@
             if (error || data.length === 0) { menuListDiv.innerHTML = '<p style="text-align: center; color: #888;">ยังไม่มีเมนูอาหาร</p>'; return; }
             let html = '';
             data.forEach(item => {
-                const imgSrc = item.image_url ? item.image_url : 'https://via.placeholder.com/60?text=No+Image'; const statusColor = item.is_available ? 'green' : 'red';
+                const imgSrc = (item.image_url && item.image_url.trim() !== '') ? item.image_url : 'https://via.placeholder.com/60?text=No+Image'; const statusColor = item.is_available ? 'green' : 'red';
                 const statusText = item.is_available ? '✅ พร้อมขาย' : '❌ ของหมด'; const toggleBtnText = item.is_available ? '⏸️ พักการขาย' : '▶️ เปิดขาย';
                 const toggleBtnColor = item.is_available ? '#ff9800' : '#06C755'; const catBadge = item.categories?.name ? `<span style="background: #eef2ff; color: #4338ca; padding: 2px 7px; border-radius: 10px; font-size: 11px; margin-left: 6px;">🏷️ ${item.categories.name}</span>` : '';
                 const optBadge = item.options ? `<br><small style="color:#00BCD4;">[ตัวเลือก: ${item.options}]</small>` : ''; 
@@ -1557,7 +1586,6 @@
             if (!name) return alert("กรุณากรอกชื่อร้าน");
             btn.innerText = "⏳ กำลังบันทึก..."; btn.disabled = true;
 
-            // Sanitize PromptPay ของสาขาหลัก
             let cleanPromptpay = null;
             if (payType === 'promptpay' && promptpayRaw) {
                 cleanPromptpay = promptpayRaw.replace(/\D/g, '');
