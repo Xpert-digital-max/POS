@@ -266,8 +266,16 @@
                 document.getElementById('paymentBankContainer').style.display = 'none';
                 document.getElementById('paymentQRContainer').style.display = 'block';
                 if (vendorData.promptpay_number) {
-                    document.getElementById('qrCodeImage').src = `https://promptpay.io/${vendorData.promptpay_number}/${totalAmount}.png`;
-                    document.getElementById('qrCodeImage').style.display = 'inline-block';
+                    // กรองเอาเฉพาะ "ตัวเลข" ออกจากข้อมูลพร้อมเพย์ที่ร้านกรอกมา
+                    const cleanPromptpay = vendorData.promptpay_number.replace(/\D/g, ''); 
+                    
+                    if (cleanPromptpay.length > 0) {
+                        document.getElementById('qrCodeImage').src = `https://promptpay.io/${cleanPromptpay}/${totalAmount}.png`;
+                        document.getElementById('qrCodeImage').style.display = 'inline-block';
+                    } else {
+                        // ดักกรณีร้านค้ากรอกเป็นตัวหนังสือล้วน ไม่มีตัวเลขเลย
+                        document.getElementById('paymentQRContainer').innerHTML = '<p style="color:red; font-size:12px;">ข้อมูลพร้อมเพย์ไม่ถูกต้อง (ไม่มีตัวเลข)</p>';
+                    }
                 }
             }
             
