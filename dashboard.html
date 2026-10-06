@@ -949,11 +949,12 @@
             const renewSelect = document.getElementById('renewPlanSelect'); 
             let optionsHtml = '';
             if (CONFIG.pricingPlans) {
-                // ดึงแผนทั้งหมดที่มีราคามากกว่า 0 (ไม่เอา Trial) มาแสดง
                 CONFIG.pricingPlans.filter(p => p.price > 0).forEach(p => { 
-                    optionsHtml += `<option value="${p.id}" data-price="${p.price}" data-days="${p.days}" data-quota="${p.quota || 0}">${p.name} - ฿${p.price}</option>`; 
+                    // เพิ่มข้อความ (ได้โควต้า...บิล) หากมี quota > 0
+                    const quotaText = p.quota > 0 ? ` (ได้โควต้า ${p.quota} บิล)` : '';
+                    optionsHtml += `<option value="${p.id}" data-price="${p.price}" data-days="${p.days}" data-quota="${p.quota || 0}">${p.name}${quotaText} - ฿${p.price}</option>`; 
                 });
-                renewSelect.innerHTML = optionsHtml; 
+                renewSelect.innerHTML = optionsHtml;
                 
                 // คืนค่าที่เคยเลือกไว้ ถ้ามี
                 const savedRenew = localStorage.getItem('savedRenewPlan_' + vendorData.id);
