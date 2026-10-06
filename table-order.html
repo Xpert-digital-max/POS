@@ -34,10 +34,10 @@
         .fab-container { position: fixed; bottom: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; z-index: 200; gap: 10px; }
         .fab-btn { flex: 1; padding: 12px; border: none; border-radius: 12px; font-weight: bold; font-size: 14px; display: flex; justify-content: center; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); cursor: pointer; transition: 0.3s; }
         .btn-call { background: #FF9800; color: white; }
-        .btn-bill { background: #2196F3; color: white; }
+        .btn-bill { background: #06C755; color: white; }
         
-        .cart-float { position: fixed; bottom: 80px; right: 20px; background: #06C755; color: white; width: 60px; height: 60px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 24px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); cursor: pointer; z-index: 200; }
-        .cart-badge { position: absolute; top: 0; right: 0; background: #ff4d4f; color: white; width: 20px; height: 20px; border-radius: 50%; font-size: 12px; display: flex; justify-content: center; align-items: center; font-weight: bold; }
+        .cart-float { position: fixed; bottom: 80px; right: 20px; background: #E91E63; color: white; width: 60px; height: 60px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 24px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); cursor: pointer; z-index: 200; }
+        .cart-badge { position: absolute; top: 0; right: 0; background: #333; color: white; width: 20px; height: 20px; border-radius: 50%; font-size: 12px; display: flex; justify-content: center; align-items: center; font-weight: bold; }
 
         /* Status Content */
         .status-container { display: none; padding: 30px 20px; text-align: center; }
@@ -86,7 +86,7 @@
 
         <div class="fab-container">
             <button id="btnCallStaff" onclick="toggleCallStaff()" class="fab-btn btn-call">🛎️ เรียกพนักงาน</button>
-            <button onclick="requestBill()" class="fab-btn btn-bill">🧾 เช็คบิล</button>
+            <button onclick="requestBill()" class="fab-btn btn-bill">🧾 รอจ่ายเงิน / เช็คบิล</button>
         </div>
         <div class="cart-float" onclick="openCartModal()">🛒<div id="cartCountBadge" class="cart-badge" style="display: none;">0</div></div>
     </div>
@@ -96,10 +96,9 @@
         
         <!-- แผงแสดงข้อความสถานะหลัก -->
         <div id="statusMessageCard" class="status-card">
-            <h2 id="statusTitle" style="color: #2196F3; margin-top: 0;">กำลังเรียกพนักงาน</h2>
+            <h2 id="statusTitle" style="color: #2196F3; margin-top: 0;">กำลังตรวจสอบ</h2>
             <p id="statusDesc" style="color: #666; font-size: 14px;">กรุณารอสักครู่...</p>
             
-            <!-- ปุ่มยกเลิกบิล สำหรับลูกค้าเปลี่ยนใจสั่งต่อ -->
             <button id="cancelBillBtnMsg" onclick="cancelBillCustomer()" class="payment-btn btn-cancel" style="display: none;">❌ ยกเลิกการชำระเงิน (สั่งอาหารต่อ)</button>
         </div>
 
@@ -111,12 +110,13 @@
             <img id="promptpayQrImage" src="" style="width: 200px; height: 200px; margin: 0 auto 15px auto; border: 1px solid #ddd; padding: 10px; border-radius: 8px; display: none;">
             <div id="bankInfoText" style="display: none; background: #f5f5f5; padding: 15px; border-radius: 8px; font-size: 14px; text-align: left; margin-bottom: 15px;"></div>
 
-            <div style="text-align: left; margin-top: 15px;">
-                <label style="font-size: 13px; font-weight: bold; color: #333;">แนบสลิปเพื่อยืนยัน</label>
-                <input type="file" id="slipImageInput" accept="image/*" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; margin-top: 5px; box-sizing: border-box;">
+            <div style="text-align: left; margin-top: 25px; background: #e0f7fa; padding: 15px; border-radius: 12px; border: 1px dashed #00BCD4;">
+                <p style="margin: 0 0 10px 0; color: #00838F; font-size: 14px; font-weight: bold; text-align: center;">กรุณาแนบสลิปโอนเงินที่นี่ ⬇️</p>
+                <input type="file" id="slipImageInput" accept="image/*" style="width: 100%; padding: 10px; border: 1px solid #00BCD4; border-radius: 8px; background: white; box-sizing: border-box;">
+                
+                <button id="verifySlipBtn" onclick="verifyTableSlip()" style="width: 100%; padding: 15px; background: #06C755; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 16px; margin-top: 15px; cursor: pointer;">✅ ส่งสลิปโอนเงิน</button>
             </div>
             
-            <button id="verifySlipBtn" onclick="verifyTableSlip()" style="width: 100%; padding: 15px; background: #06C755; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 16px; margin-top: 15px; cursor: pointer;">✅ แจ้งโอนเงิน</button>
             <button onclick="cancelBillCustomer()" class="payment-btn btn-cancel" style="margin-top: 15px; margin-bottom: 0;">❌ ยกเลิกการชำระเงิน (สั่งอาหารต่อ)</button>
         </div>
 
@@ -133,17 +133,15 @@
             
             <div id="cashOptionContainer">
                 <p style="margin: 10px 0; color: #aaa; font-size: 13px;">หรือ</p>
-                <button onclick="submitCheckbill('cash')" class="payment-btn btn-cash">💵 ชำระด้วยเงินสด (เรียกพนักงาน)</button>
+                <button onclick="submitCheckbill('cash')" class="payment-btn" style="background: #06C755; color: white;">💵 ชำระด้วยเงินสด (เรียกพนักงาน)</button>
             </div>
 
             <button onclick="closePaymentModal()" style="width: 100%; padding: 12px; background: transparent; color: #888; border: none; font-weight: bold; font-size: 14px; margin-top: 10px; cursor: pointer;">ยกเลิก / กลับไปสั่งอาหารต่อ</button>
         </div>
     </div>
 
-    <!-- Modal ตัวเลือกสินค้า -->
+    <!-- Modal ตัวเลือกสินค้าและตะกร้า -->
     <div id="optionModal" class="modal-overlay"><div class="modal-content"><h3 id="modalItemName" style="margin-top: 0; margin-bottom: 5px; color: #E91E63;">ชื่อสินค้า</h3><p id="modalItemPrice" style="margin: 0 0 15px 0; font-weight: bold; color: #333;">฿0</p><div id="modalOptionsContainer"></div><textarea id="modalNote" placeholder="หมายเหตุ (เช่น ไม่ใส่ผัก, เผ็ดน้อย)" style="width: 100%; height: 60px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; margin-bottom: 15px; font-family: sans-serif; resize: none;"></textarea><div style="display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 20px;"><button onclick="changeModalQty(-1)" class="qty-btn" style="width: 40px; height: 40px; font-size: 20px;">-</button><span id="modalQtyDisplay" style="font-size: 20px; font-weight: bold;">1</span><button onclick="changeModalQty(1)" class="qty-btn" style="width: 40px; height: 40px; font-size: 20px;">+</button></div><div style="display: flex; gap: 10px;"><button onclick="closeOptionModal()" style="flex: 1; padding: 15px; border: none; border-radius: 12px; background: #eee; font-weight: bold; font-size: 15px; color: #555;">ยกเลิก</button><button onclick="confirmAddToCart()" style="flex: 2; padding: 15px; border: none; border-radius: 12px; background: #E91E63; color: white; font-weight: bold; font-size: 15px;">เพิ่มลงตะกร้า</button></div></div></div>
-
-    <!-- Modal ตะกร้าสินค้า -->
     <div id="cartModal" class="modal-overlay"><div class="modal-content"><h3 style="margin-top: 0; color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px;">🛒 รายการอาหารที่เลือก</h3><div id="cartItemsContainer" style="max-height: 40vh; overflow-y: auto; margin-bottom: 15px;"></div><div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; color: #E91E63; margin-bottom: 20px;"><span>รวมทั้งหมด:</span><span id="cartTotalDisplay">฿0</span></div><div style="display: flex; gap: 10px;"><button onclick="closeCartModal()" style="flex: 1; padding: 15px; border: none; border-radius: 12px; background: #eee; font-weight: bold; font-size: 15px; color: #555;">สั่งเพิ่ม</button><button onclick="submitOrder()" id="submitOrderBtn" style="flex: 2; padding: 15px; border: none; border-radius: 12px; background: #06C755; color: white; font-weight: bold; font-size: 15px;">🚀 ส่งออเดอร์เข้าครัว</button></div></div></div>
 
     <script>
@@ -197,11 +195,8 @@
             } catch (err) { showError(err.message); }
         }
 
-        // ==================== ระบบ Polling (เช็คอัปเดตเรียลไทม์) ====================
         async function pollSessionStatus() {
             if (!sessionData || !sessionData.id) return;
-            
-            // 1. เช็คสถานะโต๊ะและการเงิน
             const { data: sess } = await supabaseClient.from('table_sessions').select('*').eq('id', sessionData.id).single();
             if (sess) {
                 if (sess.session_status !== sessionData.session_status || sess.payment_status !== sessionData.payment_status) { 
@@ -209,52 +204,40 @@
                 }
             }
 
-            // 2. เช็คสถานะการเรียกพนักงาน (เพื่อสลับสีปุ่ม)
             const { data: req } = await supabaseClient.from('table_service_requests').select('id, status').eq('table_session_id', sessionData.id).eq('status', 'pending').maybeSingle();
             const btnCall = document.getElementById('btnCallStaff');
             if (req) {
-                currentServiceRequestId = req.id;
-                btnCall.innerHTML = '❌ ยกเลิกเรียกพนักงาน';
-                btnCall.style.background = '#2196F3'; // เปลี่ยนเป็นสีฟ้า
+                currentServiceRequestId = req.id; btnCall.innerHTML = '❌ ยกเลิกเรียกพนักงาน';
             } else {
-                currentServiceRequestId = null;
-                btnCall.innerHTML = '🛎️ เรียกพนักงาน';
-                btnCall.style.background = '#FF9800'; // สีส้มปกติ
+                currentServiceRequestId = null; btnCall.innerHTML = '🛎️ เรียกพนักงาน';
             }
         }
 
-        // ==================== สลับปุ่มเรียกพนักงาน / ยกเลิกเรียก ====================
         async function toggleCallStaff() {
-            const btn = document.getElementById('btnCallStaff');
-            btn.disabled = true;
+            const btn = document.getElementById('btnCallStaff'); btn.disabled = true;
             try {
                 if (currentServiceRequestId) {
-                    if (!confirm("ต้องการยกเลิกการเรียกพนักงานใช่หรือไม่?")) { btn.disabled = false; return; }
-                    await supabaseClient.from('table_service_requests').delete().eq('id', currentServiceRequestId);
-                    currentServiceRequestId = null;
+                    await supabaseClient.from('table_service_requests').delete().eq('id', currentServiceRequestId); currentServiceRequestId = null;
                 } else {
-                    if (!confirm("ต้องการเรียกพนักงานใช่หรือไม่?")) { btn.disabled = false; return; }
-                    const { data, error } = await supabaseClient.from('table_service_requests').insert([{ 
-                        vendor_id: vendorData.id, branch_id: tableData.branch_id, table_session_id: sessionData.id, table_id: tableData.id, request_type: 'call_staff', status: 'pending' 
-                    }]).select().single();
-                    if (error) throw error;
-                    currentServiceRequestId = data.id;
+                    const { data, error } = await supabaseClient.from('table_service_requests').insert([{ vendor_id: vendorData.id, branch_id: tableData.branch_id, table_session_id: sessionData.id, table_id: tableData.id, request_type: 'call_staff', status: 'pending' }]).select().single();
+                    if (error) throw error; currentServiceRequestId = data.id;
                 }
-                pollSessionStatus(); // อัปเดตสีปุ่มทันที
-            } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); }
-            btn.disabled = false;
+                pollSessionStatus(); 
+            } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); } btn.disabled = false;
         }
 
-        // ==================== จัดการแสดงผล UI ตามสถานะโต๊ะ ====================
         function renderUIBasedOnStatus() {
             const orderSec = document.getElementById('orderingSection'); const statusSec = document.getElementById('statusSection');
             const msgCard = document.getElementById('statusMessageCard'); const qrCard = document.getElementById('qrPaymentCard');
             const sStat = sessionData.session_status; const pStat = sessionData.payment_status;
 
             msgCard.style.display = 'none'; qrCard.style.display = 'none';
-            document.getElementById('cancelBillBtnMsg').style.display = 'none';
 
-            if (sStat === 'open') { orderSec.style.display = 'block'; statusSec.style.display = 'none'; } 
+            // ถ้าสถานะเป็น open หรือ billing_requested (ก่อนกดยืนยันวิธีจ่าย) ให้สั่งอาหารได้
+            // แต่ถ้ากดยืนยันวิธีจ่ายแล้ว (payment_pending) ให้ล็อกหน้าจอทันที
+            if (sStat === 'open') { 
+                orderSec.style.display = 'block'; statusSec.style.display = 'none'; 
+            } 
             else {
                 orderSec.style.display = 'none'; statusSec.style.display = 'block';
 
@@ -263,11 +246,9 @@
                 } 
                 else if (pStat === 'pending_review') {
                     msgCard.style.display = 'block'; document.getElementById('statusTitle').innerText = "⚠️ รอตรวจสอบสลิป"; document.getElementById('statusTitle').style.color = "#FF9800"; document.getElementById('statusDesc').innerHTML = "ระบบไม่สามารถตรวจสอบสลิปอัตโนมัติได้<br><b>พนักงานกำลังตรวจสอบให้แบบ Manual ครับ</b>";
-                    document.getElementById('cancelBillBtnMsg').style.display = 'block';
                 }
                 else if (pStat === 'cash_requested') {
-                    msgCard.style.display = 'block'; document.getElementById('statusTitle').innerText = "💵 กำลังเรียกพนักงาน"; document.getElementById('statusTitle').style.color = "#FF9800"; document.getElementById('statusDesc').innerHTML = `ยอดชำระของคุณคือ <b>฿${sessionData.bill_amount}</b><br><br>พนักงานกำลังเดินไปเก็บเงินที่โต๊ะครับ`;
-                    document.getElementById('cancelBillBtnMsg').style.display = 'block';
+                    msgCard.style.display = 'block'; document.getElementById('statusTitle').innerText = "💵 กำลังเรียกพนักงานเก็บเงิน"; document.getElementById('statusTitle').style.color = "#00BCD4"; document.getElementById('statusDesc').innerHTML = `ยอดชำระของคุณคือ <b>฿${sessionData.bill_amount}</b><br><br>พนักงานกำลังเดินไปเก็บเงินที่โต๊ะครับ`;
                 }
                 else if (pStat === 'verified' || pStat === 'verified_manual' || pStat === 'paid_cash') {
                     msgCard.style.display = 'block'; document.getElementById('statusTitle').innerText = "✅ ชำระเงินเรียบร้อย"; document.getElementById('statusTitle').style.color = "#06C755"; document.getElementById('statusDesc').innerText = "ขอบคุณที่ใช้บริการ โอกาสหน้าเชิญใหม่ครับ!";
@@ -281,8 +262,6 @@
             }
         }
 
-        // ==================== ระบบชำระเงิน (Payment) ====================
-        
         async function requestBill() {
             if (cart.length > 0) return alert("กรุณากดส่งออเดอร์ในตะกร้า หรือลบรายการออกก่อนกดเช็คบิลครับ");
             const { data: orders } = await supabaseClient.from('table_orders').select('*').eq('table_session_id', sessionData.id).neq('order_status', 'cancelled');
@@ -298,6 +277,7 @@
             closePaymentModal();
             const finalAmount = parseFloat(document.getElementById('checkbillAmountDisplay').innerText);
 
+            // ล็อกทันทีตั้งแต่ขั้นตอนนี้ (ห้ามสั่งเพิ่มเด็ดขาด)
             if (method === 'cash') {
                 await supabaseClient.from('table_sessions').update({ payment_method: 'cash', payment_status: 'cash_requested', session_status: 'payment_pending', bill_amount: finalAmount }).eq('id', sessionData.id);
                 sessionData.payment_method = 'cash'; sessionData.payment_status = 'cash_requested'; sessionData.session_status = 'payment_pending'; sessionData.bill_amount = finalAmount;
@@ -347,7 +327,7 @@
                 if (verifyError || !verifyResult) { throw new Error("ระบบตรวจสลิปไม่ตอบสนอง กรุณารอพนักงานตรวจสอบแมนนวลครับ"); }
 
                 const isDuplicate = verifyResult.data?.isDuplicate === true || verifyResult.debug?.code === 'DUPLICATE_SLIP';
-                await supabaseClient.from('payment_transactions').insert([{ vendor_id: vendorData.id, payment_context: 'RESTAURANT_TABLE_PAYMENT', amount_expected: Number(sessionData.bill_amount), amount_in_slip: verifyResult.data?.amountInSlip || null, slipUrl: slipUrl, verification_status: verifyResult.status, is_duplicate: isDuplicate, raw_response: verifyResult }]);
+                await supabaseClient.from('payment_transactions').insert([{ vendor_id: vendorData.id, payment_context: 'RESTAURANT_TABLE_PAYMENT', amount_expected: Number(sessionData.bill_amount), amount_in_slip: verifyResult.data?.amountInSlip || null, slip_url: slipUrl, verification_status: verifyResult.status, is_duplicate: isDuplicate, raw_response: verifyResult }]);
 
                 if (verifyResult.status === 'success') {
                     await supabaseClient.from('table_sessions').update({ payment_status: 'verified', session_status: 'paid' }).eq('id', sessionData.id); sessionData.payment_status = 'verified'; sessionData.session_status = 'paid';
