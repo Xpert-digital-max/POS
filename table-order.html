@@ -6,6 +6,8 @@
     <title>สั่งอาหาร - โหมดนั่งทานที่ร้าน</title>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- นำเข้าไลบรารีสร้าง QR Code -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
     <script src="config.js"></script>
     <style>
         body { font-family: sans-serif; margin: 0; background-color: #f4f6f8; padding-bottom: 80px; }
@@ -37,6 +39,13 @@
         
         .cart-float { position: fixed; bottom: 80px; right: 20px; background: #06C755; color: white; width: 60px; height: 60px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 24px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); cursor: pointer; z-index: 200; }
         .cart-badge { position: absolute; top: 0; right: 0; background: #ff4d4f; color: white; width: 20px; height: 20px; border-radius: 50%; font-size: 12px; display: flex; justify-content: center; align-items: center; font-weight: bold; }
+
+        /* Status Content (สำหรับหน้าชำระเงิน/รอ) */
+        .status-container { display: none; padding: 30px 20px; text-align: center; }
+        .status-card { background: white; padding: 25px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        .payment-btn { width: 100%; padding: 15px; border: none; border-radius: 12px; font-weight: bold; font-size: 16px; margin-bottom: 10px; cursor: pointer; }
+        .btn-transfer { background: #00BCD4; color: white; }
+        .btn-cash { background: #fff8e1; color: #FF9800; border: 1px solid #FF9800; }
 
         /* Modal Options */
         .modal-overlay { display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 300; justify-content: center; align-items: flex-end; }
@@ -72,21 +81,65 @@
         <div id="tableNameBadge" class="table-badge">-</div>
     </div>
 
-    <!-- Category Tabs -->
-    <div id="categoryTabs" class="category-scroll"></div>
+    <!-- ส่วนที่ 1: หน้าเมนูอาหาร (แสดงตอนสถานะ open) -->
+    <div id="orderingSection">
+        <!-- Category Tabs -->
+        <div id="categoryTabs" class="category-scroll"></div>
 
-    <!-- Menu List -->
-    <div id="menuContainer" class="menu-container"></div>
+        <!-- Menu List -->
+        <div id="menuContainer" class="menu-container"></div>
 
-    <!-- Bottom Float Actions -->
-    <div class="fab-container">
-        <button onclick="callStaff()" class="fab-btn btn-call">🛎️ เรียกพนักงาน</button>
-        <button onclick="requestBill()" class="fab-btn btn-bill">🧾 เช็คบิล</button>
+        <!-- Bottom Float Actions -->
+        <div class="fab-container">
+            <button onclick="callStaff()" class="fab-btn btn-call">🛎️ เรียกพนักงาน</button>
+            <button onclick="requestBill()" class="fab-btn btn-bill">🧾 เช็คบิล</button>
+        </div>
+
+        <div class="cart-float" onclick="openCartModal()">
+            🛒
+            <div id="cartCountBadge" class="cart-badge" style="display: none;">0</div>
+        </div>
     </div>
 
-    <div class="cart-float" onclick="openCartModal()">
-        🛒
-        <div id="cartCountBadge" class="cart-badge" style="display: none;">0</div>
+    <!-- ส่วนที่ 2: หน้าจอสถานะต่างๆ (รอเช็คบิล / จ่ายเงิน / รออาหาร) -->
+    <div id="statusSection" class="status-container">
+        
+        <!-- แผงแสดงข้อความสถานะหลัก -->
+        <div id="statusMessageCard" class="status-card">
+            <h2 id="statusTitle" style="color: #2196F3; margin-top: 0;">กำลังเรียกพนักงาน</h2>
+            <p id="statusDesc" style="color: #666; font-size: 14px;">กรุณารอสักครู่...</p>
+        </div>
+
+        <!-- แผงเลือกวิธีชำระเงิน (แสดงตอน payment_pending) -->
+        <div id="paymentSelectionCard" class="status-card" style="display: none;">
+            <h3 style="margin-top: 0; color: #333;">เลือกวิธีชำระเงิน</h3>
+            <div style="font-size: 32px; font-weight: bold; color: #E91E63; margin: 15px 0;">฿<span id="billAmountDisplay">0.00</span></div>
+            
+            <button onclick="selectPaymentMethod('transfer')" class="payment-btn btn-transfer">📲 โอนเงิน / สแกน QR พร้อมเพย์</button>
+            
+            <div id="cashOptionContainer">
+                <p style="margin: 10px 0; color: #aaa; font-size: 13px;">หรือ</p>
+                <button onclick="selectPaymentMethod('cash')" class="payment-btn btn-cash">💵 ชำระด้วยเงินสดที่โต๊ะ</button>
+            </div>
+        </div>
+
+        <!-- แผงโอนเงิน / สแกน QR (แสดงตอนเลือกโอน) -->
+        <div id="qrPaymentCard" class="status-card" style="display: none;">
+            <h3 style="margin-top: 0; color: #00BCD4;">สแกนเพื่อชำระเงิน</h3>
+            <p style="color: #666; font-size: 13px; margin-bottom: 15px;">ยอดชำระ: <b>฿<span id="qrAmountDisplay">0.00</span></b></p>
+            
+            <img id="promptpayQrImage" src="" style="width: 200px; height: 200px; margin: 0 auto 15px auto; border: 1px solid #ddd; padding: 10px; border-radius: 8px; display: none;">
+            <div id="bankInfoText" style="display: none; background: #f5f5f5; padding: 15px; border-radius: 8px; font-size: 14px; text-align: left; margin-bottom: 15px;"></div>
+
+            <div style="text-align: left; margin-top: 15px;">
+                <label style="font-size: 13px; font-weight: bold; color: #333;">แนบสลิปเพื่อยืนยัน</label>
+                <input type="file" id="slipImageInput" accept="image/*" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; margin-top: 5px; box-sizing: border-box;">
+            </div>
+            
+            <button id="verifySlipBtn" onclick="verifyTableSlip()" style="width: 100%; padding: 15px; background: #06C755; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 16px; margin-top: 15px; cursor: pointer;">✅ แจ้งโอนเงิน</button>
+            <button onclick="cancelPaymentSelection()" style="width: 100%; padding: 12px; background: transparent; color: #888; border: none; font-weight: bold; font-size: 14px; margin-top: 5px; cursor: pointer;">เปลี่ยนวิธีชำระเงิน</button>
+        </div>
+
     </div>
 
     <!-- Modal ตัวเลือกสินค้า -->
@@ -144,17 +197,40 @@
         let cart = [];
         let currentModalItem = null;
         let currentModalQty = 1;
+        let pollingInterval = null;
+
+        // ================= EMVCo PromptPay Generator =================
+        function generatePromptPayPayload(promptpayId, amount) {
+            let id = promptpayId.replace(/\D/g, '');
+            if (id.length !== 10 && id.length !== 13 && id.length !== 15) return null;
+            let target = '';
+            if (id.length === 10) { target = '01130066' + id.substring(1); } 
+            else if (id.length === 13) { target = '0213' + id; } 
+            else if (id.length === 15) { target = '0315' + id; }
+            let payload = "00020101021229370016A000000677010111" + target + "53037645802TH";
+            if (amount && amount > 0) {
+                let amountStr = parseFloat(amount).toFixed(2);
+                let amountLen = amountStr.length.toString().padStart(2, '0');
+                payload += "54" + amountLen + amountStr;
+            }
+            payload += "6304"; 
+            let crc = 0xFFFF;
+            for (let i = 0; i < payload.length; i++) {
+                crc ^= payload.charCodeAt(i) << 8;
+                for (let j = 0; j < 8; j++) {
+                    if ((crc & 0x8000) !== 0) { crc = ((crc << 1) ^ 0x1021) & 0xFFFF; } else { crc = (crc << 1) & 0xFFFF; }
+                }
+            }
+            let crcHex = crc.toString(16).toUpperCase().padStart(4, '0');
+            return payload + crcHex;
+        }
 
         async function initApp() {
             try {
-                // อ่านค่า Token จาก URL
                 const urlParams = new URLSearchParams(window.location.search);
                 tableToken = urlParams.get('table_token');
                 
-                if (!tableToken) {
-                    showError("ไม่พบข้อมูลโต๊ะ กรุณาสแกน QR Code ใหม่อีกครั้ง");
-                    return;
-                }
+                if (!tableToken) { showError("ไม่พบข้อมูลโต๊ะ กรุณาสแกน QR Code ใหม่อีกครั้ง"); return; }
 
                 await liff.init({ liffId: CONFIG.liffIdCustomer });
                 if (liff.isLoggedIn()) {
@@ -163,6 +239,9 @@
                 }
 
                 await loadTableAndSession();
+
+                // เริ่ม Polling เช็คสถานะบิลเรื่อยๆ (เผื่อพนักงานกดยืนยันบิล)
+                pollingInterval = setInterval(pollSessionStatus, 3000);
 
             } catch (err) {
                 console.error("Init Error:", err);
@@ -185,9 +264,7 @@
                 tableData = tbData;
                 vendorData = tbData.vendors;
 
-                if (vendorData.restaurant_mode_enabled !== true) {
-                    throw new Error("ร้านค้านี้ยังไม่ได้เปิดใช้งานโหมดสั่งอาหารที่โต๊ะ");
-                }
+                if (vendorData.restaurant_mode_enabled !== true) { throw new Error("ร้านค้านี้ยังไม่ได้เปิดใช้งานโหมดสั่งอาหารที่โต๊ะ"); }
 
                 // อัปเดต UI
                 document.getElementById('storeName').innerText = vendorData.name;
@@ -198,30 +275,23 @@
                 document.getElementById('branchName').innerText = tbData.branches ? tbData.branches.branch_name : 'สาขาหลัก';
                 document.getElementById('tableNameBadge').innerText = "โต๊ะ " + tableData.table_name;
 
-                // 2. เช็ค Session ปัจจุบัน (ดึงอันล่าสุดที่ยังไม่ปิด)
-                const { data: sessData, error: sessError } = await supabaseClient.from('table_sessions')
-                    .select('*')
-                    .eq('table_id', tableData.id)
-                    .neq('session_status', 'closed')
-                    .neq('session_status', 'cancelled')
-                    .order('created_at', { ascending: false })
-                    .limit(1);
+                // ตรวจสอบการตั้งค่าเปิดรับเงินสดของร้าน
+                if (vendorData.allow_cash_payment === false) {
+                    document.getElementById('cashOptionContainer').style.display = 'none';
+                }
+
+                // 2. เช็ค Session ปัจจุบัน
+                const { data: sessData } = await supabaseClient.from('table_sessions')
+                    .select('*').eq('table_id', tableData.id).neq('session_status', 'closed').neq('session_status', 'cancelled')
+                    .order('created_at', { ascending: false }).limit(1);
 
                 if (sessData && sessData.length > 0) {
                     sessionData = sessData[0];
-                    // ถ้าบิลถูกสรุปไปแล้ว ไม่ให้สั่งเพิ่ม
-                    if (sessionData.session_status === 'payment_pending') {
-                        showError("โต๊ะนี้อยู่ระหว่างรอชำระเงิน<br>ไม่สามารถสั่งอาหารเพิ่มได้ครับ");
-                        return;
-                    }
                 } else {
-                    // ถ้ายังไม่มี Session หรือปิดไปหมดแล้ว ให้เปิด Session ใหม่
+                    // เปิด Session ใหม่
                     const { data: newSess, error: createError } = await supabaseClient.from('table_sessions').insert([{
-                        vendor_id: vendorData.id,
-                        branch_id: tableData.branch_id,
-                        table_id: tableData.id,
-                        session_status: 'open',
-                        payment_status: 'unpaid'
+                        vendor_id: vendorData.id, branch_id: tableData.branch_id, table_id: tableData.id,
+                        session_status: 'open', payment_status: 'unpaid'
                     }]).select().single();
 
                     if (createError) throw createError;
@@ -229,104 +299,270 @@
                 }
 
                 await loadMenu();
+                renderUIBasedOnStatus();
                 document.getElementById('loader').style.display = 'none';
 
-            } catch (err) {
-                showError(err.message);
+            } catch (err) { showError(err.message); }
+        }
+
+        // ==================== ระบบ Polling ====================
+        async function pollSessionStatus() {
+            if (!sessionData || !sessionData.id) return;
+            const { data } = await supabaseClient.from('table_sessions').select('*').eq('id', sessionData.id).single();
+            if (data) {
+                // ถ้าสถานะเปลี่ยน ให้แรนเดอร์หน้าจอใหม่
+                if (data.session_status !== sessionData.session_status || data.payment_status !== sessionData.payment_status) {
+                    sessionData = data;
+                    renderUIBasedOnStatus();
+                }
             }
         }
 
+        // ==================== จัดการแสดงผล UI ตามสถานะโต๊ะ ====================
+        function renderUIBasedOnStatus() {
+            const orderSec = document.getElementById('orderingSection');
+            const statusSec = document.getElementById('statusSection');
+            
+            const msgCard = document.getElementById('statusMessageCard');
+            const paySelCard = document.getElementById('paymentSelectionCard');
+            const qrCard = document.getElementById('qrPaymentCard');
+
+            const sStat = sessionData.session_status;
+            const pStat = sessionData.payment_status;
+
+            // ซ่อนสถานะทั้งหมดก่อน
+            msgCard.style.display = 'none';
+            paySelCard.style.display = 'none';
+            qrCard.style.display = 'none';
+
+            if (sStat === 'open') {
+                orderSec.style.display = 'block';
+                statusSec.style.display = 'none';
+            } 
+            else {
+                // สถานะอื่นๆ จะซ่อนเมนู แล้วโชว์หน้าต่างสถานะ
+                orderSec.style.display = 'none';
+                statusSec.style.display = 'block';
+
+                if (sStat === 'billing_requested') {
+                    msgCard.style.display = 'block';
+                    document.getElementById('statusTitle').innerText = "🧾 กำลังสรุปยอดบิล";
+                    document.getElementById('statusTitle').style.color = "#E91E63";
+                    document.getElementById('statusDesc').innerText = "พนักงานกำลังตรวจสอบรายการอาหาร กรุณารอสักครู่ครับ";
+                }
+                else if (sStat === 'payment_pending') {
+                    if (pStat === 'waiting_transfer') {
+                        // โชว์ QR ค้างไว้ ให้เห็นว่าแนบสลิปไปแล้ว
+                        qrCard.style.display = 'block';
+                        document.getElementById('verifySlipBtn').innerText = "กำลังตรวจสอบสลิป ⏳";
+                        document.getElementById('verifySlipBtn').disabled = true;
+                    } 
+                    else if (pStat === 'pending_review') {
+                        msgCard.style.display = 'block';
+                        document.getElementById('statusTitle').innerText = "⚠️ รอตรวจสอบสลิป";
+                        document.getElementById('statusTitle').style.color = "#FF9800";
+                        document.getElementById('statusDesc').innerHTML = "ระบบไม่สามารถตรวจสอบสลิปอัตโนมัติได้<br><b>พนักงานกำลังตรวจสอบให้แบบ Manual ครับ</b>";
+                    }
+                    else if (pStat === 'cash_requested') {
+                        msgCard.style.display = 'block';
+                        document.getElementById('statusTitle').innerText = "💵 กรุณาเตรียมเงินสด";
+                        document.getElementById('statusTitle').style.color = "#FF9800";
+                        document.getElementById('statusDesc').innerHTML = `ยอดชำระของคุณคือ <b>฿${sessionData.bill_amount}</b><br><br>พนักงานกำลังเดินไปเก็บเงินที่โต๊ะครับ`;
+                    }
+                    else if (pStat === 'verified' || pStat === 'verified_manual' || pStat === 'paid_cash') {
+                        msgCard.style.display = 'block';
+                        document.getElementById('statusTitle').innerText = "✅ ชำระเงินเรียบร้อย";
+                        document.getElementById('statusTitle').style.color = "#06C755";
+                        document.getElementById('statusDesc').innerText = "ขอบคุณที่ใช้บริการ โอกาสหน้าเชิญใหม่ครับ!";
+                    }
+                    else {
+                        // unpaid -> ให้เลือกวิธีชำระเงิน
+                        paySelCard.style.display = 'block';
+                        document.getElementById('billAmountDisplay').innerText = parseFloat(sessionData.bill_amount).toFixed(2);
+                    }
+                }
+                else if (sStat === 'closed') {
+                    msgCard.style.display = 'block';
+                    document.getElementById('statusTitle').innerText = "👋 โต๊ะถูกปิดแล้ว";
+                    document.getElementById('statusTitle').style.color = "#888";
+                    document.getElementById('statusDesc').innerText = "รายการเสร็จสิ้นสมบูรณ์ ขอบคุณที่ใช้บริการครับ";
+                }
+            }
+        }
+
+        // ==================== ระบบชำระเงิน (Payment) ====================
+        async function selectPaymentMethod(method) {
+            if (method === 'cash') {
+                if(!confirm("ต้องการเรียกพนักงานเพื่อเก็บเงินสดที่โต๊ะใช่หรือไม่?")) return;
+                
+                await supabaseClient.from('table_sessions')
+                    .update({ payment_method: 'cash', payment_status: 'cash_requested' }).eq('id', sessionData.id);
+                
+                sessionData.payment_method = 'cash';
+                sessionData.payment_status = 'cash_requested';
+                renderUIBasedOnStatus();
+            } 
+            else if (method === 'transfer') {
+                // อัปเดตตารางว่าเลือกโอนเงิน
+                await supabaseClient.from('table_sessions').update({ payment_method: 'transfer' }).eq('id', sessionData.id);
+                
+                document.getElementById('paymentSelectionCard').style.display = 'none';
+                document.getElementById('qrPaymentCard').style.display = 'block';
+                document.getElementById('qrAmountDisplay').innerText = parseFloat(sessionData.bill_amount).toFixed(2);
+
+                const branchPayType = tableData.branches ? tableData.branches.payment_type : vendorData.payment_type;
+                const branchPrompt = tableData.branches ? tableData.branches.promptpay_number : vendorData.promptpay_number;
+                const branchBankInfo = tableData.branches ? tableData.branches.bank_info : vendorData.bank_info;
+
+                if (branchPayType === 'bank' || !branchPrompt) {
+                    // โชว์เลขบัญชี
+                    document.getElementById('promptpayQrImage').style.display = 'none';
+                    document.getElementById('bankInfoText').style.display = 'block';
+                    document.getElementById('bankInfoText').innerHTML = `<b>โอนเข้าบัญชี:</b><br>${branchBankInfo.replace(/\n/g, '<br>')}`;
+                } else {
+                    // วาด QR Code
+                    document.getElementById('bankInfoText').style.display = 'none';
+                    const payload = generatePromptPayPayload(branchPrompt, sessionData.bill_amount);
+                    if (payload) {
+                        const qr = new QRious({ value: payload, size: 250, level: 'L' });
+                        document.getElementById('promptpayQrImage').src = qr.toDataURL();
+                        document.getElementById('promptpayQrImage').style.display = 'block';
+                    }
+                }
+            }
+        }
+
+        function cancelPaymentSelection() {
+            renderUIBasedOnStatus(); // กลับไปหน้าเลือกวิธีชำระ
+        }
+
+        async function verifyTableSlip() {
+            const fileInput = document.getElementById('slipImageInput');
+            if (fileInput.files.length === 0) return alert("กรุณาเลือกไฟล์สลิปก่อนกดยืนยันครับ");
+
+            const btn = document.getElementById('verifySlipBtn');
+            btn.innerText = "กำลังตรวจสอบสลิป ⏳";
+            btn.disabled = true;
+            
+            // อัปเดตสถานะให้เป็น waiting_transfer ทันที เพื่อให้ UI เปลี่ยนและคนอื่นไม่กดซ้ำ
+            await supabaseClient.from('table_sessions').update({ payment_status: 'waiting_transfer' }).eq('id', sessionData.id);
+            sessionData.payment_status = 'waiting_transfer';
+
+            try {
+                const file = fileInput.files[0]; 
+                const fileName = `table-slip-${sessionData.id}-${Date.now()}.${file.name.split('.').pop()}`; 
+                
+                const { error: uploadError } = await supabaseClient.storage.from('slip-images').upload(fileName, file);
+                if (uploadError) throw uploadError;
+
+                const { data: publicData } = supabaseClient.storage.from('slip-images').getPublicUrl(fileName); 
+                const slipUrl = publicData.publicUrl;
+
+                // เรียก Edge Function ตรวจสลิป (Reuse ของเดิมเป๊ะๆ)
+                const { data: verifyResult, error: verifyError } = await supabaseClient.functions.invoke('verify-slip-thunder', {
+                    body: {
+                        slip_url: slipUrl,
+                        amount: Number(sessionData.bill_amount),
+                        vendor_id: vendorData.id,
+                        branch_id: tableData.branch_id,
+                        payment_context: 'RESTAURANT_TABLE_PAYMENT'
+                    }
+                });
+
+                if (verifyError || !verifyResult) {
+                    throw new Error("ระบบตรวจสลิปไม่ตอบสนอง กรุณารอพนักงานตรวจสอบแมนนวลครับ");
+                }
+
+                const isDuplicate = verifyResult.data?.isDuplicate === true || verifyResult.debug?.code === 'DUPLICATE_SLIP';
+                
+                // บันทึก Log การชำระเงิน
+                await supabaseClient.from('payment_transactions').insert([{
+                    vendor_id: vendorData.id,
+                    payment_context: 'RESTAURANT_TABLE_PAYMENT',
+                    amount_expected: Number(sessionData.bill_amount),
+                    amount_in_slip: verifyResult.data?.amountInSlip || null,
+                    slip_url: slipUrl,
+                    verification_status: verifyResult.status,
+                    is_duplicate: isDuplicate,
+                    raw_response: verifyResult
+                }]);
+
+                if (verifyResult.status === 'success') {
+                    // ตรวจผ่าน
+                    await supabaseClient.from('table_sessions').update({ 
+                        payment_status: 'verified', session_status: 'paid' 
+                    }).eq('id', sessionData.id);
+                    sessionData.payment_status = 'verified'; sessionData.session_status = 'paid';
+                    
+                } else { 
+                    // ตรวจไม่ผ่าน หรือยอดไม่ตรง
+                    await supabaseClient.from('table_sessions').update({ 
+                        payment_status: 'pending_review' 
+                    }).eq('id', sessionData.id);
+                    sessionData.payment_status = 'pending_review';
+                }
+                
+                renderUIBasedOnStatus();
+
+            } catch (err) {
+                alert("แจ้งเตือน: " + err.message);
+                // ถ้าพัง โยนภาระให้พนักงานตรวจแมนนวล
+                await supabaseClient.from('table_sessions').update({ payment_status: 'pending_review' }).eq('id', sessionData.id);
+                sessionData.payment_status = 'pending_review';
+                renderUIBasedOnStatus();
+            }
+        }
+
+        // ==================== ส่วนเดิม: การโหลดเมนู / ตะกร้า ====================
         async function loadMenu() {
-            // โหลดหมวดหมู่
             const { data: catData } = await supabaseClient.from('categories').select('*').eq('vendor_id', vendorData.id).order('created_at', { ascending: true });
             categories = catData || [];
-
-            // โหลดเมนู
             const { data: menuData } = await supabaseClient.from('menu_items').select('*').eq('vendor_id', vendorData.id).eq('is_available', true).order('created_at', { ascending: false });
             menuItems = menuData || [];
-
-            renderCategoryTabs();
-            renderMenu('all');
+            renderCategoryTabs(); renderMenu('all');
         }
 
         function renderCategoryTabs() {
             const container = document.getElementById('categoryTabs');
             let html = `<button class="cat-btn active" onclick="filterMenu('all', this)">รายการทั้งหมด</button>`;
-            categories.forEach(cat => {
-                html += `<button class="cat-btn" onclick="filterMenu('${cat.id}', this)">${cat.name}</button>`;
-            });
+            categories.forEach(cat => { html += `<button class="cat-btn" onclick="filterMenu('${cat.id}', this)">${cat.name}</button>`; });
             container.innerHTML = html;
         }
 
         function filterMenu(catId, btnElement) {
-            document.querySelectorAll('.cat-btn').forEach(btn => btn.classList.remove('active'));
-            btnElement.classList.add('active');
-            renderMenu(catId);
+            document.querySelectorAll('.cat-btn').forEach(btn => btn.classList.remove('active')); btnElement.classList.add('active'); renderMenu(catId);
         }
 
         function renderMenu(filterCatId) {
-            const container = document.getElementById('menuContainer');
-            let html = '';
-            
+            const container = document.getElementById('menuContainer'); let html = '';
             const filteredItems = filterCatId === 'all' ? menuItems : menuItems.filter(item => item.category_id === filterCatId);
-
-            if (filteredItems.length === 0) {
-                container.innerHTML = '<p style="text-align: center; color: #888; padding: 20px;">ไม่มีรายการอาหารในหมวดหมู่นี้</p>';
-                return;
-            }
-
+            if (filteredItems.length === 0) { container.innerHTML = '<p style="text-align: center; color: #888; padding: 20px;">ไม่มีรายการอาหาร</p>'; return; }
             filteredItems.forEach(item => {
                 const imgSrc = (item.image_url && item.image_url.trim() !== '') ? item.image_url : 'https://via.placeholder.com/150?text=No+Image';
-                // แปลงข้อมูล item เป็น JSON string ที่ปลอดภัยสำหรับส่งเข้า onClick
                 const safeItem = JSON.stringify(item).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
-                
-                html += `
-                <div class="menu-item">
-                    <img src="${imgSrc}" alt="${item.name}">
-                    <div class="menu-info">
-                        <h4 class="menu-name">${item.name}</h4>
-                        <p class="menu-price">฿${item.price}</p>
-                    </div>
-                    <button class="add-btn" onclick='openOptionModal(${safeItem})'>+</button>
-                </div>`;
+                html += `<div class="menu-item"><img src="${imgSrc}"><div class="menu-info"><h4 class="menu-name">${item.name}</h4><p class="menu-price">฿${item.price}</p></div><button class="add-btn" onclick='openOptionModal(${safeItem})'>+</button></div>`;
             });
             container.innerHTML = html;
         }
 
-        // ==================== ระบบตะกร้า ====================
         function openOptionModal(itemObj) {
-            currentModalItem = itemObj;
-            currentModalQty = 1;
-            document.getElementById('modalItemName').innerText = itemObj.name;
-            document.getElementById('modalItemPrice').innerText = `฿${itemObj.price}`;
-            document.getElementById('modalQtyDisplay').innerText = currentModalQty;
-            document.getElementById('modalNote').value = '';
-
+            currentModalItem = itemObj; currentModalQty = 1; document.getElementById('modalItemName').innerText = itemObj.name; document.getElementById('modalItemPrice').innerText = `฿${itemObj.price}`; document.getElementById('modalQtyDisplay').innerText = currentModalQty; document.getElementById('modalNote').value = '';
             const optContainer = document.getElementById('modalOptionsContainer');
             if (itemObj.options && itemObj.options.trim() !== '') {
-                const groups = itemObj.options.split(';');
-                let optHtml = '';
+                const groups = itemObj.options.split(';'); let optHtml = '';
                 groups.forEach((group, gIdx) => {
                     const parts = group.split(':');
                     if (parts.length > 1) {
-                        const groupName = parts[0].trim();
-                        const choices = parts[1].split(',');
+                        const groupName = parts[0].trim(); const choices = parts[1].split(',');
                         optHtml += `<div class="opt-group"><div class="opt-title">${groupName}</div>`;
                         choices.forEach((choice, cIdx) => {
-                            const val = choice.trim();
-                            const checked = cIdx === 0 ? 'checked' : '';
+                            const val = choice.trim(); const checked = cIdx === 0 ? 'checked' : '';
                             optHtml += `<label class="opt-radio"><input type="radio" name="itemOptionRadio_${gIdx}" value="${val}" ${checked}> ${val}</label>`;
-                        });
-                        optHtml += `</div>`;
+                        }); optHtml += `</div>`;
                     }
                 });
-                optContainer.innerHTML = optHtml;
-                optContainer.style.display = 'block';
-            } else {
-                optContainer.innerHTML = '';
-                optContainer.style.display = 'none';
-            }
-
+                optContainer.innerHTML = optHtml; optContainer.style.display = 'block';
+            } else { optContainer.innerHTML = ''; optContainer.style.display = 'none'; }
             document.getElementById('optionModal').style.display = 'flex';
         }
 
@@ -339,200 +575,65 @@
                 const groups = currentModalItem.options.split(';');
                 groups.forEach((group, gIdx) => {
                     const radios = document.getElementsByName(`itemOptionRadio_${gIdx}`);
-                    for (let r of radios) { 
-                        if (r.checked) { 
-                            const parts = group.split(':'); 
-                            const groupName = parts.length > 1 ? parts[0].trim() : ''; 
-                            selectedOpts.push(groupName ? `${groupName}: ${r.value}` : r.value); 
-                        } 
-                    }
+                    for (let r of radios) { if (r.checked) { const parts = group.split(':'); const groupName = parts.length > 1 ? parts[0].trim() : ''; selectedOpts.push(groupName ? `${groupName}: ${r.value}` : r.value); } }
                 });
             }
-            const finalOptionString = selectedOpts.join(' | '); 
-            const note = document.getElementById('modalNote').value.trim();
-
-            cart.push({
-                id: currentModalItem.id,
-                name: currentModalItem.name,
-                price: parseFloat(currentModalItem.price),
-                qty: currentModalQty,
-                option: finalOptionString,
-                note: note
-            });
-
-            updateCartBadge();
-            closeOptionModal();
-            
-            // สั่นเตือนเบาๆ ว่าเพิ่มของลงตะกร้าแล้ว
-            if (navigator.vibrate) navigator.vibrate(50);
+            const finalOptionString = selectedOpts.join(' | '); const note = document.getElementById('modalNote').value.trim();
+            cart.push({ id: currentModalItem.id, name: currentModalItem.name, price: parseFloat(currentModalItem.price), qty: currentModalQty, option: finalOptionString, note: note });
+            updateCartBadge(); closeOptionModal(); if (navigator.vibrate) navigator.vibrate(50);
         }
 
         function updateCartBadge() {
             const badge = document.getElementById('cartCountBadge');
-            if (cart.length > 0) {
-                let totalQty = cart.reduce((sum, item) => sum + item.qty, 0);
-                badge.innerText = totalQty;
-                badge.style.display = 'flex';
-            } else {
-                badge.style.display = 'none';
-            }
+            if (cart.length > 0) { let totalQty = cart.reduce((sum, item) => sum + item.qty, 0); badge.innerText = totalQty; badge.style.display = 'flex';
+            } else { badge.style.display = 'none'; }
         }
 
         function openCartModal() {
-            if (cart.length === 0) return alert("ตะกร้าของคุณยังว่างเปล่าครับ");
-            
-            const container = document.getElementById('cartItemsContainer');
-            let html = '';
-            let total = 0;
-
+            if (cart.length === 0) return alert("ตะกร้าของคุณว่างเปล่า");
+            const container = document.getElementById('cartItemsContainer'); let html = ''; let total = 0;
             cart.forEach((item, index) => {
-                const itemTotal = item.price * item.qty;
-                total += itemTotal;
-                
-                let optHtml = item.option ? `<br><small style="color:#00BCD4;">👉 ${item.option}</small>` : '';
-                let noteHtml = item.note ? `<br><small style="color:#ff4d4f;">📝 ${item.note}</small>` : '';
-
-                html += `
-                <div class="cart-item">
-                    <div style="flex:1;">
-                        <strong style="color: #333;">${item.name}</strong>
-                        ${optHtml} ${noteHtml}
-                        <div style="color: #E91E63; margin-top: 4px;">฿${itemTotal}</div>
-                    </div>
-                    <div class="qty-control">
-                        <button onclick="updateCartItemQty(${index}, -1)" class="qty-btn">-</button>
-                        <span>${item.qty}</span>
-                        <button onclick="updateCartItemQty(${index}, 1)" class="qty-btn">+</button>
-                    </div>
-                </div>`;
+                const itemTotal = item.price * item.qty; total += itemTotal;
+                let optHtml = item.option ? `<br><small style="color:#00BCD4;">👉 ${item.option}</small>` : ''; let noteHtml = item.note ? `<br><small style="color:#ff4d4f;">📝 ${item.note}</small>` : '';
+                html += `<div class="cart-item"><div style="flex:1;"><strong style="color: #333;">${item.name}</strong>${optHtml} ${noteHtml}<div style="color: #E91E63; margin-top: 4px;">฿${itemTotal}</div></div><div class="qty-control"><button onclick="updateCartItemQty(${index}, -1)" class="qty-btn">-</button><span>${item.qty}</span><button onclick="updateCartItemQty(${index}, 1)" class="qty-btn">+</button></div></div>`;
             });
-
-            container.innerHTML = html;
-            document.getElementById('cartTotalDisplay').innerText = `฿${total}`;
-            document.getElementById('cartModal').style.display = 'flex';
+            container.innerHTML = html; document.getElementById('cartTotalDisplay').innerText = `฿${total}`; document.getElementById('cartModal').style.display = 'flex';
         }
 
         function closeCartModal() { document.getElementById('cartModal').style.display = 'none'; }
+        function updateCartItemQty(index, delta) { cart[index].qty += delta; if (cart[index].qty <= 0) { cart.splice(index, 1); } updateCartBadge(); if (cart.length === 0) { closeCartModal(); } else { openCartModal(); } }
 
-        function updateCartItemQty(index, delta) {
-            cart[index].qty += delta;
-            if (cart[index].qty <= 0) {
-                cart.splice(index, 1);
-            }
-            updateCartBadge();
-            if (cart.length === 0) {
-                closeCartModal();
-            } else {
-                openCartModal(); // re-render
-            }
-        }
-
-        // ==================== ส่งออเดอร์ (Table Order) ====================
         async function submitOrder() {
             if (cart.length === 0) return;
-            if (sessionData.session_status === 'payment_pending') return alert("โต๊ะนี้อยู่ระหว่างรอชำระเงิน ไม่สามารถสั่งเพิ่มได้ครับ");
-
-            const btn = document.getElementById('submitOrderBtn');
-            btn.innerText = "กำลังส่งออเดอร์...";
-            btn.disabled = true;
-
+            const btn = document.getElementById('submitOrderBtn'); btn.innerText = "กำลังส่งออเดอร์..."; btn.disabled = true;
             const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-
             try {
-                // บันทึกลงตาราง table_orders
-                const { error } = await supabaseClient.from('table_orders').insert([{
-                    vendor_id: vendorData.id,
-                    branch_id: tableData.branch_id,
-                    table_session_id: sessionData.id,
-                    table_id: tableData.id,
-                    items: cart,
-                    subtotal: subtotal,
-                    order_status: 'new'
-                }]);
-
+                const { error } = await supabaseClient.from('table_orders').insert([{ vendor_id: vendorData.id, branch_id: tableData.branch_id, table_session_id: sessionData.id, table_id: tableData.id, items: cart, subtotal: subtotal, order_status: 'new' }]);
                 if (error) throw error;
-
-                alert("🚀 ส่งออเดอร์เข้าครัวเรียบร้อยแล้ว!\nสามารถสั่งรายการอื่นเพิ่มได้เรื่อยๆ ครับ");
-                
-                // แจ้งเตือนแอดมิน (ถ้ามีการตั้งค่า Webhook)
-                fetch(CONFIG.gasWebhookUrl, {
-                    method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
-                    body: JSON.stringify({ 
-                        action: 'notify_table_order', 
-                        vendor_id: vendorData.id, 
-                        table_name: tableData.table_name,
-                        branch_id: tableData.branch_id
-                    })
-                }).catch(e => console.log(e));
-
-                // ล้างตะกร้า
-                cart = [];
-                updateCartBadge();
-                closeCartModal();
-
-            } catch (err) {
-                alert("เกิดข้อผิดพลาดในการส่งออเดอร์: " + err.message);
-            }
-            
-            btn.innerText = "🚀 ส่งออเดอร์เข้าครัว";
-            btn.disabled = false;
+                alert("🚀 ส่งออเดอร์เข้าครัวเรียบร้อยแล้ว!");
+                fetch(CONFIG.gasWebhookUrl, { method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: 'notify_table_order', vendor_id: vendorData.id, table_name: tableData.table_name, branch_id: tableData.branch_id }) }).catch(e => console.log(e));
+                cart = []; updateCartBadge(); closeCartModal();
+            } catch (err) { alert("เกิดข้อผิดพลาดในการส่งออเดอร์: " + err.message); }
+            btn.innerText = "🚀 ส่งออเดอร์เข้าครัว"; btn.disabled = false;
         }
 
-        // ==================== เรียกพนักงาน (Service Request) ====================
         async function callStaff() {
             if (!confirm("ต้องการเรียกพนักงานใช่หรือไม่?")) return;
-
             try {
-                // เช็คก่อนว่ามี Request ที่ยัง pending อยู่ไหม จะได้ไม่กดซ้ำรัวๆ
-                const { data: existReq } = await supabaseClient.from('table_service_requests')
-                    .select('id').eq('table_session_id', sessionData.id).eq('status', 'pending');
-
-                if (existReq && existReq.length > 0) {
-                    return alert("ท่านได้เรียกพนักงานไปแล้ว กรุณารอสักครู่ครับ");
-                }
-
-                const { error } = await supabaseClient.from('table_service_requests').insert([{
-                    vendor_id: vendorData.id,
-                    branch_id: tableData.branch_id,
-                    table_session_id: sessionData.id,
-                    table_id: tableData.id,
-                    request_type: 'call_staff',
-                    status: 'pending'
-                }]);
-
-                if (error) throw error;
-                alert("🔔 ส่งสัญญาณเรียกพนักงานเรียบร้อยแล้วครับ");
-
-            } catch (err) {
-                alert("ไม่สามารถเรียกพนักงานได้: " + err.message);
-            }
+                const { data: existReq } = await supabaseClient.from('table_service_requests').select('id').eq('table_session_id', sessionData.id).eq('status', 'pending');
+                if (existReq && existReq.length > 0) return alert("ท่านได้เรียกพนักงานไปแล้ว กรุณารอสักครู่ครับ");
+                const { error } = await supabaseClient.from('table_service_requests').insert([{ vendor_id: vendorData.id, branch_id: tableData.branch_id, table_session_id: sessionData.id, table_id: tableData.id, request_type: 'call_staff', status: 'pending' }]);
+                if (error) throw error; alert("🔔 ส่งสัญญาณเรียกพนักงานเรียบร้อยแล้วครับ");
+            } catch (err) { alert("ไม่สามารถเรียกพนักงานได้: " + err.message); }
         }
 
-        // ==================== ขอเช็คบิล ====================
         async function requestBill() {
-            if (cart.length > 0) {
-                return alert("กรุณากดส่งออเดอร์ในตะกร้า หรือลบรายการออกก่อนกดเช็คบิลครับ");
-            }
-            if (sessionData.session_status === 'billing_requested' || sessionData.session_status === 'payment_pending') {
-                return alert("ท่านได้ทำการขอเช็คบิลไปแล้ว กรุณารอพนักงานสรุปยอดสักครู่ครับ");
-            }
-
-            if (!confirm("ต้องการเรียกเช็คบิลใช่หรือไม่?\n(หลังกดเช็คบิลแล้ว จะไม่สามารถสั่งอาหารเพิ่มได้)")) return;
-
+            if (cart.length > 0) return alert("กรุณากดส่งออเดอร์ หรือลบรายการในตะกร้าก่อนครับ");
+            if (!confirm("ต้องการเรียกเช็คบิลใช่หรือไม่?\n(จะไม่สามารถสั่งอาหารเพิ่มได้)")) return;
             try {
-                // อัปเดตสถานะ Session
-                const { error } = await supabaseClient.from('table_sessions')
-                    .update({ session_status: 'billing_requested' })
-                    .eq('id', sessionData.id);
-
-                if (error) throw error;
-                
-                sessionData.session_status = 'billing_requested';
-                alert("ส่งคำขอเช็คบิลแล้ว พนักงานกำลังตรวจสอบรายการอาหารครับ\n(โปรดรอพนักงานที่โต๊ะ)");
-
-            } catch (err) {
-                alert("เกิดข้อผิดพลาดในการขอเช็คบิล: " + err.message);
-            }
+                const { error } = await supabaseClient.from('table_sessions').update({ session_status: 'billing_requested' }).eq('id', sessionData.id);
+                if (error) throw error; sessionData.session_status = 'billing_requested'; renderUIBasedOnStatus();
+            } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); }
         }
 
         window.onload = initApp;
