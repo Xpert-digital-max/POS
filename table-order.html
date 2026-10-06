@@ -85,7 +85,7 @@
         <div id="menuContainer" class="menu-container"></div>
 
         <div class="fab-container">
-            <button id="btnCallStaff" onclick="toggleCallStaff()" class="fab-btn btn-call">🛎️ เรียกพนักงาน</button>
+            <button id="btnCallStaff" onclick="callStaff()" class="fab-btn btn-call">🛎️ เรียกพนักงาน</button>
             <button onclick="requestBill()" class="fab-btn btn-bill">🧾 รอจ่ายเงิน / เช็คบิล</button>
         </div>
         <div class="cart-float" onclick="openCartModal()">🛒<div id="cartCountBadge" class="cart-badge" style="display: none;">0</div></div>
@@ -98,7 +98,6 @@
         <div id="statusMessageCard" class="status-card">
             <h2 id="statusTitle" style="color: #2196F3; margin-top: 0;">กำลังตรวจสอบ</h2>
             <p id="statusDesc" style="color: #666; font-size: 14px;">กรุณารอสักครู่...</p>
-            
             <button id="cancelBillBtnMsg" onclick="cancelBillCustomer()" class="payment-btn btn-cancel" style="display: none;">❌ ยกเลิกการชำระเงิน (สั่งอาหารต่อ)</button>
         </div>
 
@@ -113,16 +112,15 @@
             <div style="text-align: left; margin-top: 25px; background: #e0f7fa; padding: 15px; border-radius: 12px; border: 1px dashed #00BCD4;">
                 <p style="margin: 0 0 10px 0; color: #00838F; font-size: 14px; font-weight: bold; text-align: center;">กรุณาแนบสลิปโอนเงินที่นี่ ⬇️</p>
                 <input type="file" id="slipImageInput" accept="image/*" style="width: 100%; padding: 10px; border: 1px solid #00BCD4; border-radius: 8px; background: white; box-sizing: border-box;">
-                
                 <button id="verifySlipBtn" onclick="verifyTableSlip()" style="width: 100%; padding: 15px; background: #06C755; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 16px; margin-top: 15px; cursor: pointer;">✅ ส่งสลิปโอนเงิน</button>
             </div>
             
-            <button onclick="cancelBillCustomer()" class="payment-btn btn-cancel" style="margin-top: 15px; margin-bottom: 0;">❌ ยกเลิกการชำระเงิน (สั่งอาหารต่อ)</button>
+            <button onclick="hideWindow()" style="width: 100%; padding: 12px; background: transparent; color: #888; border: none; font-weight: bold; font-size: 14px; margin-top: 15px; cursor: pointer; text-decoration: underline;">ปิดหน้าต่าง</button>
         </div>
 
     </div>
 
-    <!-- Modal เลือกวิธีชำระเงิน (เด้งขึ้นมาเมื่อกดขอเช็คบิล) -->
+    <!-- Modal เลือกวิธีชำระเงิน -->
     <div id="paymentSelectionModal" class="modal-overlay">
         <div class="modal-content" style="text-align: center; border-radius: 20px;">
             <h3 style="margin-top: 0; color: #333;">เลือกวิธีชำระเงิน</h3>
@@ -148,7 +146,6 @@
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
         let tableToken = null; let tableData = null; let sessionData = null; let vendorData = null; let customerUid = null; let menuItems = []; let categories = [];
         let cart = []; let currentModalItem = null; let currentModalQty = 1; let pollingInterval = null;
-        let currentServiceRequestId = null;
 
         function generatePromptPayPayloadSafe(promptpayId, amount) {
             let id = promptpayId.replace(/\D/g, ''); if (id.length !== 10 && id.length !== 13 && id.length !== 15) return null;
@@ -197,6 +194,8 @@
 
         async function pollSessionStatus() {
             if (!sessionData || !sessionData.id) return;
+            
+            // 1. เช็คสถานะโต๊ะและการเงิน
             const { data: sess } = await supabaseClient.from('table_sessions').select('*').eq('id', sessionData.id).single();
             if (sess) {
                 if (sess.session_status !== sessionData.session_status || sess.payment_status !== sessionData.payment_status) { 
@@ -204,26 +203,30 @@
                 }
             }
 
+            // 2. เช็คสถานะการเรียกพนักงาน (เพื่อซ่อน/โชว์ปุ่ม)
             const { data: req } = await supabaseClient.from('table_service_requests').select('id, status').eq('table_session_id', sessionData.id).eq('status', 'pending').maybeSingle();
             const btnCall = document.getElementById('btnCallStaff');
             if (req) {
-                currentServiceRequestId = req.id; btnCall.innerHTML = '❌ ยกเลิกเรียกพนักงาน';
+                // มีรายการเรียกค้างอยู่ -> ซ่อนปุ่มไปเลย
+                btnCall.style.display = 'none';
             } else {
-                currentServiceRequestId = null; btnCall.innerHTML = '🛎️ เรียกพนักงาน';
+                // ไม่มีรายการ หรือ พนักงานรับเรื่องแล้ว -> แสดงปุ่มกลับมา
+                btnCall.style.display = 'flex';
             }
         }
 
-        async function toggleCallStaff() {
+        async function callStaff() {
+            if (!confirm("ต้องการเรียกพนักงานใช่หรือไม่?")) return;
             const btn = document.getElementById('btnCallStaff'); btn.disabled = true;
             try {
-                if (currentServiceRequestId) {
-                    await supabaseClient.from('table_service_requests').delete().eq('id', currentServiceRequestId); currentServiceRequestId = null;
-                } else {
-                    const { data, error } = await supabaseClient.from('table_service_requests').insert([{ vendor_id: vendorData.id, branch_id: tableData.branch_id, table_session_id: sessionData.id, table_id: tableData.id, request_type: 'call_staff', status: 'pending' }]).select().single();
-                    if (error) throw error; currentServiceRequestId = data.id;
-                }
+                const { error } = await supabaseClient.from('table_service_requests').insert([{ 
+                    vendor_id: vendorData.id, branch_id: tableData.branch_id, table_session_id: sessionData.id, table_id: tableData.id, request_type: 'call_staff', status: 'pending' 
+                }]);
+                if (error) throw error;
+                alert("🔔 พนักงานได้รับแจ้งแล้ว กรุณารอสักครู่ครับ");
+                btn.style.display = 'none'; // ซ่อนทันทีเพื่อความรวดเร็วของ UI
                 pollSessionStatus(); 
-            } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); } btn.disabled = false;
+            } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); btn.disabled = false;}
         }
 
         function renderUIBasedOnStatus() {
@@ -232,12 +235,9 @@
             const sStat = sessionData.session_status; const pStat = sessionData.payment_status;
 
             msgCard.style.display = 'none'; qrCard.style.display = 'none';
+            document.getElementById('cancelBillBtnMsg').style.display = 'none';
 
-            // ถ้าสถานะเป็น open หรือ billing_requested (ก่อนกดยืนยันวิธีจ่าย) ให้สั่งอาหารได้
-            // แต่ถ้ากดยืนยันวิธีจ่ายแล้ว (payment_pending) ให้ล็อกหน้าจอทันที
-            if (sStat === 'open') { 
-                orderSec.style.display = 'block'; statusSec.style.display = 'none'; 
-            } 
+            if (sStat === 'open') { orderSec.style.display = 'block'; statusSec.style.display = 'none'; } 
             else {
                 orderSec.style.display = 'none'; statusSec.style.display = 'block';
 
@@ -245,10 +245,12 @@
                     qrCard.style.display = 'block'; document.getElementById('verifySlipBtn').innerText = "กำลังตรวจสอบสลิป ⏳"; document.getElementById('verifySlipBtn').disabled = true;
                 } 
                 else if (pStat === 'pending_review') {
-                    msgCard.style.display = 'block'; document.getElementById('statusTitle').innerText = "⚠️ รอตรวจสอบสลิป"; document.getElementById('statusTitle').style.color = "#FF9800"; document.getElementById('statusDesc').innerHTML = "ระบบไม่สามารถตรวจสอบสลิปอัตโนมัติได้<br><b>พนักงานกำลังตรวจสอบให้แบบ Manual ครับ</b>";
+                    msgCard.style.display = 'block'; document.getElementById('statusTitle').innerText = "⚠️️ รอตรวจสอบสลิป"; document.getElementById('statusTitle').style.color = "#FF9800"; document.getElementById('statusDesc').innerHTML = "ระบบไม่สามารถตรวจสอบสลิปอัตโนมัติได้<br><b>พนักงานกำลังตรวจสอบให้แบบ Manual ครับ</b>";
+                    document.getElementById('cancelBillBtnMsg').style.display = 'block';
                 }
                 else if (pStat === 'cash_requested') {
                     msgCard.style.display = 'block'; document.getElementById('statusTitle').innerText = "💵 กำลังเรียกพนักงานเก็บเงิน"; document.getElementById('statusTitle').style.color = "#00BCD4"; document.getElementById('statusDesc').innerHTML = `ยอดชำระของคุณคือ <b>฿${sessionData.bill_amount}</b><br><br>พนักงานกำลังเดินไปเก็บเงินที่โต๊ะครับ`;
+                    document.getElementById('cancelBillBtnMsg').style.display = 'block';
                 }
                 else if (pStat === 'verified' || pStat === 'verified_manual' || pStat === 'paid_cash') {
                     msgCard.style.display = 'block'; document.getElementById('statusTitle').innerText = "✅ ชำระเงินเรียบร้อย"; document.getElementById('statusTitle').style.color = "#06C755"; document.getElementById('statusDesc').innerText = "ขอบคุณที่ใช้บริการ โอกาสหน้าเชิญใหม่ครับ!";
@@ -273,11 +275,12 @@
 
         function closePaymentModal() { document.getElementById('paymentSelectionModal').style.display = 'none'; }
 
+        function hideWindow() { alert("หน้าต่างนี้ยังไม่ถูกปิด คุณสามารถสลับแอปไปโอนเงิน แล้วกลับมาแนบสลิปที่หน้านี้ได้เลยครับ"); }
+
         async function submitCheckbill(method) {
             closePaymentModal();
             const finalAmount = parseFloat(document.getElementById('checkbillAmountDisplay').innerText);
 
-            // ล็อกทันทีตั้งแต่ขั้นตอนนี้ (ห้ามสั่งเพิ่มเด็ดขาด)
             if (method === 'cash') {
                 await supabaseClient.from('table_sessions').update({ payment_method: 'cash', payment_status: 'cash_requested', session_status: 'payment_pending', bill_amount: finalAmount }).eq('id', sessionData.id);
                 sessionData.payment_method = 'cash'; sessionData.payment_status = 'cash_requested'; sessionData.session_status = 'payment_pending'; sessionData.bill_amount = finalAmount;
