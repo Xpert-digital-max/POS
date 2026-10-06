@@ -52,13 +52,15 @@
         .action-row { display: flex; gap: 10px; margin-top: 20px; }
         .btn-large { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer; }
 
-        /* [PHASE 2] CSS สำหรับการพิมพ์ (Print Layout) */
+        /* Sound Unlock Overlay */
+        #soundUnlockOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(26,35,126,0.98); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; text-align: center; padding: 20px; box-sizing: border-box; }
+
+        /* CSS สำหรับการพิมพ์ (Print Layout) */
         #printArea { display: none; }
         @media print {
             body * { visibility: hidden; }
             #printArea { display: block !important; visibility: visible; position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; font-family: monospace; color: #000; }
             #printArea * { visibility: visible; }
-            /* สไตล์สำหรับเครื่องปรินท์สลิปความร้อน (Thermal Printer 80mm) */
             @page { margin: 0; size: 80mm 297mm; }
             .print-ticket { width: 72mm; margin: 0 auto; padding: 5mm 0; font-size: 14px; line-height: 1.4; }
             .print-header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
@@ -71,16 +73,22 @@
 </head>
 <body>
 
+    <!-- Overlay ปลดล็อคเสียง -->
+    <div id="soundUnlockOverlay">
+        <h1 style="margin-bottom: 10px;">👨‍🍳 ระบบพนักงานร้านอาหาร</h1>
+        <p style="color: #b3e5fc; max-width: 400px; line-height: 1.5;">เบราว์เซอร์จำเป็นต้องให้คุณกดยืนยันหนึ่งครั้ง เพื่ออนุญาตให้ระบบเล่นเสียงแจ้งเตือน "เรียกพนักงาน" และ "ออเดอร์เข้าใหม่" ได้</p>
+        <button onclick="startSystem()" style="padding: 15px 40px; font-size: 18px; font-weight: bold; background: #06C755; color: white; border: none; border-radius: 8px; cursor: pointer; margin-top: 30px; box-shadow: 0 4px 10px rgba(6, 199, 85, 0.4);">🔊 คลิกเพื่อเปิดระบบและเปิดเสียง</button>
+    </div>
+
     <!-- พื้นที่สำหรับพิมพ์ -->
     <div id="printArea"></div>
 
     <div class="header no-print">
         <h2>👨‍🍳 ระบบพนักงานร้านอาหาร</h2>
-        <div style="font-size: 14px;" id="loginInfo">กำลังโหลด...</div>
+        <div style="font-size: 14px;" id="loginInfo">รอการเชื่อมต่อ...</div>
     </div>
 
     <div class="container no-print">
-        
         <!-- Table Board -->
         <div class="table-board">
             <h3 style="margin-top: 0; color: #333; border-bottom: 2px solid #eee; padding-bottom: 10px;">ผังโต๊ะ (Table Board)</h3>
@@ -91,12 +99,11 @@
 
         <!-- Order Queue -->
         <div class="order-queue">
-            <h3 style="margin-top: 0; color: #E91E63; border-bottom: 2px solid #fce4ec; padding-bottom: 10px;">รายการอาหารเข้าครัว</h3>
+            <h3 style="margin-top: 0; color: #E91E63; border-bottom: 2px solid #fce4ec; padding-bottom: 10px;">คิวอาหารที่ต้องทำ / รอเสิร์ฟ</h3>
             <div id="orderTicketList">
-                <p style="color: #888; text-align: center; margin-top: 50px;">รอออเดอร์ใหม่...</p>
+                <p style="color: #888; text-align: center; margin-top: 50px;">ไม่มีออเดอร์ค้าง...</p>
             </div>
         </div>
-
     </div>
 
     <!-- Modal จัดการโต๊ะ (ดูออเดอร์ / เช็คบิล / ปิดโต๊ะ) -->
@@ -132,12 +139,10 @@
     </div>
 
     <script>
-        // ใส่ Vendor ID ของร้านคุณเพื่อการทดสอบ (เดี๋ยวเราจะเชื่อมกับระบบ Auth อีกที)
-        // ** ให้คุณเปลี่ยน <<YOUR_VENDOR_ID>> เป็น id แบบ UUID ในตาราง vendors ของคุณ **
         const VENDOR_ID = localStorage.getItem('test_vendor_id') || prompt("กรุณาระบุ Vendor ID ของคุณ (เพื่อใช้ทดสอบ):");
         if (VENDOR_ID) localStorage.setItem('test_vendor_id', VENDOR_ID);
         
-        const BRANCH_ID = null; // null = โหลดทุกสาขา หรือ สาขาหลัก
+        const BRANCH_ID = null; 
 
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
         
@@ -152,17 +157,28 @@
         let pollingTimer = null;
         let audioContext = null;
 
-        async function initStaffDashboard() {
+        // ฟังก์ชันปลดล็อคเสียงและเริ่มระบบ
+        function startSystem() {
+            document.getElementById('soundUnlockOverlay').style.display = 'none';
             document.getElementById('loginInfo').innerText = `Vendor ID: ${VENDOR_ID.substring(0,8)}...`;
             
-            // ปลดล็อคเสียงเมื่อคลิกจอครั้งแรก
-            document.body.addEventListener('click', () => {
-                if (!audioContext) { audioContext = new (window.AudioContext || window.webkitAudioContext)(); }
-                if (audioContext.state === 'suspended') { audioContext.resume(); }
-            }, { once: true });
-
-            await fetchData();
-            pollingTimer = setInterval(fetchData, 3000); // Poll ข้อมูลทุก 3 วินาที
+            // เตรียม Audio Context
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            
+            // เล่นเสียงความถี่ต่ำและสั้นมากๆ เพื่อหลอกเบราว์เซอร์ว่ามีการโต้ตอบเสียงแล้ว
+            const osc = audioContext.createOscillator();
+            osc.connect(audioContext.destination);
+            osc.start();
+            osc.stop(audioContext.currentTime + 0.01);
+            
+            // เริ่มดึงข้อมูล
+            fetchData();
+            pollingTimer = setInterval(fetchData, 3000);
         }
 
         async function fetchData() {
@@ -175,27 +191,25 @@
                 const { data: sessData } = await supabaseClient.from('table_sessions').select('*').eq('vendor_id', VENDOR_ID).neq('session_status', 'closed').neq('session_status', 'cancelled');
                 activeSessions = sessData || [];
 
-                // 3. โหลดออเดอร์ใหม่เข้าครัว (status = new)
-                const { data: ordData } = await supabaseClient.from('table_orders').select('*, restaurant_tables(table_name)').eq('vendor_id', VENDOR_ID).eq('order_status', 'new').order('created_at');
+                // 3. โหลดออเดอร์อาหารที่ค้างอยู่ (ดึงทั้งสถานะ new และ preparing เพื่อนำมาโชว์ในแถบขวา)
+                const { data: ordData } = await supabaseClient.from('table_orders').select('*, restaurant_tables(table_name)').eq('vendor_id', VENDOR_ID).in('order_status', ['new', 'preparing']).order('created_at');
                 
-                // เช็คว่ามีออเดอร์ใหม่เข้ามาเพิ่มหรือไม่เพื่อเล่นเสียงเตือน
+                // เช็คว่ามีออเดอร์ใหม่เข้ามาเพิ่มหรือไม่ (เช็คจากความยาวที่เปลี่ยนไป หรือ ID ที่ไม่เคยเจอ)
                 if (ordData && newOrders.length < ordData.length) { playAlertSound('order'); }
                 newOrders = ordData || [];
 
                 // 4. โหลดการเรียกพนักงาน (status = pending)
                 const { data: reqData } = await supabaseClient.from('table_service_requests').select('*, restaurant_tables(table_name)').eq('vendor_id', VENDOR_ID).eq('status', 'pending');
-                
                 if (reqData && serviceRequests.length < reqData.length) { playAlertSound('call'); }
                 serviceRequests = reqData || [];
 
                 renderTableBoard();
                 renderOrderQueue();
                 
-                // ถ้าเปิด Modal โต๊ะไหนค้างอยู่ ให้รีเฟรชข้อมูลใน Modal ด้วย
+                // ถ้าเปิด Modal โต๊ะค้างอยู่ ให้รีเฟรชยอดเงิน/ข้อมูลใน Modal ด้วย
                 if (currentViewingTable) {
                     refreshModalData();
                 }
-
             } catch (err) {
                 console.error("Fetch Data Error:", err);
             }
@@ -203,18 +217,22 @@
 
         function playAlertSound(type) {
             if (!audioContext) return;
+            if (audioContext.state === 'suspended') audioContext.resume();
+
             const osc = audioContext.createOscillator();
             const gain = audioContext.createGain();
             osc.connect(gain); gain.connect(audioContext.destination);
             
             if (type === 'call') {
+                // เสียงเรียกพนักงาน (แหลมและยาวกว่า)
                 osc.type = 'triangle'; osc.frequency.setValueAtTime(600, audioContext.currentTime);
                 osc.frequency.exponentialRampToValueAtTime(800, audioContext.currentTime + 0.5);
                 gain.gain.setValueAtTime(0.8, audioContext.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 1);
                 osc.start(); osc.stop(audioContext.currentTime + 1);
             } else {
+                // เสียงออเดอร์ใหม่ (นุ่มและสั้น)
                 osc.type = 'sine'; osc.frequency.setValueAtTime(880, audioContext.currentTime);
-                gain.gain.setValueAtTime(0.5, audioContext.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.6, audioContext.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
                 osc.start(); osc.stop(audioContext.currentTime + 0.3);
             }
         }
@@ -226,7 +244,6 @@
 
             let html = '';
             tables.forEach(table => {
-                // หาสถานะของโต๊ะนี้
                 const session = activeSessions.find(s => s.table_id === table.id);
                 const req = serviceRequests.find(r => r.table_id === table.id);
                 
@@ -254,7 +271,7 @@
             container.innerHTML = html;
         }
 
-        // ==================== Render คิวเข้าครัว ====================
+        // ==================== Render คิวอาหารเข้าครัว ====================
         function renderOrderQueue() {
             const container = document.getElementById('orderTicketList');
             if (newOrders.length === 0) { container.innerHTML = '<p style="color: #888; text-align: center; margin-top: 50px;">ไม่มีออเดอร์ค้าง...</p>'; return; }
@@ -272,7 +289,6 @@
                     itemsHtml += `<div class="ticket-item"><b>${item.qty}x</b> <span>${item.name} ${optStr} ${noteStr}</span></div>`;
                 });
 
-                // เตรียมข้อมูลสำหรับส่งไปฟังก์ชัน Print Kitchen
                 const safeOrderData = encodeURIComponent(JSON.stringify(order));
 
                 html += `
@@ -284,15 +300,17 @@
                     <div>${itemsHtml}</div>
                     <div class="ticket-actions">
                         <button class="ticket-btn btn-print" onclick="printKitchenTicket('${safeOrderData}')">🖨 พิมพ์ใบเข้าครัว</button>
-                        <button class="ticket-btn btn-accept" onclick="acceptOrder('${order.id}')">✅ รับออเดอร์ (กำลังทำ)</button>
+                        <!-- เปลี่ยนปุ่มเป็นเสิร์ฟแล้ว เพื่อตัดยอดออกจากหน้าจอ -->
+                        <button class="ticket-btn btn-accept" onclick="markOrderServed('${order.id}')">✅ เสิร์ฟแล้ว / ปิดรายการ</button>
                     </div>
                 </div>`;
             });
             container.innerHTML = html;
         }
 
-        async function acceptOrder(orderId) {
-            await supabaseClient.from('table_orders').update({ order_status: 'preparing' }).eq('id', orderId);
+        // เมื่อกดเสิร์ฟแล้ว อัปเดตสถานะเป็น served (รายการจะหายไปจากฝั่งขวาอัตโนมัติในการดึงข้อมูลรอบหน้า)
+        async function markOrderServed(orderId) {
+            await supabaseClient.from('table_orders').update({ order_status: 'served' }).eq('id', orderId);
             fetchData();
         }
 
@@ -347,7 +365,6 @@
             if (!currentViewingTable) return;
             document.getElementById('modalTableName').innerText = `โต๊ะ ${currentViewingTable.table_name}`;
             
-            // หา Session
             currentViewingSession = activeSessions.find(s => s.table_id === currentViewingTable.id);
             const req = serviceRequests.find(r => r.table_id === currentViewingTable.id);
 
@@ -368,7 +385,7 @@
                 return;
             }
 
-            // โหลด Order ทั้งหมดของ Session นี้
+            // โหลด Order "ทั้งหมด" ของโต๊ะนี้ (รวมที่เสิร์ฟไปแล้ว) เพื่อมาคำนวณบิล
             const { data: orders } = await supabaseClient.from('table_orders').select('*').eq('table_session_id', currentViewingSession.id).neq('order_status', 'cancelled');
             
             let statusTxt = "กำลังทาน"; let statusColor = "#06C755";
@@ -455,7 +472,7 @@
             if(!confirm("ยืนยันว่าได้รับเงินเรียบร้อยแล้ว และต้องการ [ปิดโต๊ะ] ใช่หรือไม่?\n(โต๊ะจะกลับมาเป็นสถานะ 'ว่าง')")) return;
             await supabaseClient.from('table_sessions').update({ 
                 session_status: 'closed',
-                payment_status: 'paid_cash', // สมมติว่าเก็บเงินสดหน้าเคาน์เตอร์
+                payment_status: 'paid_cash',
                 closed_at: new Date().toISOString()
             }).eq('id', currentViewingSession.id);
             closeTableModal();
@@ -488,7 +505,7 @@
             setTimeout(() => { window.print(); }, 200);
         }
 
-        window.onload = initStaffDashboard;
+        // นำ window.onload เดิมออก เพราะเราเปลี่ยนไปใช้ปุ่ม "เปิดระบบ" แทน
     </script>
 </body>
 </html>
