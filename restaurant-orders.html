@@ -380,7 +380,7 @@
             if (currentViewingSession.session_status === 'billing_requested') { statusTxt = "ขอเช็คบิล"; statusColor = "#E91E63"; }
             else if (currentViewingSession.payment_status === 'cash_requested') { statusTxt = "รอเก็บเงินสด"; statusColor = "#FF9800"; }
             else if (currentViewingSession.payment_status === 'waiting_transfer' || currentViewingSession.payment_status === 'pending_review') { statusTxt = "รอตรวจสลิป"; statusColor = "#2196F3"; }
-            else if (currentViewingSession.payment_status === 'verified') { statusTxt = "ชำระเงินเรียบร้อย"; statusColor = "#06C755"; }
+            else if (currentViewingSession.payment_status === 'verified' || currentViewingSession.payment_status === 'verified_manual') { statusTxt = "ชำระเงินเรียบร้อย"; statusColor = "#06C755"; }
             else if (currentViewingSession.session_status === 'payment_pending') { statusTxt = "กำลังชำระเงิน"; statusColor = "#FF9800"; }
             document.getElementById('modalTableStatus').innerText = statusTxt; document.getElementById('modalTableStatus').style.color = statusColor;
 
@@ -396,7 +396,6 @@
             renderModalActionButtons(totalAmt);
         }
 
-        // ---------- ตรงนี้คือส่วนที่อัปเดตให้มีปุ่มยกเลิกบิล ----------
         function renderModalActionButtons(totalAmt) {
             const actionDiv = document.getElementById('modalActionButtons');
             if (!currentViewingSession) return;
@@ -404,11 +403,14 @@
             const sStat = currentViewingSession.session_status; 
             const pStat = currentViewingSession.payment_status;
             
-            // ปุ่มยกเลิกบิล (ให้กลับไปสั่งอาหารต่อ)
             const cancelBtn = `<button onclick="cancelBill()" class="btn-large" style="background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; flex: 0.5;">❌ ยกเลิก</button>`;
 
-            // รอเช็คบิล: ลูกค้ายังไม่เลือกวิธีจ่าย
-            if (sStat === 'billing_requested' || pStat === 'unpaid') {
+            // โต๊ะปกติที่กำลังกินอยู่ (ไม่แสดงปุ่มยกเลิก)
+            if (sStat === 'open') {
+                actionDiv.innerHTML = `<button onclick="printCustomerBill(${totalAmt})" class="btn-large" style="background: #2196F3; color: white;">🖨 พิมพ์บิลเช็คยอด</button>`;
+            }
+            // ขอเช็คบิล: ลูกค้ายังไม่เลือกวิธีจ่าย
+            else if (sStat === 'billing_requested') {
                 actionDiv.innerHTML = `${cancelBtn} <button onclick="printCustomerBill(${totalAmt})" class="btn-large" style="background: #2196F3; color: white;">🖨 พิมพ์บิลเช็คยอด</button>`;
             } 
             // ขอจ่ายเงินสด: แสดงปุ่มรับเงินสด
@@ -430,7 +432,6 @@
                     <button onclick="confirmManualTransfer()" class="btn-large" style="background: #06C755; color: white;">✅ ตรวจผ่าน (ปิดโต๊ะ)</button>
                 `;
             }
-            // โต๊ะปกติที่กำลังกินอยู่
             else {
                 actionDiv.innerHTML = `<button onclick="printCustomerBill(${totalAmt})" class="btn-large" style="background: #2196F3; color: white;">🖨 พิมพ์สรุปยอด</button>`;
             }
@@ -440,7 +441,9 @@
         
         async function cancelBill() {
             if(!confirm("ต้องการยกเลิกการเรียกเก็บเงิน และเปิดให้ลูกค้าสั่งอาหารต่อใช่หรือไม่?")) return;
-            await supabaseClient.from('table_sessions').update({ session_status: 'open', payment_status: 'unpaid', payment_method: null }).eq('id', currentViewingSession.id); fetchData();
+            await supabaseClient.from('table_sessions').update({ session_status: 'open', payment_status: 'unpaid', payment_method: null }).eq('id', currentViewingSession.id); 
+            closeTableModal(); // ปิดหน้าต่างให้เนียนตา
+            fetchData();
         }
 
         async function confirmManualTransfer() {
