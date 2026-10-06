@@ -264,7 +264,10 @@
 
         function renderOrderQueue() {
             const container = document.getElementById('orderTicketList');
-            if (newOrders.length === 0) { container.innerHTML = '<p style="color: #888; text-align: center; margin-top: 50px;">ไม่มีออเดอร์ค้าง...</p>'; return; }
+            if (newOrders.length === 0) { 
+                container.innerHTML = '<p style="color: #888; text-align: center; margin-top: 50px;">ไม่มีออเดอร์ค้าง...</p>'; 
+                return; 
+            }
 
             let html = '';
             newOrders.forEach(order => {
@@ -273,24 +276,53 @@
                 
                 let itemsHtml = '';
                 const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+                let allItemsDone = true; // ตัวแปรเช็คว่าเสร็จทุกรายการหรือยัง
+
                 items.forEach(item => {
+                    // กำหนดสถานะเริ่มต้นถ้ายังไม่มี
+                    const itemStatus = item.status || 'pending'; 
+                    let statusBadge = '';
+                    let itemStyle = '';
+
+                    // ตั้งค่าหน้าตาตามสถานะที่รับมาจาก KDS
+                    if (itemStatus === 'cooking') {
+                        statusBadge = '<span style="background: #FFF3E0; color: #FF9800; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: auto; border: 1px solid #FFE0B2;">🔥 กำลังทำ</span>';
+                        allItemsDone = false;
+                    } else if (itemStatus === 'done') {
+                        statusBadge = '<span style="background: #E8F5E9; color: #06C755; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: auto; border: 1px solid #C8E6C9;">✅ เสร็จ</span>';
+                        itemStyle = 'text-decoration: line-through; color: #aaa;'; // ขีดฆ่ารายการที่เสร็จแล้ว
+                    } else {
+                        // สถานะ pending (รอกดรับทำ)
+                        allItemsDone = false;
+                    }
+
                     let optStr = item.option ? `<br><small style="color:#00BCD4;">- ${item.option}</small>` : '';
                     let noteStr = item.note ? `<br><small style="color:#ff4d4f;">* ${item.note}</small>` : '';
-                    itemsHtml += `<div class="ticket-item"><b>${item.qty}x</b> <span>${item.name} ${optStr} ${noteStr}</span></div>`;
+                    
+                    // เพิ่ม display: flex เพื่อให้ statusBadge ดันไปอยู่ขวาสุด
+                    itemsHtml += `<div class="ticket-item" style="display: flex; align-items: flex-start; justify-content: space-between;">
+                        <div style="${itemStyle}"><b>${item.qty}x</b> <span>${item.name} ${optStr} ${noteStr}</span></div>
+                        ${statusBadge}
+                    </div>`;
                 });
+
+                // ถ้ารายการเสร็จหมดแล้ว และยังไม่โดนเสิร์ฟ (ซ่อนหรือเปลี่ยนสีการ์ดตามต้องการ)
+                // ในที่นี้เราจะยังแสดงอยู่ แต่ให้พนักงานแคชเชียร์รู้ว่า "พร้อมเสิร์ฟทั้งหมดแล้ว"
+                let ticketHeaderStyle = allItemsDone ? 'background: #e8f5e9; border-bottom: 1px dashed #06C755;' : 'border-bottom: 1px dashed #ccc;';
+                
                 const safeOrderData = encodeURIComponent(JSON.stringify(order));
 
                 html += `
-                <div class="ticket">
-                    <div class="ticket-header">
-                        <h4 class="ticket-table">โต๊ะ ${tableName}</h4>
+                <div class="ticket" style="${allItemsDone ? 'border-left: 5px solid #06C755; background: #fafffa;' : ''}">
+                    <div class="ticket-header" style="${ticketHeaderStyle}">
+                        <h4 class="ticket-table" style="${allItemsDone ? 'color: #06C755;' : ''}">โต๊ะ ${tableName} ${allItemsDone ? '(ครบแล้ว)' : ''}</h4>
                         <span class="ticket-time">เวลา ${time}</span>
                     </div>
                     <div>${itemsHtml}</div>
                     <div class="ticket-actions">
                         <button class="ticket-btn btn-print" onclick="printKitchenTicket('${safeOrderData}', false)">🖨 พิมพ์</button>
                         <button class="ticket-btn btn-cancel" onclick="cancelOrder('${order.id}', '${safeOrderData}')">❌ ยกเลิก</button>
-                        <button class="ticket-btn btn-accept" onclick="markOrderServed('${order.id}')">✅ เสิร์ฟแล้ว</button>
+                        <button class="ticket-btn btn-accept" onclick="markOrderServed('${order.id}')" style="${allItemsDone ? 'box-shadow: 0 0 10px rgba(6,199,85,0.5);' : ''}">✅ เสิร์ฟแล้ว</button>
                     </div>
                 </div>`;
             });
