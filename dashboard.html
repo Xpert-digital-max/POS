@@ -929,27 +929,57 @@
         // ==================== ระบบแพ็กเกจ โควต้า และ บิลลิ่ง ====================
         function renderSubscriptionInfo() {
             if (!vendorData) return;
+            
+            // 1. จัดการ Badge สถานะการใช้งาน
             const badgeEl = document.getElementById('subStatusBadge');
             if (vendorData.subscription_expires_at) {
-                const expDate = new Date(vendorData.subscription_expires_at); document.getElementById('subExpiresAt').innerText = expDate.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                if (!vendorData.is_subscription_active) { badgeEl.innerText = "⚠ รอชำระเงิน/รออนุมัติ"; badgeEl.className = "sub-badge"; badgeEl.style.background = "#fff3cd"; badgeEl.style.color = "#856404";
-                } else if (new Date() > expDate) { badgeEl.innerText = "หมดอายุแล้ว"; badgeEl.className = "sub-badge sub-expired"; badgeEl.style.background = ""; badgeEl.style.color = "";
-                } else { badgeEl.innerText = "ใช้งานได้ปกติ"; badgeEl.className = "sub-badge sub-active"; badgeEl.style.background = ""; badgeEl.style.color = ""; }
+                const expDate = new Date(vendorData.subscription_expires_at); 
+                document.getElementById('subExpiresAt').innerText = expDate.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                
+                if (!vendorData.is_subscription_active) { 
+                    badgeEl.innerText = "⚠ รอชำระเงิน/รออนุมัติ"; badgeEl.className = "sub-badge"; badgeEl.style.background = "#fff3cd"; badgeEl.style.color = "#856404";
+                } else if (new Date() > expDate) { 
+                    badgeEl.innerText = "หมดอายุแล้ว"; badgeEl.className = "sub-badge sub-expired"; badgeEl.style.background = ""; badgeEl.style.color = "";
+                } else { 
+                    badgeEl.innerText = "ใช้งานได้ปกติ"; badgeEl.className = "sub-badge sub-active"; badgeEl.style.background = ""; badgeEl.style.color = ""; 
+                }
             }
 
-            const renewSelect = document.getElementById('renewPlanSelect'); let optionsHtml = '';
-            if(CONFIG.pricingPlans) {
-                CONFIG.pricingPlans.filter(p => p.price > 0).forEach(p => { optionsHtml += `<option value="${p.id}" data-price="${p.price}" data-days="${p.days}" data-quota="${p.quota}">${p.name} - ฿${p.price}</option>`; });
-                renewSelect.innerHTML = optionsHtml; const savedRenew = localStorage.getItem('savedRenewPlan_' + vendorData.id);
-                if (savedRenew && document.querySelector(`#renewPlanSelect option[value="${savedRenew}"]`)) { renewSelect.value = savedRenew; }
+            // 2. โหลดแพ็กเกจสำหรับต่ออายุ (รวม Basic, Pro, Restaurant Pro)
+            const renewSelect = document.getElementById('renewPlanSelect'); 
+            let optionsHtml = '';
+            if (CONFIG.pricingPlans) {
+                // ดึงแผนทั้งหมดที่มีราคามากกว่า 0 (ไม่เอา Trial) มาแสดง
+                CONFIG.pricingPlans.filter(p => p.price > 0).forEach(p => { 
+                    optionsHtml += `<option value="${p.id}" data-price="${p.price}" data-days="${p.days}" data-quota="${p.quota || 0}">${p.name} - ฿${p.price}</option>`; 
+                });
+                renewSelect.innerHTML = optionsHtml; 
+                
+                // คืนค่าที่เคยเลือกไว้ ถ้ามี
+                const savedRenew = localStorage.getItem('savedRenewPlan_' + vendorData.id);
+                if (savedRenew && document.querySelector(`#renewPlanSelect option[value="${savedRenew}"]`)) { 
+                    renewSelect.value = savedRenew; 
+                }
                 updateRenewQr();
             }
 
-            const quotaSelect = document.getElementById('quotaPlanSelect'); let qHtml = '';
-            if(CONFIG.quotaPlans) { 
-                CONFIG.quotaPlans.forEach(q => { qHtml += `<option value="${q.id}" data-price="${q.price}" data-quota="${q.quota}">${q.name} - ฿${q.price}</option>`; }); 
-                quotaSelect.innerHTML = qHtml; const savedQuota = localStorage.getItem('savedQuotaPlan_' + vendorData.id);
-                if (savedQuota && document.querySelector(`#quotaPlanSelect option[value="${savedQuota}"]`)) { quotaSelect.value = savedQuota; }
+            // 3. โหลดแพ็กเกจเติมโควต้า (Slip Top-up) -> แก้ไขเรียกให้ตรงกับ config.js ล่าสุด
+            const quotaSelect = document.getElementById('quotaPlanSelect'); 
+            let qHtml = '';
+            
+            // เช็คว่าใน config ใช้ตัวแปร topupPlans หรือ quotaPlans (รองรับทั้ง 2 แบบเพื่อกันพัง)
+            const topupDataList = CONFIG.topupPlans || CONFIG.quotaPlans;
+            
+            if (topupDataList) { 
+                topupDataList.forEach(q => { 
+                    qHtml += `<option value="${q.id}" data-price="${q.price}" data-quota="${q.quota}">${q.name} - ฿${q.price}</option>`; 
+                }); 
+                quotaSelect.innerHTML = qHtml; 
+                
+                const savedQuota = localStorage.getItem('savedQuotaPlan_' + vendorData.id);
+                if (savedQuota && document.querySelector(`#quotaPlanSelect option[value="${savedQuota}"]`)) { 
+                    quotaSelect.value = savedQuota; 
+                }
                 updateQuotaQr();
             }
         }
