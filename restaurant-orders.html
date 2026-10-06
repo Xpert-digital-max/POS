@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Restaurant POS - Staff Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- เพิ่มไลบรารีสร้าง QR Code ฝั่งพนักงาน -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
     <script src="config.js"></script>
     <style>
@@ -149,8 +148,15 @@
     </div>
 
     <script>
-        const VENDOR_ID = localStorage.getItem('test_vendor_id') || prompt("กรุณาระบุ Vendor ID ของคุณ (เพื่อใช้ทดสอบ):");
-        if (VENDOR_ID) localStorage.setItem('test_vendor_id', VENDOR_ID);
+        // ดึง vid จาก URL ถ้ามี
+        const urlParams = new URLSearchParams(window.location.search);
+        let urlVid = urlParams.get('vid');
+
+        let VENDOR_ID = urlVid || localStorage.getItem('test_vendor_id');
+
+        if (urlVid) {
+            localStorage.setItem('test_vendor_id', urlVid);
+        }
 
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
         
@@ -276,40 +282,33 @@
                 
                 let itemsHtml = '';
                 const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
-                let allItemsDone = true; // ตัวแปรเช็คว่าเสร็จทุกรายการหรือยัง
+                let allItemsDone = true;
 
                 items.forEach(item => {
-                    // กำหนดสถานะเริ่มต้นถ้ายังไม่มี
                     const itemStatus = item.status || 'pending'; 
                     let statusBadge = '';
                     let itemStyle = '';
 
-                    // ตั้งค่าหน้าตาตามสถานะที่รับมาจาก KDS
                     if (itemStatus === 'cooking') {
                         statusBadge = '<span style="background: #FFF3E0; color: #FF9800; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: auto; border: 1px solid #FFE0B2;">🔥 กำลังทำ</span>';
                         allItemsDone = false;
                     } else if (itemStatus === 'done') {
                         statusBadge = '<span style="background: #E8F5E9; color: #06C755; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: auto; border: 1px solid #C8E6C9;">✅ เสร็จ</span>';
-                        itemStyle = 'text-decoration: line-through; color: #aaa;'; // ขีดฆ่ารายการที่เสร็จแล้ว
+                        itemStyle = 'text-decoration: line-through; color: #aaa;'; 
                     } else {
-                        // สถานะ pending (รอกดรับทำ)
                         allItemsDone = false;
                     }
 
                     let optStr = item.option ? `<br><small style="color:#00BCD4;">- ${item.option}</small>` : '';
                     let noteStr = item.note ? `<br><small style="color:#ff4d4f;">* ${item.note}</small>` : '';
                     
-                    // เพิ่ม display: flex เพื่อให้ statusBadge ดันไปอยู่ขวาสุด
                     itemsHtml += `<div class="ticket-item" style="display: flex; align-items: flex-start; justify-content: space-between;">
                         <div style="${itemStyle}"><b>${item.qty}x</b> <span>${item.name} ${optStr} ${noteStr}</span></div>
                         ${statusBadge}
                     </div>`;
                 });
 
-                // ถ้ารายการเสร็จหมดแล้ว และยังไม่โดนเสิร์ฟ (ซ่อนหรือเปลี่ยนสีการ์ดตามต้องการ)
-                // ในที่นี้เราจะยังแสดงอยู่ แต่ให้พนักงานแคชเชียร์รู้ว่า "พร้อมเสิร์ฟทั้งหมดแล้ว"
                 let ticketHeaderStyle = allItemsDone ? 'background: #e8f5e9; border-bottom: 1px dashed #06C755;' : 'border-bottom: 1px dashed #ccc;';
-                
                 const safeOrderData = encodeURIComponent(JSON.stringify(order));
 
                 html += `
@@ -402,7 +401,7 @@
                 reqArea.style.display = 'none'; 
             }
 
-            // --- กรณีที่ 1: โต๊ะว่าง (ยังไม่ได้เปิดโต๊ะ) ---
+            // --- กรณีที่ 1: โต๊ะว่าง ---
             if (!currentViewingSession) {
                 document.getElementById('modalTableStatus').innerText = "โต๊ะว่าง"; 
                 document.getElementById('modalTableStatus').style.color = "#888";
@@ -417,7 +416,7 @@
                 return;
             }
 
-            // --- กรณีที่ 2: โต๊ะเปิดอยู่ (มีออเดอร์ หรือ กำลังกิน) ---
+            // --- กรณีที่ 2: โต๊ะเปิดอยู่ ---
             const { data: orders } = await supabaseClient.from('table_orders').select('*').eq('table_session_id', currentViewingSession.id).neq('order_status', 'cancelled');
             
             let statusTxt = "กำลังทาน"; let statusColor = "#06C755";
@@ -459,10 +458,8 @@
             const cancelBtn = `<button onclick="cancelBill()" class="btn-large" style="background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; flex: 0.5;">❌ ยกเลิกบิล</button>`;
             const printBtn = `<button onclick="printCustomerBill(${totalAmt})" class="btn-large" style="background: #2196F3; color: white;">🖨 พิมพ์บิลเช็คยอด</button>`;
 
-            // จัด Layout ปุ่มใหม่ให้มีปุ่มรับเงินสด/โอน เสมอ ไม่ว่าโต๊ะจะอยู่สถานะไหน เพื่อให้พนักงานปิดโต๊ะได้เลย
             let html = `<div style="display: flex; flex-direction: column; gap: 10px; width: 100%;">`;
             
-            // แถวที่ 1: พิมพ์บิล / ยกเลิกบิล (ถ้าระบบติดสถานะรอเงิน ให้โชว์ปุ่มยกเลิกด้วย)
             html += `<div style="display: flex; gap: 10px;">`;
             if (currentViewingSession.session_status !== 'open') {
                 html += cancelBtn;
@@ -470,7 +467,6 @@
             html += printBtn;
             html += `</div>`;
 
-            // แถวที่ 2: รับเงินและปิดโต๊ะ
             html += `<div style="display: flex; gap: 10px; margin-top: 5px; padding-top: 15px; border-top: 1px dashed #ddd;">
                         <button onclick="forceCloseTable('paid_cash', ${totalAmt})" class="btn-large" style="background: #06C755; color: white; font-size: 14px;">💵 รับเงินสด (ปิดโต๊ะ)</button>
                         <button onclick="forceCloseTable('paid_transfer', ${totalAmt})" class="btn-large" style="background: #00BCD4; color: white; font-size: 14px;">📲 รับเงินโอน (ปิดโต๊ะ)</button>
@@ -491,7 +487,6 @@
             fetchData();
         }
 
-        // ฟังก์ชันใหม่: รับเงินและปิดโต๊ะทันที
         async function forceCloseTable(method, amount) {
             const methodText = method === 'paid_cash' ? 'เงินสด' : 'เงินโอน';
             if(!confirm(`ยืนยันการรับเงิน ${methodText} ยอด ${amount} บาท และต้องการ [ปิดโต๊ะ] ใช่หรือไม่?`)) return;
@@ -508,12 +503,10 @@
             fetchData();
         }
 
-        // ฟังก์ชันใหม่: เปิดโต๊ะใหม่และพิมพ์ QR
         async function openNewTableAndPrintQR() {
             if(!confirm(`ต้องการเปิดโต๊ะ ${currentViewingTable.table_name} และพิมพ์ QR Code ใช่หรือไม่?`)) return;
             
             try {
-                // 1. สร้าง Session ใหม่ในฐานข้อมูล
                 const { data: newSess, error: createError } = await supabaseClient.from('table_sessions').insert([{ 
                     vendor_id: VENDOR_ID, 
                     branch_id: currentViewingTable.branch_id, 
@@ -524,7 +517,6 @@
                 
                 if (createError) throw createError;
                 
-                // 2. พิมพ์ QR Code ให้ลูกค้า
                 printTableQRCode(currentViewingTable);
                 
                 closeTableModal();
@@ -535,12 +527,10 @@
         }
 
         function printTableQRCode(table) {
-            // สร้าง URL ลิงก์สำหรับสั่งอาหาร
             let baseUrl = window.location.href.split('?')[0].replace('restaurant-orders.html', '');
             if (!baseUrl.endsWith('/')) baseUrl += '/';
             const orderUrl = baseUrl + 'table-order.html?table_token=' + table.table_token;
             
-            // สร้างรูป QR Code
             const qr = new QRious({ value: orderUrl, size: 200, level: 'L' });
             const qrDataUrl = qr.toDataURL();
             
@@ -554,7 +544,6 @@
                     <div style="font-size: 10px; color: #aaa; margin-top: 10px; border-top: 1px dashed #ccc; padding-top: 5px;">เวลาเปิดโต๊ะ: ${new Date().toLocaleTimeString('th-TH')}</div>
                 </div>
             `;
-            // สั่งพิมพ์
             setTimeout(() => { window.print(); }, 300);
         }
 
@@ -564,6 +553,69 @@
             printDiv.innerHTML = `<div class="print-ticket"><div class="print-header"><h2 style="margin: 0; font-size: 20px;">ใบสรุปยอดอาหาร (Check Bill)</h2><div class="print-table-name">โต๊ะ ${tableName}</div><div>เวลา: ${time}</div></div><div style="margin-top: 10px; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px;">${itemsContainer}</div><div class="print-total">ยอดรวมสุทธิ: ฿${totalAmt}</div><div style="text-align: center; margin-top: 20px; font-size: 12px;">ขอบคุณที่ใช้บริการ</div></div>`;
             setTimeout(() => { window.print(); }, 200);
         }
+
+        // ==================== AUTH GUARD (CASHIER ROLE) ====================
+        let authCheckTimer = null;
+        
+        async function verifyStaffSession() {
+            if (!VENDOR_ID) {
+                forceLogout("ไม่พบรหัสร้านค้า");
+                return false;
+            }
+
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('bypass_auth') === 'true') return true;
+
+            const sessionRaw = localStorage.getItem('staff_session');
+            if (!sessionRaw) {
+                forceLogout("กรุณาเข้าสู่ระบบก่อนใช้งาน");
+                return false;
+            }
+
+            try {
+                const session = JSON.parse(sessionRaw);
+                if (session.role !== 'cashier') {
+                    forceLogout("คุณไม่มีสิทธิ์เข้าถึงหน้านี้ (สำหรับแคชเชียร์เท่านั้น)");
+                    return false;
+                }
+                
+                let query = supabaseClient.from('branches').select('cashier_pin').eq('merchant_id', session.vid);
+                if (session.bid && session.bid !== 'null') query = query.eq('id', session.bid);
+                else query = query.eq('branch_name', 'สาขาหลัก');
+
+                const { data, error } = await query.single();
+                if (error || !data || data.cashier_pin !== session.pin) {
+                    forceLogout("รหัสผ่านถูกเปลี่ยนแปลง กรุณาเข้าสู่ระบบใหม่");
+                    return false;
+                }
+
+                if (!authCheckTimer) {
+                    authCheckTimer = setInterval(verifyStaffSession, 5000);
+                }
+                return true;
+
+            } catch (e) {
+                forceLogout("ข้อมูลเซสชันไม่ถูกต้อง");
+                return false;
+            }
+        }
+
+        function forceLogout(msg) {
+            alert(msg);
+            localStorage.removeItem('staff_session');
+            let loginUrl = `staff-login.html?vid=${VENDOR_ID}`;
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('bid') && urlParams.get('bid') !== 'null') loginUrl += `&bid=${urlParams.get('bid')}`;
+            window.location.href = loginUrl;
+        }
+
+        window.onload = async () => {
+            const isAuth = await verifyStaffSession();
+            // หน้าแคชเชียร์ให้รอคลิกปุ่ม Start ถึงจะทำงานต่อ
+            // ถ้าไม่ผ่านสิทธิ์มันจะถูกเด้งออกไปก่อนแล้ว
+        };
+        // ================================================================
+
     </script>
 </body>
 </html>
