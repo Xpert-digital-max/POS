@@ -14,8 +14,10 @@
         .header { background: #06C755; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
         .store-info { display: flex; align-items: center; gap: 10px; }
         .store-info img { width: 40px; height: 40px; border-radius: 50%; border: 2px solid white; object-fit: cover;}
-        .tab-menu { display: flex; background: white; border-bottom: 1px solid #ddd; }
-        .tab-btn { flex: 1; padding: 15px; border: none; background: none; cursor: pointer; font-size: 15px; font-weight: bold; color: #777; }
+        /* ปรับแท็บเมนูให้เลื่อนซ้ายขวาได้หากหน้าจอเล็ก */
+        .tab-menu { display: flex; background: white; border-bottom: 1px solid #ddd; overflow-x: auto; white-space: nowrap; -ms-overflow-style: none; scrollbar-width: none; }
+        .tab-menu::-webkit-scrollbar { display: none; }
+        .tab-btn { flex: 1; padding: 15px; border: none; background: none; cursor: pointer; font-size: 14px; font-weight: bold; color: #777; white-space: nowrap; }
         .tab-btn.active { color: #06C755; border-bottom: 3px solid #06C755; }
         .content { padding: 20px; }
         .tab-content { display: none; }
@@ -37,12 +39,24 @@
         .branch-filter-btn.inactive { background: #e0e0e0; color: #555; }
         .branch-filter-scroll { display: flex; gap: 8px; margin-bottom: 15px; overflow-x: auto; padding-bottom: 5px; -ms-overflow-style: none; scrollbar-width: none; }
         .branch-filter-scroll::-webkit-scrollbar { display: none; }
+
+        /* [PHASE 2] CSS สำหรับการพิมพ์ (Print Layout) */
+        #printArea { display: none; }
+        @media print {
+            body * { visibility: hidden; }
+            #printArea { display: flex !important; visibility: visible; position: absolute; left: 0; top: 0; width: 100%; justify-content: center; padding-top: 20px; }
+            #printArea * { visibility: visible; }
+            .no-print { display: none !important; }
+        }
     </style>
 </head>
 <body>
 
+    <!-- [PHASE 2] พื้นที่สำหรับพิมพ์ป้าย QR Code ตั้งโต๊ะ -->
+    <div id="printArea"></div>
+
     <!-- Modal แจ้งถอนเงิน -->
-    <div id="withdrawModal" style="display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 400; justify-content: center; align-items: center;">
+    <div id="withdrawModal" class="no-print" style="display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 400; justify-content: center; align-items: center;">
         <div style="background: white; width: 90%; max-width: 400px; border-radius: 12px; padding: 20px; box-sizing: border-box;">
             <h3 style="margin-top: 0; color: #ff9800;">💸 แจ้งถอนเงิน / ชำระค่าแพ็กเกจ</h3>
             <label style="font-size: 13px; font-weight: bold; color: #555;">ประเภทการทำรายการ</label>
@@ -61,7 +75,7 @@
     </div>
 
     <!-- Modal QR Code Affiliate -->
-    <div id="qrModal" style="display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 400; justify-content: center; align-items: center;">
+    <div id="qrModal" class="no-print" style="display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 400; justify-content: center; align-items: center;">
         <div style="background: white; width: 90%; max-width: 320px; border-radius: 12px; padding: 20px; box-sizing: border-box; text-align: center;">
             <h3 style="margin-top: 0; color: #06C755;">🤝 ให้เพื่อนสแกน QR นี้</h3>
             <p style="font-size: 13px; color: #666; margin-bottom: 15px;">เมื่อเพื่อนสมัครใช้งาน คุณจะได้รับค่าแนะนำ</p>
@@ -70,24 +84,27 @@
         </div>
     </div>
 
-    <!-- Modal QR Code สั่งอาหารลูกค้า -->
-    <div id="customerQrModal" style="display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 400; justify-content: center; align-items: center;">
+    <!-- Modal QR Code สั่งอาหารลูกค้า / โต๊ะ -->
+    <div id="customerQrModal" class="no-print" style="display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 400; justify-content: center; align-items: center;">
         <div style="background: white; width: 90%; max-width: 320px; border-radius: 12px; padding: 20px; box-sizing: border-box; text-align: center;">
-            <h3 style="margin-top: 0; color: #00BCD4;">🍽️ สแกนเพื่อสั่งอาหาร</h3>
-            <p style="font-size: 13px; color: #666; margin-bottom: 15px;">บันทึกรูปนี้ไปปริ้นตั้งโต๊ะให้ลูกค้าสแกนได้เลย</p>
+            <!-- [PHASE 2] ปรับให้อัปเดตชื่อหัวข้อตามประเภท (สั่งกลับบ้าน/นั่งโต๊ะ) ได้ -->
+            <h3 id="qrModalTitle" style="margin-top: 0; color: #00BCD4;">🍽️ สแกนเพื่อสั่งอาหาร</h3>
+            <p id="qrModalSubtitle" style="font-size: 13px; color: #666; margin-bottom: 15px;">บันทึกรูปนี้ไปปริ้นให้ลูกค้าสแกนได้เลย</p>
             <img id="customerQrImage" src="" style="width: 200px; height: 200px; margin: 0 auto 10px auto; border: 1px solid #ddd; padding: 10px; border-radius: 8px; display: block; box-sizing: border-box;">
-            <p style="font-size: 11px; color: #888; margin-top: 0; margin-bottom: 15px;">(สามารถจับภาพหน้าจอเพื่อนำไปพิมพ์ได้เลย)</p>
+            
+            <!-- [PHASE 2] เพิ่มปุ่มกดดาวน์โหลดรูป QR -->
+            <a id="downloadQrBtn" href="#" download="qrcode.png" style="display: block; width: 100%; padding: 10px; background: #00BCD4; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; margin-bottom: 10px; box-sizing: border-box;">📥 ดาวน์โหลดรูป QR</a>
+            
             <button onclick="closeCustomerQrModal()" style="width: 100%; padding: 10px; border: none; border-radius: 6px; background: #eee; font-weight: bold; cursor: pointer; color: #555;">ปิดหน้าต่าง</button>
         </div>
     </div>
 
-    <!-- [PATCH] Modal เพิ่มเมนูแบบรวดเร็ว (อัปเดต UI คำแนะนำ) -->
-    <div id="bulkAddModal" style="display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 400; justify-content: center; align-items: center;">
+    <!-- Modal เพิ่มเมนูแบบรวดเร็ว (Text Import) -->
+    <div id="bulkAddModal" class="no-print" style="display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 400; justify-content: center; align-items: center;">
         <div style="background: white; width: 90%; max-width: 500px; border-radius: 12px; padding: 20px; box-sizing: border-box;">
             <h3 style="margin-top: 0; color: #06C755;">⚡ เพิ่มเมนูแบบข้อความ</h3>
             <p style="font-size: 13px; color: #666; margin-bottom: 8px;">ก๊อปปี้ข้อความเมนูมาวางได้เลย ระบบจะแยกให้อัตโนมัติ</p>
             
-            <!-- กล่องไกด์ไลน์ (แสดงถาวร ไม่หายไปตอนพิมพ์) -->
             <div style="background: #f5f5f5; padding: 10px; border-radius: 6px; margin-bottom: 10px; border-left: 3px solid #06C755;">
                 <span style="font-size: 12px; font-weight: bold; color: #333;">รูปแบบ:</span><br>
                 <span style="font-size: 12px; color: #555;">ชื่อเมนู, ราคา, หมวดหมู่, ตัวเลือก(ถ้ามี)</span><br><br>
@@ -105,7 +122,7 @@
     </div>
 
     <!-- แถบด้านบน -->
-    <div class="header">
+    <div class="header no-print">
         <div class="store-info">
             <img id="storeLogo" src="https://via.placeholder.com/40" alt="Logo">
             <h3 id="storeName" style="margin: 0;">กำลังโหลด...</h3>
@@ -119,16 +136,18 @@
     </div>
 
     <!-- แถบเมนู (Tabs) -->
-    <div class="tab-menu">
-        <button class="tab-btn active" onclick="switchTab('orders')">📋 ออเดอร์</button>
+    <div class="tab-menu no-print">
+        <button class="tab-btn active" onclick="switchTab('orders')">📋 ออเดอร์ (Takeaway)</button>
+        <!-- [PHASE 2] ปุ่มจัดการโต๊ะ (ซ่อนไว้ก่อนจนกว่าจะเช็ค Feature Flag ผ่าน) -->
+        <button id="tabBtnRestaurant" class="tab-btn" style="display:none;" onclick="switchTab('restaurant')">🍽️ จัดการโต๊ะ</button>
         <button class="tab-btn" onclick="switchTab('menu')">🍔 เมนูอาหาร</button>
         <button class="tab-btn" onclick="switchTab('settings')">⚙️ ตั้งค่า</button>
     </div>
 
-    <div class="content">
+    <div class="content no-print">
         <!-- 1. หน้าออเดอร์ -->
         <div id="orders" class="tab-content active">
-            <h2>คิวรอทำ</h2>
+            <h2>คิวรอทำ (สั่งล่วงหน้า / หน้าร้าน)</h2>
             
             <!-- ====== แถบตัวกรองสาขา ====== -->
             <div id="orderBranchTabs" class="branch-filter-scroll">
@@ -136,6 +155,31 @@
             </div>
 
             <div id="orderList"><p style="text-align: center; color: #888;">กำลังโหลด...</p></div>
+        </div>
+
+        <!-- [PHASE 2] หน้าจัดการโต๊ะ (Restaurant Tables) -->
+        <div id="restaurant" class="tab-content">
+            <div class="card" style="border-left: 4px solid #E91E63; background: #fce4ec;">
+                <h3 style="margin-top: 0; color: #c2185b;">🍽️ จัดการโต๊ะและพิมพ์ QR (Dine-in)</h3>
+                <p style="font-size: 13px; color: #666; margin-bottom: 15px;">สร้างโต๊ะสำหรับให้ลูกค้าสแกนสั่งอาหารและเปิดบิลรวม (เช็คบิลทีหลัง)</p>
+                
+                <div style="background: white; padding: 15px; border: 1px solid #f8bbd0; border-radius: 8px; margin-bottom: 15px;">
+                    <label style="font-size: 13px; font-weight: bold; color: #555;">ชื่อโต๊ะ / ป้ายโต๊ะ</label>
+                    <input type="text" id="newTableName" placeholder="เช่น A01, โต๊ะ 1, โซนใน" style="width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
+                    
+                    <label style="font-size: 13px; font-weight: bold; color: #555;">สาขาที่ตั้งโต๊ะนี้</label>
+                    <select id="newTableBranch" style="width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 6px;">
+                        <option value="">สาขาหลัก</option>
+                        <!-- ตัวเลือกสาขาจะถูกเติมด้วย JS -->
+                    </select>
+
+                    <button onclick="addRestaurantTable()" style="background: #E91E63; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%;">+ สร้างโต๊ะใหม่</button>
+                </div>
+                
+                <div id="restaurantTableList">
+                    <p style="text-align: center; color: #888; font-size: 13px; margin: 0;">กำลังโหลดข้อมูลโต๊ะ...</p>
+                </div>
+            </div>
         </div>
 
         <!-- 2. หน้าจัดการเมนูและหมวดหมู่ -->
@@ -178,15 +222,15 @@
 
             <!-- ====== ลิงก์ร้านค้า & QR Code ====== -->
             <div class="card" style="border-left: 4px solid #00BCD4; background: #e0f7fa;">
-                <h3 style="margin-top: 0; color: #00838F;">🍽️ ช่องทางสั่งอาหารของร้านคุณ</h3>
-                <p style="font-size: 13px; color: #666; margin-bottom: 10px;">แชร์ลิงก์หรือปริ้น QR Code เพื่อให้ลูกค้าสแกนสั่งอาหารได้ทันที</p>
+                <h3 style="margin-top: 0; color: #00838F;">🍽️ ช่องทางสั่งอาหารกลับบ้าน/ล่วงหน้า</h3>
+                <p style="font-size: 13px; color: #666; margin-bottom: 10px;">แชร์ลิงก์ให้ลูกค้ากดสั่งอาหารและชำระเงินล่วงหน้า (Prepaid)</p>
                 <div style="display: flex; gap: 8px; margin-bottom: 10px;">
                     <input type="text" id="customerLinkText" readonly style="flex: 1; padding: 9px; border: 1px solid #b2ebf2; border-radius: 6px; font-size: 12px; background: #fff; color: #333;">
                     <button onclick="copyCustomerLink()" style="background: #00838F; color: white; border: none; padding: 9px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">คัดลอก</button>
                 </div>
                 <div style="display: flex; gap: 8px;">
                     <button onclick="shareCustomerFlex()" style="flex: 1; background: #00B900; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; display: flex; justify-content: center; align-items: center; gap: 5px;">📲 ส่งในแชทให้ลูกค้า</button>
-                    <button onclick="showCustomerQr()" style="flex: 1; background: #00BCD4; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; display: flex; justify-content: center; align-items: center; gap: 5px;">📷 QR Code ตั้งโต๊ะ</button>
+                    <button onclick="showCustomerQr()" style="flex: 1; background: #00BCD4; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; display: flex; justify-content: center; align-items: center; gap: 5px;">📷 QR Code สั่งกลับบ้าน</button>
                 </div>
             </div>
             
@@ -311,7 +355,7 @@
             <!-- ====== จัดการสาขา (Branches) ====== -->
             <div class="card" style="border-left: 4px solid #9c27b0; background: #faf5ff;">
                 <h3 style="margin-top: 0; color: #6a1b9a;">🏢 จัดการสาขาย่อย (Branches)</h3>
-                <p style="font-size: 13px; color: #666; margin-bottom: 15px;">เพิ่มสาขาเพื่อแยก QR Code และบัญชีรับเงิน</p>
+                <p style="font-size: 13px; color: #666; margin-bottom: 15px;">เพิ่มสาขาเพื่อแยกบัญชีรับเงินและคิวอาหาร</p>
                 
                 <div style="background: white; padding: 15px; border: 1px solid #e1bee7; border-radius: 8px; margin-bottom: 15px;">
                     <label style="font-size: 13px; font-weight: bold; color: #555;">ชื่อสาขา</label>
@@ -425,24 +469,17 @@
             console.log(`[${logPrefix}] AMOUNT = ${amount} | PAYLOAD_LEN = ${payload.length} | SUFFIX = ${payloadSuffix}`);
 
             try {
-                const qr = new QRious({ 
-                    value: payload, 
-                    size: 250, 
-                    level: 'L' 
-                });
+                const qr = new QRious({ value: payload, size: 250, level: 'L' });
                 qrImg.src = qr.toDataURL();
                 qrImg.style.display = 'block';
-            } catch (err) {
-                console.error(`[${logPrefix}] QR Render Error:`, err);
-            }
+            } catch (err) { console.error(`[${logPrefix}] QR Render Error:`, err); }
         }
 
         async function requestWakeLock() {
-            if (!('wakeLock' in navigator)) { console.warn("Wake Lock not supported"); return; }
+            if (!('wakeLock' in navigator)) { return; }
             try {
                 if (wakeLock && !wakeLock.released) return;
                 wakeLock = await navigator.wakeLock.request('screen');
-                console.log("SCREEN WAKE LOCK ACTIVE");
             } catch (err) { console.warn("WAKE LOCK ERROR:", err); }
         }
 
@@ -450,12 +487,8 @@
         window.addEventListener("pagehide", async () => { if (wakeLock && !wakeLock.released) { try { await wakeLock.release(); } catch(e) {} } });
 
         async function unlockNotificationAudio() {
-            if (!notificationAudioContext) {
-                notificationAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (notificationAudioContext.state === 'suspended') {
-                await notificationAudioContext.resume();
-            }
+            if (!notificationAudioContext) { notificationAudioContext = new (window.AudioContext || window.webkitAudioContext)(); }
+            if (notificationAudioContext.state === 'suspended') { await notificationAudioContext.resume(); }
             audioUnlocked = true;
         }
 
@@ -466,19 +499,15 @@
 
         function playNotificationSound() {
             if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
-            
-            if (!notificationAudioContext || !audioUnlocked) return;
-            if (isPlayingNotification) return; 
+            if (!notificationAudioContext || !audioUnlocked || isPlayingNotification) return; 
 
             isPlayingNotification = true;
             const now = notificationAudioContext.currentTime;
-            
             const totalBeeps = 12;
             const beepInterval = 0.5; 
 
             for (let i = 0; i < totalBeeps; i++) {
                 const startTime = now + (i * beepInterval);
-                
                 const osc = notificationAudioContext.createOscillator();
                 const gainNode = notificationAudioContext.createGain();
                 
@@ -495,9 +524,7 @@
                 osc.stop(startTime + 0.4); 
             }
 
-            setTimeout(() => {
-                isPlayingNotification = false;
-            }, (totalBeeps * beepInterval) * 1000);
+            setTimeout(() => { isPlayingNotification = false; }, (totalBeeps * beepInterval) * 1000);
         }
 
         function switchTab(tabId) {
@@ -543,6 +570,12 @@
                 renderAffiliateInfo();
                 renderSubscriptionInfo();
                 
+                // [PHASE 2] ตรวจสอบ Feature Flag โหมดร้านอาหาร (แสดงแท็บเมื่อค่าเป็น true)
+                if (vendorData.restaurant_mode_enabled === true) {
+                    document.getElementById('tabBtnRestaurant').style.display = 'block';
+                    loadRestaurantTables();
+                }
+
                 await loadCategories(); 
                 await loadMenuItems(); 
                 await loadBranches(); 
@@ -572,6 +605,14 @@
             let html = '';
             branchCount = 0; 
             
+            // [PHASE 2] เติมสาขาลงใน Dropdown ของหน้าสร้างโต๊ะ
+            const tableBranchSelect = document.getElementById('newTableBranch');
+            if (tableBranchSelect) {
+                let tbOpts = '<option value="">สาขาหลัก</option>';
+                branchListData.forEach(b => { tbOpts += `<option value="${b.id}">${b.branch_name}</option>`; });
+                tableBranchSelect.innerHTML = tbOpts;
+            }
+
             if (data && data.length > 0) {
                 branchCount = data.length;
                 data.forEach(b => {
@@ -580,29 +621,21 @@
                     const isPasswordSet = b.staff_password_hash ? "✅ ตั้งรหัสผ่านแล้ว" : "⚠️ ยังไม่ตั้งรหัสผ่าน";
 
                     let branchPaymentInfo = "";
-                    if (b.payment_type === 'bank') {
-                        branchPaymentInfo = `<span style="font-size:12px; color:#666;">🏦 รับเงินโอน: ${b.bank_info || 'ยังไม่ได้ระบุ'}</span>`;
-                    } else {
-                        branchPaymentInfo = `<span style="font-size:12px; color:#666;">📱 พร้อมเพย์: ${b.promptpay_number || b.promptpay || 'ยังไม่ได้ระบุ'}</span>`;
-                    }
+                    if (b.payment_type === 'bank') { branchPaymentInfo = `<span style="font-size:12px; color:#666;">🏦 รับเงินโอน: ${b.bank_info || 'ยังไม่ได้ระบุ'}</span>`; } 
+                    else { branchPaymentInfo = `<span style="font-size:12px; color:#666;">📱 พร้อมเพย์: ${b.promptpay_number || b.promptpay || 'ยังไม่ได้ระบุ'}</span>`; }
 
                     html += `<div style="padding:15px; border-bottom:1px solid #f0f0f0; margin-bottom:10px; background:#fff; border-radius:8px; border: 1px solid #e1bee7;">
                         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 10px;">
-                            <div>
-                                <strong style="font-size:16px;">🏢 ${b.branch_name}</strong><br>
-                                ${branchPaymentInfo}
-                            </div>
+                            <div><strong style="font-size:16px;">🏢 ${b.branch_name}</strong><br>${branchPaymentInfo}</div>
                             ${b.branch_name !== 'สาขาหลัก' ? `<button onclick="deleteBranch('${b.id}')" style="background:#ff4d4f; color:white; border:none; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;">ลบสาขา</button>` : `<span style="background:#e1bee7; color:#6a1b9a; padding:3px 8px; border-radius:12px; font-size:11px;">สาขาหลัก</span>`}
                         </div>
-                        
                         <div style="background:#f4fdf6; padding:10px; border-radius:6px; margin-bottom:10px; border: 1px dashed #00B900;">
-                            <label style="font-size:12px; font-weight:bold; color:#00B900;">🍔 1. ช่องทางสั่งอาหารของลูกค้า (Customer QR)</label>
+                            <label style="font-size:12px; font-weight:bold; color:#00B900;">🍔 1. ช่องทางสั่งกลับบ้าน (Takeaway QR)</label>
                             <div style="display:flex; gap:5px; margin-top:5px;">
-                                <button onclick="navigator.clipboard.writeText('${customerLink}'); alert('คัดลอกลิงก์สั่งอาหารของลูกค้าแล้ว!');" style="flex:1; background:#00B900; color:white; border:none; padding:8px; border-radius:4px; font-size:12px; cursor:pointer; font-weight:bold;">🔗 คัดลอกลิงก์</button>
+                                <button onclick="navigator.clipboard.writeText('${customerLink}'); alert('คัดลอกลิงก์สำเร็จ!');" style="flex:1; background:#00B900; color:white; border:none; padding:8px; border-radius:4px; font-size:12px; cursor:pointer; font-weight:bold;">🔗 คัดลอกลิงก์</button>
                                 <button onclick="showBranchQr('${customerLink}', '${b.branch_name}')" style="flex:1; background:#00BCD4; color:white; border:none; padding:8px; border-radius:4px; font-size:12px; cursor:pointer; font-weight:bold;">📷 โชว์ QR Code</button>
                             </div>
                         </div>
-
                         <div style="background:#fff8e1; padding:10px; border-radius:6px; border: 1px dashed #ff9800;">
                             <label style="font-size:12px; font-weight:bold; color:#e65100;">👨‍‍🍳 2. หน้ารับออเดอร์ของพนักงาน (Staff Access)</label>
                             <p style="font-size:11px; margin: 3px 0 8px 0; color:#555;">สถานะ: ${isPasswordSet}</p>
@@ -611,9 +644,8 @@
                                 <button onclick="setBranchPassword('${b.id}')" style="background:#ff9800; color:white; border:none; padding:6px 10px; border-radius:4px; font-size:12px; cursor:pointer; font-weight:bold;">💾 บันทึกรหัส</button>
                             </div>
                             <div style="display:flex; gap:5px; margin-top:8px;">
-                                <button onclick="navigator.clipboard.writeText('${staffLink}'); alert('คัดลอกลิงก์เข้าสู่ระบบของพนักงานแล้ว! ส่งให้พนักงานทางแชทได้เลยครับ');" style="flex:1; background:#fff; color:#ff9800; border:1px solid #ff9800; padding:8px; border-radius:4px; font-size:12px; cursor:pointer; font-weight:bold;">📋 คัดลอกลิงก์ให้พนักงาน</button>
+                                <button onclick="navigator.clipboard.writeText('${staffLink}'); alert('คัดลอกลิงก์ให้พนักงานสำเร็จ!');" style="flex:1; background:#fff; color:#ff9800; border:1px solid #ff9800; padding:8px; border-radius:4px; font-size:12px; cursor:pointer; font-weight:bold;">📋 คัดลอกลิงก์ให้พนักงาน</button>
                             </div>
-                            <p style="font-size:10px; margin: 5px 0 0 0; color:#888;">*หากเปลี่ยนรหัส พนักงานคนเดิมจะถูกเตะออกจากระบบทันที</p>
                         </div>
                     </div>`;
                 });
@@ -624,33 +656,22 @@
 
         async function setBranchPassword(branchId) {
             const pwInput = document.getElementById(`pw_${branchId}`).value;
-            if(!pwInput || pwInput.length < 4) return alert("รหัสผ่านพนักงานต้องมีอย่างน้อย 4 ตัวอักษร");
-            
-            if(!confirm("ต้องการบันทึก/เปลี่ยนรหัสผ่านพนักงานใช่หรือไม่?\n\nพนักงานที่เข้าสู่ระบบสาขานี้อยู่ทั้งหมดจะถูกบังคับให้ออกจากระบบทันที")) return;
+            if(!pwInput || pwInput.length < 4) return alert("รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร");
+            if(!confirm("ต้องการบันทึก/เปลี่ยนรหัสผ่านพนักงานใช่หรือไม่?")) return;
 
             try {
-                const { error } = await supabaseClient.rpc('set_branch_password', {
-                    p_branch_id: branchId,
-                    p_password: pwInput
-                });
-
+                const { error } = await supabaseClient.rpc('set_branch_password', { p_branch_id: branchId, p_password: pwInput });
                 if (error) throw error;
-                
-                alert("✅ ตั้งรหัสผ่านและลบ Session เก่าของพนักงานสำเร็จ!");
+                alert("✅ ตั้งรหัสผ่านสำเร็จ!");
                 document.getElementById(`pw_${branchId}`).value = '';
                 loadBranches(); 
-            } catch (err) {
-                console.error("Set PW Error:", err);
-                alert("เกิดข้อผิดพลาดในการตั้งรหัส: " + err.message);
-            }
+            } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); }
         }
 
         function renderBranchOrderTabs() {
             const container = document.getElementById('orderBranchTabs');
             if (!container) return;
-
             let html = `<button onclick="filterOrdersByBranch('all')" class="branch-filter-btn ${currentOrderBranchFilter === 'all' ? 'active' : 'inactive'}">🌐 รวมทุกสาขา</button>`;
-
             branchListData.forEach(b => {
                 const isActive = currentOrderBranchFilter === b.id;
                 html += `<button onclick="filterOrdersByBranch('${b.id}')" class="branch-filter-btn ${isActive ? 'active' : 'inactive'}">🏢 ${b.branch_name}</button>`;
@@ -659,27 +680,32 @@
         }
 
         function filterOrdersByBranch(branchId) {
-            currentOrderBranchFilter = branchId;
-            renderBranchOrderTabs(); 
-            loadOrders(); 
+            currentOrderBranchFilter = branchId; renderBranchOrderTabs(); loadOrders(); 
         }
 
         function showBranchQr(link, branchName) {
             document.getElementById('customerQrImage').src = '';
             const qr = new QRious({ value: link, size: 300, level: 'L' });
-            document.getElementById('customerQrImage').src = qr.toDataURL();
-            document.querySelector('#customerQrModal h3').innerText = `🍽️ สแกนสั่งอาหาร\n(${branchName})`;
+            const dataUrl = qr.toDataURL();
+            document.getElementById('customerQrImage').src = dataUrl;
+            
+            const downloadBtn = document.getElementById('downloadQrBtn');
+            if (downloadBtn) {
+                downloadBtn.href = dataUrl;
+                downloadBtn.download = `QR_${branchName}.png`;
+            }
+
+            document.getElementById('qrModalTitle').innerText = `🍽️ สแกนสั่งอาหาร (กลับบ้าน/ล่วงหน้า)`;
+            document.getElementById('qrModalSubtitle').innerText = `สาขา: ${branchName}`;
             document.getElementById('customerQrModal').style.display = 'flex';
         }
 
         function toggleNewBranchPaymentInputs() {
             const type = document.getElementById('newBranchPaymentType').value;
             if (type === 'promptpay') { 
-                document.getElementById('newBranchPromptpayDiv').style.display = 'block'; 
-                document.getElementById('newBranchBankDiv').style.display = 'none'; 
+                document.getElementById('newBranchPromptpayDiv').style.display = 'block'; document.getElementById('newBranchBankDiv').style.display = 'none'; 
             } else { 
-                document.getElementById('newBranchPromptpayDiv').style.display = 'none'; 
-                document.getElementById('newBranchBankDiv').style.display = 'block'; 
+                document.getElementById('newBranchPromptpayDiv').style.display = 'none'; document.getElementById('newBranchBankDiv').style.display = 'block'; 
             }
         }
 
@@ -695,32 +721,16 @@
             
             try {
                 const cleanPromptpay = bPrompt ? bPrompt.replace(/\D/g, '') : null;
-
                 const { error } = await supabaseClient.from('branches').insert([{ 
-                    merchant_id: vendorData.id, 
-                    branch_name: bName, 
-                    payment_type: payType,
-                    promptpay_number: cleanPromptpay,
-                    bank_info: bBank,
-                    promptpay: bPrompt, 
-                    is_active: true 
+                    merchant_id: vendorData.id, branch_name: bName, payment_type: payType,
+                    promptpay_number: cleanPromptpay, bank_info: bBank, promptpay: bPrompt, is_active: true 
                 }]);
-
                 if (error) throw error; 
 
-                document.getElementById('newBranchName').value = ''; 
-                document.getElementById('newBranchPromptpay').value = '';
-                document.getElementById('newBranchBankInfo').value = '';
-                
+                document.getElementById('newBranchName').value = ''; document.getElementById('newBranchPromptpay').value = ''; document.getElementById('newBranchBankInfo').value = '';
                 alert(`🎉 บันทึกสาขา "${bName}" เรียบร้อยแล้ว!`);
-                
-                await loadBranches();
-                await loadBillingInfo(); 
-
-            } catch (err) {
-                console.error("Add Branch Error:", err);
-                alert(`❌ เกิดข้อผิดพลาดในการบันทึก:\n${err.message}`);
-            }
+                await loadBranches(); await loadBillingInfo(); 
+            } catch (err) { alert(`❌ เกิดข้อผิดพลาด:\n${err.message}`); }
         }
 
         async function deleteBranch(id) {
@@ -729,181 +739,189 @@
             await loadBranches(); await loadBillingInfo();
         }
 
-        // ==================== ระบบ QR Code สำหรับลูกค้า ====================
+        // ==================== [PHASE 2] ระบบโต๊ะอาหาร (Restaurant Tables) ====================
+        function generateTableToken() {
+            return 'tb_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+        }
+
+        async function addRestaurantTable() {
+            const name = document.getElementById('newTableName').value.trim();
+            const branchId = document.getElementById('newTableBranch').value;
+            
+            if(!name) return alert('กรุณาระบุชื่อหรือหมายเลขโต๊ะ');
+
+            const token = generateTableToken();
+            try {
+                const { error } = await supabaseClient.from('restaurant_tables').insert([{
+                    vendor_id: vendorData.id,
+                    branch_id: branchId ? branchId : null,
+                    table_name: name,
+                    table_token: token,
+                    is_active: true
+                }]);
+                
+                if (error) throw error;
+                
+                document.getElementById('newTableName').value = '';
+                alert(`สร้างโต๊ะ "${name}" สำเร็จ!`);
+                loadRestaurantTables();
+            } catch (err) { alert('เกิดข้อผิดพลาดในการสร้างโต๊ะ: ' + err.message); }
+        }
+
+        async function loadRestaurantTables() {
+            if (!vendorData || vendorData.restaurant_mode_enabled !== true) return;
+
+            const { data, error } = await supabaseClient.from('restaurant_tables')
+                .select('*').eq('vendor_id', vendorData.id).eq('is_active', true).order('created_at', { ascending: true });
+
+            const container = document.getElementById('restaurantTableList');
+            if (error || !data || data.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #888; font-size: 13px;">ยังไม่มีข้อมูลโต๊ะ กรุณาสร้างโต๊ะเพื่อใช้งาน</p>';
+                return;
+            }
+
+            let html = '';
+            data.forEach(t => {
+                let branchName = 'สาขาหลัก';
+                if (t.branch_id) {
+                    const b = branchListData.find(br => br.id === t.branch_id);
+                    if (b) branchName = b.branch_name;
+                }
+
+                html += `
+                <div style="background: #fff; border: 1px solid #f8bbd0; border-radius: 8px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                    <div><strong style="font-size: 16px; color: #c2185b;">โต๊ะ: ${t.table_name}</strong><div style="font-size: 12px; color: #666; margin-top: 4px;">📍 ${branchName}</div></div>
+                    <div style="display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end;">
+                        <button onclick="showTableQrModal('${t.table_token}', '${t.table_name}')" style="background: #00BCD4; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: bold;">📷 ดู QR</button>
+                        <button onclick="printTableQr('${t.table_token}', '${t.table_name}', '${t.branch_id}')" style="background: #E91E63; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: bold;">🖨 พิมพ์ป้าย</button>
+                        <button onclick="disableTable('${t.id}')" style="background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer;">ลบ</button>
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function showTableQrModal(token, tableName) {
+            const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+            const tableLink = `${baseUrl}/table-order.html?table_token=${token}`;
+
+            document.getElementById('customerQrImage').src = '';
+            const qr = new QRious({ value: tableLink, size: 300, level: 'L' });
+            const dataUrl = qr.toDataURL();
+            document.getElementById('customerQrImage').src = dataUrl;
+
+            const downloadBtn = document.getElementById('downloadQrBtn');
+            if (downloadBtn) {
+                downloadBtn.href = dataUrl;
+                downloadBtn.download = `QR_Table_${tableName}.png`;
+            }
+
+            document.getElementById('qrModalTitle').innerText = `🍽️ QR ประจำโต๊ะ`;
+            document.getElementById('qrModalSubtitle').innerText = `โต๊ะ: ${tableName}`;
+            document.getElementById('customerQrModal').style.display = 'flex';
+        }
+
+        function printTableQr(token, tableName, branchId) {
+            const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+            const tableLink = `${baseUrl}/table-order.html?table_token=${token}`;
+            
+            let branchName = 'สาขาหลัก';
+            if (branchId && branchId !== 'null') {
+                const b = branchListData.find(br => String(br.id) === String(branchId));
+                if (b) branchName = b.branch_name;
+            }
+
+            const printDiv = document.getElementById('printArea');
+            const qr = new QRious({ value: tableLink, size: 400, level: 'M' });
+            const qrDataUrl = qr.toDataURL();
+
+            printDiv.innerHTML = `
+                <div style="padding: 30px; font-family: sans-serif; text-align: center; border: 3px solid #000; border-radius: 15px; width: 350px; background: white;">
+                    <h2 style="margin: 0 0 5px 0; font-size: 24px; color: #000;">${vendorData.name}</h2>
+                    <p style="margin: 0 0 15px 0; font-size: 16px; color: #555;">สาขา: ${branchName}</p>
+                    <h1 style="margin: 15px 0; font-size: 48px; color: #E91E63;">โต๊ะ ${tableName}</h1>
+                    <div style="background: #f4f6f8; padding: 10px; border-radius: 8px; margin-bottom: 15px;"><p style="font-size: 16px; font-weight: bold; color: #333; margin: 0;">สแกนเพื่อสั่งอาหาร</p></div>
+                    <img src="${qrDataUrl}" style="width: 250px; height: 250px; margin: 0 auto; display: block;">
+                    <p style="font-size: 14px; font-weight: bold; margin-top: 20px; color: #000;">สแกน • สั่ง • เรียกพนักงาน • เช็คบิล</p>
+                </div>
+            `;
+            setTimeout(() => { window.print(); }, 500);
+        }
+
+        async function disableTable(id) {
+            if(!confirm("ต้องการลบโต๊ะนี้ใช่หรือไม่? (QR Code เดิมของโต๊ะนี้จะใช้งานไม่ได้อีก)")) return;
+            await supabaseClient.from('restaurant_tables').update({ is_active: false }).eq('id', id);
+            loadRestaurantTables();
+        }
+
+        // ==================== ระบบ QR Code สำหรับลูกค้า (Takeaway) ====================
         function copyCustomerLink() {
-            const linkInput = document.getElementById('customerLinkText');
-            linkInput.select(); document.execCommand("copy");
-            alert("คัดลอกลิงก์ร้านค้าเรียบร้อยแล้ว!\nสามารถนำไปแปะในหน้าเพจ หรือส่งให้ลูกค้าได้เลยครับ");
+            const linkInput = document.getElementById('customerLinkText'); linkInput.select(); document.execCommand("copy"); alert("คัดลอกลิงก์ร้านค้าเรียบร้อยแล้ว!\nสามารถนำไปแปะในหน้าเพจ หรือส่งให้ลูกค้าได้เลยครับ");
         }
-
         function showCustomerQr() {
-            const customerLink = document.getElementById('customerLinkText').value;
-            if(!customerLink) return alert("กำลังสร้างลิงก์ กรุณารอสักครู่...");
-            showBranchQr(customerLink, 'สาขาหลัก');
+            const customerLink = document.getElementById('customerLinkText').value; if(!customerLink) return alert("กำลังสร้างลิงก์ กรุณารอสักครู่...");
+            showBranchQr(customerLink, 'สาขาหลัก (Takeaway)');
         }
-
         function closeCustomerQrModal() { document.getElementById('customerQrModal').style.display = 'none'; }
-
         function shareCustomerFlex() {
             if (!liff.isLoggedIn()) return;
-            const refLink = document.getElementById('customerLinkText').value;
-            const storeName = vendorData.name || "ร้านของเรา";
-
+            const refLink = document.getElementById('customerLinkText').value; const storeName = vendorData.name || "ร้านของเรา";
             const flexMsg = {
               "type": "flex", "altText": `สั่งอาหารจากร้าน ${storeName}`,
               "contents": {
-                "type": "bubble",
-                "header": { "type": "box", "layout": "vertical", "backgroundColor": "#00BCD4", "contents": [{ "type": "text", "text": "🍽 เมนูอาหาร", "color": "#FFFFFF", "weight": "bold", "size": "xl" }] },
-                "body": { "type": "box", "layout": "vertical", "spacing": "md", "contents": [
-                    { "type": "text", "text": `ร้าน ${storeName}`, "weight": "bold", "color": "#333333", "size": "md" },
-                    { "type": "text", "text": "หิวแล้วใช่ไหม? สั่งอาหารออนไลน์ได้ง่ายๆ ไม่ต้องรอคิว กดดูเมนูเลย!", "wrap": true, "color": "#666666", "size": "sm" }
-                ]},
-                "footer": { "type": "box", "layout": "vertical", "contents": [
-                    { "type": "button", "style": "primary", "color": "#00BCD4", "action": { "type": "uri", "label": "คลิกสั่งอาหารตรงนี้", "uri": refLink } }
-                ]}
+                "type": "bubble", "header": { "type": "box", "layout": "vertical", "backgroundColor": "#00BCD4", "contents": [{ "type": "text", "text": "🍽 เมนูอาหาร", "color": "#FFFFFF", "weight": "bold", "size": "xl" }] },
+                "body": { "type": "box", "layout": "vertical", "spacing": "md", "contents": [{ "type": "text", "text": `ร้าน ${storeName}`, "weight": "bold", "color": "#333333", "size": "md" }, { "type": "text", "text": "หิวแล้วใช่ไหม? สั่งอาหารออนไลน์ได้ง่ายๆ ไม่ต้องรอคิว กดดูเมนูเลย!", "wrap": true, "color": "#666666", "size": "sm" }]},
+                "footer": { "type": "box", "layout": "vertical", "contents": [{ "type": "button", "style": "primary", "color": "#00BCD4", "action": { "type": "uri", "label": "คลิกสั่งอาหารตรงนี้", "uri": refLink } }]}
               }
             };
-
-            if (liff.isApiAvailable('shareTargetPicker')) {
-                liff.shareTargetPicker([flexMsg]).then(function (res) { if (res) alert('ส่งลิงก์ร้านให้ลูกค้าสำเร็จ! 🎉'); }).catch(function (error) {});
-            } else { alert('อุปกรณ์ไม่รองรับ กรุณากดคัดลอกลิงก์ส่งให้ลูกค้าแทนครับ'); }
+            if (liff.isApiAvailable('shareTargetPicker')) { liff.shareTargetPicker([flexMsg]).then(function (res) { if (res) alert('ส่งลิงก์สำเร็จ! 🎉'); }).catch(function (error) {}); } else { alert('อุปกรณ์ไม่รองรับ'); }
         }
 
         // ==================== ระบบ Affiliate ====================
-        function renderAffiliateInfo() {
-            if (!vendorData) return;
-            document.getElementById('walletBalance').innerText = vendorData.wallet_balance || 0;
-            document.getElementById('affiliateLink').value = `https://liff.line.me/${CONFIG.liffIdRegister}?ref=${vendorData.id}`;
-        }
-
-        function copyAffiliateLink() {
-            const linkInput = document.getElementById('affiliateLink'); linkInput.select(); document.execCommand("copy");
-            alert("คัดลอกลิงก์แนะนำเรียบร้อยแล้ว!\nส่งให้เพื่อนสมัครเพื่อรับค่าคอมมิชชั่นได้เลยครับ 🤝");
-        }
-
+        function renderAffiliateInfo() { if (!vendorData) return; document.getElementById('walletBalance').innerText = vendorData.wallet_balance || 0; document.getElementById('affiliateLink').value = `https://liff.line.me/${CONFIG.liffIdRegister}?ref=${vendorData.id}`; }
+        function copyAffiliateLink() { const linkInput = document.getElementById('affiliateLink'); linkInput.select(); document.execCommand("copy"); alert("คัดลอกลิงก์แนะนำเรียบร้อยแล้ว!\nส่งให้เพื่อนสมัครเพื่อรับค่าคอมมิชชั่นได้เลยครับ 🤝"); }
         function shareAffiliateFlex() {
             if (!liff.isLoggedIn()) return;
-            const refLink = document.getElementById('affiliateLink').value; 
-            if(!refLink) return;
+            const refLink = document.getElementById('affiliateLink').value; if(!refLink) return;
             const storeName = vendorData.name || "เพื่อนของคุณ";
-            
             const flexMsg = {
-              "type": "flex",
-              "altText": `คำชวนพิเศษจากร้าน ${storeName} ให้เปิดร้านค้าฟรี!`,
+              "type": "flex", "altText": `คำชวนพิเศษจากร้าน ${storeName}`,
               "contents": {
-                "type": "bubble",
-                "hero": {
-                  "type": "image",
-                  "url": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1024&q=80",
-                  "size": "full",
-                  "aspectRatio": "20:13",
-                  "aspectMode": "cover"
-                },
-                "body": {
-                  "type": "box",
-                  "layout": "vertical",
-                  "contents": [
-                    {
-                      "type": "text",
-                      "text": "🎉 คำชวนพิเศษจากร้าน:",
-                      "weight": "bold",
-                      "size": "md",
-                      "color": "#06C755"
-                    },
-                    {
-                      "type": "text",
-                      "text": storeName,
-                      "weight": "bold",
-                      "size": "xl",
-                      "color": "#111111",
-                      "margin": "sm"
-                    },
-                    {
-                      "type": "text",
-                      "text": "✅ รับออเดอร์ผ่าน LINE\n✅ ตรวจสลิปโอนเงินอัตโนมัติ\n✅ แจ้งเตือนเมื่ออาหารเสร็จ\n✅ ระบบจัดการคิวสุดล้ำ",
-                      "size": "sm",
-                      "color": "#555555",
-                      "wrap": true,
-                      "margin": "md"
-                    }
-                  ]
-                },
-                "footer": {
-                  "type": "box",
-                  "layout": "vertical",
-                  "spacing": "sm",
-                  "contents": [
-                    {
-                      "type": "button",
-                      "style": "primary",
-                      "height": "sm",
-                      "color": "#06C755",
-                      "action": {
-                        "type": "uri",
-                        "label": "👉 เปิดร้านค้า (ทดลองฟรี 10 วัน!)",
-                        "uri": refLink
-                      }
-                    }
-                  ],
-                  "flex": 0
-                }
+                "type": "bubble", "hero": { "type": "image", "url": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1024&q=80", "size": "full", "aspectRatio": "20:13", "aspectMode": "cover" },
+                "body": { "type": "box", "layout": "vertical", "contents": [{ "type": "text", "text": "🎉 คำชวนพิเศษจากร้าน:", "weight": "bold", "size": "md", "color": "#06C755" }, { "type": "text", "text": storeName, "weight": "bold", "size": "xl", "color": "#111111", "margin": "sm" }, { "type": "text", "text": "✅ รับออเดอร์ผ่าน LINE\n✅ ตรวจสลิปโอนเงินอัตโนมัติ", "size": "sm", "color": "#555555", "wrap": true, "margin": "md" }]},
+                "footer": { "type": "box", "layout": "vertical", "spacing": "sm", "contents": [{ "type": "button", "style": "primary", "height": "sm", "color": "#06C755", "action": { "type": "uri", "label": "👉 เปิดร้านค้า (ทดลองฟรี!)", "uri": refLink } }], "flex": 0 }
               }
             };
-
-            if (liff.isApiAvailable('shareTargetPicker')) {
-                liff.shareTargetPicker([flexMsg]).then(function (res) { if (res) alert('ส่งคำชวนให้เพื่อนสำเร็จ! 🎉'); }).catch(function (error) {});
-            } else { alert('อุปกรณ์ของคุณไม่รองรับการส่งข้อความผ่านปุ่มนี้ กรุณากดคัดลอกลิงก์ส่งให้เพื่อนแทนครับ'); }
+            if (liff.isApiAvailable('shareTargetPicker')) { liff.shareTargetPicker([flexMsg]).then(function (res) { if (res) alert('ส่งคำชวนสำเร็จ!'); }).catch(function (error) {}); } else { alert('อุปกรณ์ไม่รองรับ'); }
         }
-
         function showAffiliateQr() {
-            const refLink = document.getElementById('affiliateLink').value;
-            if(!refLink) return alert("ไม่พบลิงก์แนะนำ กรุณารอโหลดข้อมูลสักครู่");
-            document.getElementById('affiliateQrImage').src = '';
-            const qr = new QRious({ value: refLink, size: 300, level: 'L' });
-            document.getElementById('affiliateQrImage').src = qr.toDataURL();
-            document.getElementById('qrModal').style.display = 'flex';
+            const refLink = document.getElementById('affiliateLink').value; if(!refLink) return alert("ไม่พบลิงก์แนะนำ กรุณารอโหลดข้อมูลสักครู่");
+            document.getElementById('affiliateQrImage').src = ''; const qr = new QRious({ value: refLink, size: 300, level: 'L' }); document.getElementById('affiliateQrImage').src = qr.toDataURL(); document.getElementById('qrModal').style.display = 'flex';
         }
         function closeQrModal() { document.getElementById('qrModal').style.display = 'none'; }
 
         // --- ระบบถอนเงิน ---
         function openWithdrawModal() {
-            if (!vendorData) return;
-            if (vendorData.wallet_balance <= 0) { alert('ยอดเงินสะสมของคุณเป็น 0 บาท ยังไม่สามารถทำรายการได้ครับ'); return; }
+            if (!vendorData) return; if (vendorData.wallet_balance <= 0) { alert('ยอดเงินสะสมของคุณเป็น 0 บาท ยังไม่สามารถทำรายการได้ครับ'); return; }
             document.getElementById('withdrawModal').style.display = 'flex'; document.getElementById('withdrawAmount').value = ''; updateWithdrawInfo();
         }
         function closeWithdrawModal() { document.getElementById('withdrawModal').style.display = 'none'; }
-
         function updateWithdrawInfo() {
             const type = document.getElementById('withdrawType').value; const balance = vendorData.wallet_balance || 0; const infoDiv = document.getElementById('withdrawInfo');
-            if (type === 'cash') {
-                const maxCash = Math.max(0, balance - 100);
-                infoDiv.innerHTML = `* ถอนเงินสด: ต้องเหลือเงินติดกระเป๋าขั้นต่ำ 100 บาท<br>(ถอนได้สูงสุด: <b>฿${maxCash}</b>)`;
-            } else { infoDiv.innerHTML = `* ชำระค่าแพ็กเกจ: สามารถใช้ยอดเงินได้ 100%<br>(ใช้ได้สูงสุด: <b>฿${balance}</b>)`; }
+            if (type === 'cash') { const maxCash = Math.max(0, balance - 100); infoDiv.innerHTML = `* ถอนเงินสด: ต้องเหลือเงินติดกระเป๋าขั้นต่ำ 100 บาท<br>(ถอนได้สูงสุด: <b>฿${maxCash}</b>)`; } else { infoDiv.innerHTML = `* ชำระค่าแพ็กเกจ: สามารถใช้ยอดเงินได้ 100%<br>(ใช้ได้สูงสุด: <b>฿${balance}</b>)`; }
         }
-
         async function submitWithdraw() {
             const type = document.getElementById('withdrawType').value; const amount = parseFloat(document.getElementById('withdrawAmount').value);
             const balance = vendorData.wallet_balance || 0; const btn = document.getElementById('submitWithdrawBtn');
 
             if (!amount || amount <= 0) { alert('กรุณาระบุจำนวนเงินให้ถูกต้อง'); return; }
-            if (type === 'cash') {
-                if (balance < 100) return alert('ไม่สามารถถอนเงินสดได้ (ต้องมียอดสะสมมากกว่า 100 บาท)');
-                if (amount > balance - 100) return alert(`ถอนเงินสดได้สูงสุด ${balance - 100} บาท (ต้องเหลือขั้นต่ำ 100 บาท)`);
-            } else { if (amount > balance) return alert(`ยอดเงินไม่พอ (ใช้ชำระแพ็กเกจได้สูงสุด ${balance} บาท)`); }
+            if (type === 'cash') { if (balance < 100) return alert('ไม่สามารถถอนเงินสดได้'); if (amount > balance - 100) return alert(`ถอนเงินสดได้สูงสุด ${balance - 100} บาท`); } else { if (amount > balance) return alert(`ยอดเงินไม่พอ`); }
 
             btn.innerText = "กำลังประมวลผล..."; btn.disabled = true;
             try {
-                const newBalance = balance - amount;
-                await supabaseClient.from('vendors').update({ wallet_balance: newBalance }).eq('id', vendorData.id);
-                vendorData.wallet_balance = newBalance; document.getElementById('walletBalance').innerText = newBalance;
-
-                await fetch(CONFIG.gasWebhookUrl, {
-                    method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
-                    body: JSON.stringify({ action: 'withdraw_request', vendor_id: vendorData.id, store_name: vendorData.name, phone: vendorData.phone, promptpay: vendorData.promptpay_number, type: type, amount: amount })
-                });
-
-                alert('ส่งคำร้องเรียบร้อยแล้ว แอดมินจะตรวจสอบและดำเนินการให้เร็วที่สุดครับ!');
-                closeWithdrawModal();
+                const newBalance = balance - amount; await supabaseClient.from('vendors').update({ wallet_balance: newBalance }).eq('id', vendorData.id); vendorData.wallet_balance = newBalance; document.getElementById('walletBalance').innerText = newBalance;
+                await fetch(CONFIG.gasWebhookUrl, { method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: 'withdraw_request', vendor_id: vendorData.id, store_name: vendorData.name, phone: vendorData.phone, promptpay: vendorData.promptpay_number, type: type, amount: amount }) });
+                alert('ส่งคำร้องเรียบร้อยแล้ว แอดมินจะตรวจสอบและดำเนินการให้เร็วที่สุดครับ!'); closeWithdrawModal();
             } catch (error) { alert('เกิดข้อผิดพลาด: ' + error.message); }
             btn.innerText = "ยืนยันการทำรายการ"; btn.disabled = false;
         }
@@ -911,449 +929,181 @@
         // ==================== ระบบแพ็กเกจ โควต้า และ บิลลิ่ง ====================
         function renderSubscriptionInfo() {
             if (!vendorData) return;
-            
             const badgeEl = document.getElementById('subStatusBadge');
             if (vendorData.subscription_expires_at) {
-                const expDate = new Date(vendorData.subscription_expires_at);
-                document.getElementById('subExpiresAt').innerText = expDate.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                
-                if (!vendorData.is_subscription_active) {
-                    badgeEl.innerText = "⚠ รอชำระเงิน/รออนุมัติ"; 
-                    badgeEl.className = "sub-badge"; 
-                    badgeEl.style.background = "#fff3cd"; badgeEl.style.color = "#856404";
-                } else if (new Date() > expDate) {
-                    badgeEl.innerText = "หมดอายุแล้ว"; badgeEl.className = "sub-badge sub-expired"; 
-                    badgeEl.style.background = ""; badgeEl.style.color = "";
-                } else {
-                    badgeEl.innerText = "ใช้งานได้ปกติ"; badgeEl.className = "sub-badge sub-active";
-                    badgeEl.style.background = ""; badgeEl.style.color = "";
-                }
+                const expDate = new Date(vendorData.subscription_expires_at); document.getElementById('subExpiresAt').innerText = expDate.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                if (!vendorData.is_subscription_active) { badgeEl.innerText = "⚠ รอชำระเงิน/รออนุมัติ"; badgeEl.className = "sub-badge"; badgeEl.style.background = "#fff3cd"; badgeEl.style.color = "#856404";
+                } else if (new Date() > expDate) { badgeEl.innerText = "หมดอายุแล้ว"; badgeEl.className = "sub-badge sub-expired"; badgeEl.style.background = ""; badgeEl.style.color = "";
+                } else { badgeEl.innerText = "ใช้งานได้ปกติ"; badgeEl.className = "sub-badge sub-active"; badgeEl.style.background = ""; badgeEl.style.color = ""; }
             }
 
             const renewSelect = document.getElementById('renewPlanSelect'); let optionsHtml = '';
             if(CONFIG.pricingPlans) {
-                CONFIG.pricingPlans.filter(p => p.price > 0).forEach(p => { 
-                    optionsHtml += `<option value="${p.id}" data-price="${p.price}" data-days="${p.days}" data-quota="${p.quota}">${p.name} - ฿${p.price}</option>`; 
-                });
-                renewSelect.innerHTML = optionsHtml; 
-                
-                const savedRenew = localStorage.getItem('savedRenewPlan_' + vendorData.id);
-                if (savedRenew && document.querySelector(`#renewPlanSelect option[value="${savedRenew}"]`)) {
-                    renewSelect.value = savedRenew;
-                }
+                CONFIG.pricingPlans.filter(p => p.price > 0).forEach(p => { optionsHtml += `<option value="${p.id}" data-price="${p.price}" data-days="${p.days}" data-quota="${p.quota}">${p.name} - ฿${p.price}</option>`; });
+                renewSelect.innerHTML = optionsHtml; const savedRenew = localStorage.getItem('savedRenewPlan_' + vendorData.id);
+                if (savedRenew && document.querySelector(`#renewPlanSelect option[value="${savedRenew}"]`)) { renewSelect.value = savedRenew; }
                 updateRenewQr();
             }
 
             const quotaSelect = document.getElementById('quotaPlanSelect'); let qHtml = '';
             if(CONFIG.quotaPlans) { 
                 CONFIG.quotaPlans.forEach(q => { qHtml += `<option value="${q.id}" data-price="${q.price}" data-quota="${q.quota}">${q.name} - ฿${q.price}</option>`; }); 
-                quotaSelect.innerHTML = qHtml; 
-                
-                const savedQuota = localStorage.getItem('savedQuotaPlan_' + vendorData.id);
-                if (savedQuota && document.querySelector(`#quotaPlanSelect option[value="${savedQuota}"]`)) {
-                    quotaSelect.value = savedQuota;
-                }
+                quotaSelect.innerHTML = qHtml; const savedQuota = localStorage.getItem('savedQuotaPlan_' + vendorData.id);
+                if (savedQuota && document.querySelector(`#quotaPlanSelect option[value="${savedQuota}"]`)) { quotaSelect.value = savedQuota; }
                 updateQuotaQr();
             }
         }
 
         async function loadBillingInfo() {
             try {
-                const planId = vendorData?.subscription_plan || 'trial';
-                const confPlan = CONFIG?.pricingPlans?.find(p => String(p.id) === String(planId));
-
-                document.getElementById('billPlanName').innerText = confPlan ? confPlan.name : 'ฟรี/ทดลองใช้';
-                document.getElementById('billBasePrice').innerText = `฿${Number(confPlan?.price || 0).toFixed(2)}`;
-                document.getElementById('billSlipIncluded').innerText = Number(confPlan?.quota || 0);
-                document.getElementById('slipQuotaText').innerText = Number(vendorData?.slip_quota || 0);
-
-                let planDb = confPlan ? 
-                    { plan_name: confPlan.name, monthly_price: confPlan.price, included_branches: 1, included_slips: confPlan.quota || 0, extra_branch_price: 300, extra_slip_unit: 100, extra_slip_price: 100 } : 
-                    { plan_name: 'ฟรี/ทดลองใช้', monthly_price: 0, included_branches: 1, included_slips: 0, extra_branch_price: 300, extra_slip_unit: 100, extra_slip_price: 100 };
-
+                const planId = vendorData?.subscription_plan || 'trial'; const confPlan = CONFIG?.pricingPlans?.find(p => String(p.id) === String(planId));
+                document.getElementById('billPlanName').innerText = confPlan ? confPlan.name : 'ฟรี/ทดลองใช้'; document.getElementById('billBasePrice').innerText = `฿${Number(confPlan?.price || 0).toFixed(2)}`;
+                document.getElementById('billSlipIncluded').innerText = Number(confPlan?.quota || 0); document.getElementById('slipQuotaText').innerText = Number(vendorData?.slip_quota || 0);
+                let planDb = confPlan ? { plan_name: confPlan.name, monthly_price: confPlan.price, included_branches: 1, included_slips: confPlan.quota || 0, extra_branch_price: 300, extra_slip_unit: 100, extra_slip_price: 100 } : { plan_name: 'ฟรี/ทดลองใช้', monthly_price: 0, included_branches: 1, included_slips: 0, extra_branch_price: 300, extra_slip_unit: 100, extra_slip_price: 100 };
                 const d = new Date(); const firstDay = new Date(d.getFullYear(), d.getMonth(), 1).toISOString();
                 const { count: slipUsed, error: slipErr } = await supabaseClient.from('slip_logs').select('*', { count: 'exact', head: true }).eq('merchant_id', vendorData.id).neq('status', 'error').gte('created_at', firstDay);
 
-                const basePrice = parseFloat(planDb.monthly_price || 0);
-                let extraBranchCount = Math.max(0, branchCount - (planDb.included_branches || 1));
-                let extraBranchPrice = extraBranchCount * (planDb.extra_branch_price || 300);
-
-                const used = slipUsed || 0; const incSlip = planDb.included_slips || 0;
-                let extraSlipCount = Math.max(0, used - incSlip);
-                let extraSlipPrice = Math.ceil(extraSlipCount / (planDb.extra_slip_unit || 100)) * (planDb.extra_slip_price || 100);
-
+                const basePrice = parseFloat(planDb.monthly_price || 0); let extraBranchCount = Math.max(0, branchCount - (planDb.included_branches || 1)); let extraBranchPrice = extraBranchCount * (planDb.extra_branch_price || 300);
+                const used = slipUsed || 0; const incSlip = planDb.included_slips || 0; let extraSlipCount = Math.max(0, used - incSlip); let extraSlipPrice = Math.ceil(extraSlipCount / (planDb.extra_slip_unit || 100)) * (planDb.extra_slip_price || 100);
                 const totalEstimatedBill = basePrice + extraBranchPrice + extraSlipPrice;
-
-                document.getElementById('billBranchCount').innerText = branchCount;
-                document.getElementById('billBranchIncluded').innerText = planDb.included_branches || 1;
-                document.getElementById('billBranchExtra').innerText = `+ ฿${extraBranchPrice.toFixed(2)}`;
-                document.getElementById('billSlipUsed').innerText = used;
-                document.getElementById('billSlipExtra').innerText = `+ ฿${extraSlipPrice.toFixed(2)}`;
-                document.getElementById('billTotalAmount').innerText = `฿${totalEstimatedBill.toFixed(2)}`;
-
-            } catch(e) { 
-                console.error("Billing Info Error:", e); 
-                document.getElementById('billPlanName').innerText = "โหลดล้มเหลว"; 
-            }
+                document.getElementById('billBranchCount').innerText = branchCount; document.getElementById('billBranchIncluded').innerText = planDb.included_branches || 1; document.getElementById('billBranchExtra').innerText = `+ ฿${extraBranchPrice.toFixed(2)}`;
+                document.getElementById('billSlipUsed').innerText = used; document.getElementById('billSlipExtra').innerText = `+ ฿${extraSlipPrice.toFixed(2)}`; document.getElementById('billTotalAmount').innerText = `฿${totalEstimatedBill.toFixed(2)}`;
+            } catch(e) { console.error("Billing Info Error:", e); document.getElementById('billPlanName').innerText = "โหลดล้มเหลว"; }
         }
 
         function updateRenewQr() {
-            const select = document.getElementById('renewPlanSelect');
-            const opt = select.options[select.selectedIndex];
-            if (!opt) return;
-            
-            localStorage.setItem('savedRenewPlan_' + vendorData.id, select.value);
-
-            const price = opt.getAttribute('data-price');
-            document.getElementById('renewAmountText').innerText = `ยอดชำระ: ฿${price}`;
-
-            if (CONFIG.adminPaymentType === 'bank') {
-                document.getElementById('adminQrImage').style.display = 'none';
-                document.getElementById('adminBankInfoBox').style.display = 'block';
-                document.getElementById('adminBankInfoBox').innerHTML = `<b>โอนเข้าบัญชีผู้ให้บริการ:</b><br>${CONFIG.adminBankInfo}<br>เลขบัญชี: ${CONFIG.adminPromptpay}`;
-            } else {
-                document.getElementById('adminBankInfoBox').style.display = 'none';
-                renderPromptPayQR({
-                    containerId: 'adminQrImage',
-                    promptpayId: CONFIG.adminPromptpay || '0812345678',
-                    amount: price,
-                    logPrefix: 'RENEW'
-                });
-            }
+            const select = document.getElementById('renewPlanSelect'); const opt = select.options[select.selectedIndex]; if (!opt) return; localStorage.setItem('savedRenewPlan_' + vendorData.id, select.value);
+            const price = opt.getAttribute('data-price'); document.getElementById('renewAmountText').innerText = `ยอดชำระ: ฿${price}`;
+            if (CONFIG.adminPaymentType === 'bank') { document.getElementById('adminQrImage').style.display = 'none'; document.getElementById('adminBankInfoBox').style.display = 'block'; document.getElementById('adminBankInfoBox').innerHTML = `<b>โอนเข้าบัญชีผู้ให้บริการ:</b><br>${CONFIG.adminBankInfo}<br>เลขบัญชี: ${CONFIG.adminPromptpay}`;
+            } else { document.getElementById('adminBankInfoBox').style.display = 'none'; renderPromptPayQR({ containerId: 'adminQrImage', promptpayId: CONFIG.adminPromptpay || '0812345678', amount: price, logPrefix: 'RENEW' }); }
         }
 
         function updateQuotaQr() {
-            const select = document.getElementById('quotaPlanSelect');
-            const opt = select.options[select.selectedIndex];
-            if (!opt) return;
-            
-            localStorage.setItem('savedQuotaPlan_' + vendorData.id, select.value);
-
-            const price = opt.getAttribute('data-price');
-            document.getElementById('quotaAmountText').innerText = `ยอดชำระ: ฿${price}`;
-
-            if (CONFIG.adminPaymentType === 'bank') {
-                document.getElementById('quotaQrImage').style.display = 'none';
-                document.getElementById('quotaBankInfoBox').style.display = 'block';
-                document.getElementById('quotaBankInfoBox').innerHTML = `<b>โอนเข้าบัญชีผู้ให้บริการ:</b><br>${CONFIG.adminBankInfo}<br>เลขบัญชี: ${CONFIG.adminPromptpay}`;
-            } else {
-                document.getElementById('quotaBankInfoBox').style.display = 'none';
-                renderPromptPayQR({
-                    containerId: 'quotaQrImage',
-                    promptpayId: CONFIG.adminPromptpay || '0812345678',
-                    amount: price,
-                    logPrefix: 'QUOTA'
-                });
-            }
+            const select = document.getElementById('quotaPlanSelect'); const opt = select.options[select.selectedIndex]; if (!opt) return; localStorage.setItem('savedQuotaPlan_' + vendorData.id, select.value);
+            const price = opt.getAttribute('data-price'); document.getElementById('quotaAmountText').innerText = `ยอดชำระ: ฿${price}`;
+            if (CONFIG.adminPaymentType === 'bank') { document.getElementById('quotaQrImage').style.display = 'none'; document.getElementById('quotaBankInfoBox').style.display = 'block'; document.getElementById('quotaBankInfoBox').innerHTML = `<b>โอนเข้าบัญชีผู้ให้บริการ:</b><br>${CONFIG.adminBankInfo}<br>เลขบัญชี: ${CONFIG.adminPromptpay}`;
+            } else { document.getElementById('quotaBankInfoBox').style.display = 'none'; renderPromptPayQR({ containerId: 'quotaQrImage', promptpayId: CONFIG.adminPromptpay || '0812345678', amount: price, logPrefix: 'QUOTA' }); }
         }
 
         async function verifyAndRenewSubscription(btn) {
-            const fileInput = document.getElementById('renewSlipImage'); 
-            const select = document.getElementById('renewPlanSelect');
-            const opt = select.options[select.selectedIndex]; 
-
+            const fileInput = document.getElementById('renewSlipImage'); const select = document.getElementById('renewPlanSelect'); const opt = select.options[select.selectedIndex]; 
             if (fileInput.files.length === 0) { alert("กรุณาเลือกไฟล์สลิป"); return; }
-            const expectedPrice = opt.getAttribute('data-price'); 
-            const planDays = parseInt(opt.getAttribute('data-days'));
-            const addedQuota = parseInt(opt.getAttribute('data-quota') || 0);
-            const planId = select.value; 
-            
+            const expectedPrice = opt.getAttribute('data-price'); const planDays = parseInt(opt.getAttribute('data-days')); const addedQuota = parseInt(opt.getAttribute('data-quota') || 0); const planId = select.value; 
             const selectedPlanObj = CONFIG.pricingPlans.find(p => p.id === planId);
-            if (!selectedPlanObj) {
-                alert("เกิดข้อผิดพลาด: ไม่พบแพ็กเกจในระบบ"); 
-                throw new Error("ไม่พบแพ็กเกจใน CONFIG.pricingPlans: " + planId);
-            }
+            if (!selectedPlanObj) { alert("เกิดข้อผิดพลาด: ไม่พบแพ็กเกจในระบบ"); throw new Error("ไม่พบแพ็กเกจใน CONFIG.pricingPlans: " + planId); }
 
             btn.innerText = "⏳ กำลังตรวจสอบ..."; btn.disabled = true;
             try {
-                const file = fileInput.files[0]; 
-                const fileName = `sub-slip-${vendorData.id}-${Date.now()}.${file.name.split('.').pop()}`;
-                const { error: uploadError } = await supabaseClient.storage.from('slip-images').upload(fileName, file);
-                if (uploadError) throw uploadError;
+                const file = fileInput.files[0]; const fileName = `sub-slip-${vendorData.id}-${Date.now()}.${file.name.split('.').pop()}`;
+                const { error: uploadError } = await supabaseClient.storage.from('slip-images').upload(fileName, file); if (uploadError) throw uploadError;
+                const { data: publicData } = supabaseClient.storage.from('slip-images').getPublicUrl(fileName); const slipUrl = publicData.publicUrl;
 
-                const { data: publicData } = supabaseClient.storage.from('slip-images').getPublicUrl(fileName);
-                const slipUrl = publicData.publicUrl;
-
-                const { data: verifyResult, error: verifyError } = await supabaseClient.functions.invoke(
-                    'verify-slip-thunder',
-                    {
-                        body: {
-                            slip_url: slipUrl,
-                            amount: Number(expectedPrice),
-                            vendor_id: vendorData.id,
-                            branch_id: null,
-                            payment_context: 'SUBSCRIPTION_PAYMENT'
-                        }
-                    }
-                );
-
-                if (verifyError || !verifyResult) {
-                    throw new Error(verifyError ? verifyError.message : "ไม่มีการตอบกลับจากระบบตรวจสลิป");
-                }
+                const { data: verifyResult, error: verifyError } = await supabaseClient.functions.invoke('verify-slip-thunder', { body: { slip_url: slipUrl, amount: Number(expectedPrice), vendor_id: vendorData.id, branch_id: null, payment_context: 'SUBSCRIPTION_PAYMENT' } });
+                if (verifyError || !verifyResult) { throw new Error(verifyError ? verifyError.message : "ไม่มีการตอบกลับจากระบบตรวจสลิป"); }
 
                 const isDuplicate = verifyResult.data?.isDuplicate === true || verifyResult.debug?.code === 'DUPLICATE_SLIP';
-                await supabaseClient.from('payment_transactions').insert([{
-                    vendor_id: vendorData.id,
-                    payment_context: 'SUBSCRIPTION_PAYMENT',
-                    amount_expected: Number(expectedPrice),
-                    amount_in_slip: verifyResult.data?.amountInSlip || null,
-                    slip_url: slipUrl,
-                    verification_status: verifyResult.status,
-                    is_duplicate: isDuplicate,
-                    raw_response: verifyResult
-                }]);
+                await supabaseClient.from('payment_transactions').insert([{ vendor_id: vendorData.id, payment_context: 'SUBSCRIPTION_PAYMENT', amount_expected: Number(expectedPrice), amount_in_slip: verifyResult.data?.amountInSlip || null, slip_url: slipUrl, verification_status: verifyResult.status, is_duplicate: isDuplicate, raw_response: verifyResult }]);
 
                 if (verifyResult.status === 'success') {
-                    let baseDate = new Date();
-                    if (vendorData.subscription_expires_at) {
-                        const currentExp = new Date(vendorData.subscription_expires_at);
-                        if (currentExp > baseDate) baseDate = currentExp;
-                    }
-                    baseDate.setDate(baseDate.getDate() + planDays);
-                    const newQuota = (vendorData.slip_quota || 0) + addedQuota;
-
-                    await supabaseClient.from('vendors').update({
-                        subscription_plan: planId, subscription_days: planDays, subscription_expires_at: baseDate.toISOString(), 
-                        slip_check_mode: selectedPlanObj.mode, is_subscription_active: true, slip_quota: newQuota
-                    }).eq('id', vendorData.id);
+                    let baseDate = new Date(); if (vendorData.subscription_expires_at) { const currentExp = new Date(vendorData.subscription_expires_at); if (currentExp > baseDate) baseDate = currentExp; }
+                    baseDate.setDate(baseDate.getDate() + planDays); const newQuota = (vendorData.slip_quota || 0) + addedQuota;
+                    await supabaseClient.from('vendors').update({ subscription_plan: planId, subscription_days: planDays, subscription_expires_at: baseDate.toISOString(), slip_check_mode: selectedPlanObj.mode, is_subscription_active: true, slip_quota: newQuota }).eq('id', vendorData.id);
 
                     const commission = vendorData.referrer_id ? Number(selectedPlanObj.comm || 0) : 0;
                     if (vendorData.referrer_id && commission > 0) {
                         const { data: refData, error: refError } = await supabaseClient.from('vendors').select('id, wallet_balance').eq('id', vendorData.referrer_id).single();
-                        if (!refError) {
-                            const newBalance = Number(refData.wallet_balance || 0) + commission;
-                            await supabaseClient.from('vendors').update({ wallet_balance: newBalance }).eq('id', vendorData.referrer_id);
-                        }
+                        if (!refError) { const newBalance = Number(refData.wallet_balance || 0) + commission; await supabaseClient.from('vendors').update({ wallet_balance: newBalance }).eq('id', vendorData.referrer_id); }
                     }
 
-                    vendorData.subscription_plan = planId; vendorData.subscription_expires_at = baseDate.toISOString(); 
-                    vendorData.slip_check_mode = selectedPlanObj.mode; vendorData.is_subscription_active = true; vendorData.slip_quota = newQuota;
-
-                    fetch(CONFIG.gasWebhookUrl, {
-                        method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
-                        body: JSON.stringify({
-                            action: 'notify_admin_payment', 
-                            type: 'renew',
-                            vendor_id: vendorData.id,
-                            store_name: vendorData.name, 
-                            plan_name: selectedPlanObj.name, 
-                            amount: expectedPrice, 
-                            referrer_id: vendorData.referrer_id || null, 
-                            commission: commission,
-                            expire_date: baseDate.toISOString()
-                        })
-                    }).catch(e => console.log(e));
-
-                    alert(`🎉 ต่ออายุแพ็กเกจเรียบร้อยแล้ว\nใช้งานได้ถึง ${baseDate.toLocaleDateString('th-TH')}`);
-                    renderSubscriptionInfo(); await loadBillingInfo(); fileInput.value = '';
-
+                    vendorData.subscription_plan = planId; vendorData.subscription_expires_at = baseDate.toISOString(); vendorData.slip_check_mode = selectedPlanObj.mode; vendorData.is_subscription_active = true; vendorData.slip_quota = newQuota;
+                    fetch(CONFIG.gasWebhookUrl, { method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: 'notify_admin_payment', type: 'renew', vendor_id: vendorData.id, store_name: vendorData.name, plan_name: selectedPlanObj.name, amount: expectedPrice, referrer_id: vendorData.referrer_id || null, commission: commission, expire_date: baseDate.toISOString() }) }).catch(e => console.log(e));
+                    alert(`🎉 ต่ออายุแพ็กเกจเรียบร้อยแล้ว\nใช้งานได้ถึง ${baseDate.toLocaleDateString('th-TH')}`); renderSubscriptionInfo(); await loadBillingInfo(); fileInput.value = '';
                 } else { 
-                    let errorMsg = verifyResult.msg;
-                    if (verifyResult.debug?.code === 'AMOUNT_UNMATCHED') {
-                        errorMsg = `ยอดโอนไม่ตรง! (ในสลิป ${verifyResult.debug.amountInSlip || 0} ฿, ต้องชำระ ${expectedPrice} ฿)`;
-                    }
-                    alert(`❌ ตรวจสลิปไม่ผ่าน:\n${errorMsg}`);
+                    let errorMsg = verifyResult.msg; if (verifyResult.debug?.code === 'AMOUNT_UNMATCHED') { errorMsg = `ยอดโอนไม่ตรง! (ในสลิป ${verifyResult.debug.amountInSlip || 0} ฿, ต้องชำระ ${expectedPrice} ฿)`; } alert(`❌ ตรวจสลิปไม่ผ่าน:\n${errorMsg}`);
                 }
             } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); }
             btn.innerText = "ยืนยันการต่ออายุ"; btn.disabled = false;
         }
 
         async function verifyAndTopupQuota(btn) {
-            const fileInput = document.getElementById('quotaSlipImage'); 
-            const select = document.getElementById('quotaPlanSelect');
-            const opt = select.options[select.selectedIndex]; 
-
+            const fileInput = document.getElementById('quotaSlipImage'); const select = document.getElementById('quotaPlanSelect'); const opt = select.options[select.selectedIndex]; 
             if (fileInput.files.length === 0) { alert("กรุณาเลือกไฟล์สลิป"); return; }
-            const expectedPrice = opt.getAttribute('data-price'); 
-            const addedQuota = parseInt(opt.getAttribute('data-quota'));
+            const expectedPrice = opt.getAttribute('data-price'); const addedQuota = parseInt(opt.getAttribute('data-quota'));
 
             btn.innerText = "⏳ กำลังตรวจสอบ..."; btn.disabled = true;
             try {
-                const file = fileInput.files[0]; 
-                const fileName = `quota-slip-${vendorData.id}-${Date.now()}.${file.name.split('.').pop()}`;
-                const { error: uploadError } = await supabaseClient.storage.from('slip-images').upload(fileName, file);
-                if (uploadError) throw uploadError;
+                const file = fileInput.files[0]; const fileName = `quota-slip-${vendorData.id}-${Date.now()}.${file.name.split('.').pop()}`;
+                const { error: uploadError } = await supabaseClient.storage.from('slip-images').upload(fileName, file); if (uploadError) throw uploadError;
+                const { data: publicData } = supabaseClient.storage.from('slip-images').getPublicUrl(fileName); const slipUrl = publicData.publicUrl;
 
-                const { data: publicData } = supabaseClient.storage.from('slip-images').getPublicUrl(fileName);
-                const slipUrl = publicData.publicUrl;
-
-                const { data: verifyResult, error: verifyError } = await supabaseClient.functions.invoke(
-                    'verify-slip-thunder',
-                    {
-                        body: {
-                            slip_url: slipUrl,
-                            amount: Number(expectedPrice),
-                            vendor_id: vendorData.id,
-                            branch_id: null,
-                            payment_context: 'QUOTA_TOPUP'
-                        }
-                    }
-                );
-
-                if (verifyError || !verifyResult) {
-                    throw new Error(verifyError ? verifyError.message : "ไม่มีการตอบกลับจากระบบตรวจสลิป");
-                }
+                const { data: verifyResult, error: verifyError } = await supabaseClient.functions.invoke('verify-slip-thunder', { body: { slip_url: slipUrl, amount: Number(expectedPrice), vendor_id: vendorData.id, branch_id: null, payment_context: 'QUOTA_TOPUP' } });
+                if (verifyError || !verifyResult) { throw new Error(verifyError ? verifyError.message : "ไม่มีการตอบกลับจากระบบตรวจสลิป"); }
 
                 const isDuplicate = verifyResult.data?.isDuplicate === true || verifyResult.debug?.code === 'DUPLICATE_SLIP';
-                await supabaseClient.from('payment_transactions').insert([{
-                    vendor_id: vendorData.id,
-                    payment_context: 'QUOTA_TOPUP',
-                    amount_expected: Number(expectedPrice),
-                    amount_in_slip: verifyResult.data?.amountInSlip || null,
-                    slip_url: slipUrl,
-                    verification_status: verifyResult.status,
-                    is_duplicate: isDuplicate,
-                    raw_response: verifyResult
-                }]);
+                await supabaseClient.from('payment_transactions').insert([{ vendor_id: vendorData.id, payment_context: 'QUOTA_TOPUP', amount_expected: Number(expectedPrice), amount_in_slip: verifyResult.data?.amountInSlip || null, slip_url: slipUrl, verification_status: verifyResult.status, is_duplicate: isDuplicate, raw_response: verifyResult }]);
 
                 if (verifyResult.status === 'success') {
-                    const newQuota = (vendorData.slip_quota || 0) + addedQuota;
-                    await supabaseClient.from('vendors').update({ slip_quota: newQuota }).eq('id', vendorData.id);
-                    vendorData.slip_quota = newQuota;
-                    
-                    fetch(CONFIG.gasWebhookUrl, {
-                        method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
-                        body: JSON.stringify({
-                            action: 'notify_admin_payment', 
-                            type: 'topup', 
-                            vendor_id: vendorData.id,
-                            store_name: vendorData.name, 
-                            plan_name: opt.text.split(' - ')[0], 
-                            amount: expectedPrice, 
-                            referrer_id: null, 
-                            commission: 0
-                        })
-                    }).catch(e => console.log(e));
-
-                    alert(`🎉 เติมโควต้าสำเร็จ ได้รับเพิ่ม ${addedQuota} บิล\nโควต้าคงเหลือ: ${newQuota} บิล`);
-                    renderSubscriptionInfo(); await loadBillingInfo(); fileInput.value = '';
-
+                    const newQuota = (vendorData.slip_quota || 0) + addedQuota; await supabaseClient.from('vendors').update({ slip_quota: newQuota }).eq('id', vendorData.id); vendorData.slip_quota = newQuota;
+                    fetch(CONFIG.gasWebhookUrl, { method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: 'notify_admin_payment', type: 'topup', vendor_id: vendorData.id, store_name: vendorData.name, plan_name: opt.text.split(' - ')[0], amount: expectedPrice, referrer_id: null, commission: 0 }) }).catch(e => console.log(e));
+                    alert(`🎉 เติมโควต้าสำเร็จ ได้รับเพิ่ม ${addedQuota} บิล\nโควต้าคงเหลือ: ${newQuota} บิล`); renderSubscriptionInfo(); await loadBillingInfo(); fileInput.value = '';
                 } else { 
-                    let errorMsg = verifyResult.msg;
-                    if (verifyResult.debug?.code === 'AMOUNT_UNMATCHED') {
-                        errorMsg = `ยอดโอนไม่ตรง! (ในสลิป ${verifyResult.debug.amountInSlip || 0} ฿, ต้องชำระ ${expectedPrice} ฿)`;
-                    }
-                    alert(`❌ ตรวจสลิปไม่ผ่าน:\n${errorMsg}`);
+                    let errorMsg = verifyResult.msg; if (verifyResult.debug?.code === 'AMOUNT_UNMATCHED') { errorMsg = `ยอดโอนไม่ตรง! (ในสลิป ${verifyResult.debug.amountInSlip || 0} ฿, ต้องชำระ ${expectedPrice} ฿)`; } alert(`❌ ตรวจสลิปไม่ผ่าน:\n${errorMsg}`);
                 }
             } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); }
             btn.innerText = "ยืนยันการเติมโควต้า"; btn.disabled = false;
         }
 
-        // ==================== [NEW PATCH] ระบบเพิ่มเมนูแบบข้อความรวดเร็ว (Bulk Add) ====================
-        function openBulkAddModal() {
-            document.getElementById('bulkAddModal').style.display = 'flex';
-        }
-
-        function closeBulkAddModal() {
-            document.getElementById('bulkAddModal').style.display = 'none';
-            document.getElementById('bulkMenuText').value = '';
-        }
+        // ==================== ระบบเพิ่มเมนูแบบข้อความรวดเร็ว (Bulk Add) ====================
+        function openBulkAddModal() { document.getElementById('bulkAddModal').style.display = 'flex'; }
+        function closeBulkAddModal() { document.getElementById('bulkAddModal').style.display = 'none'; document.getElementById('bulkMenuText').value = ''; }
 
         async function processBulkAdd() {
             const text = document.getElementById('bulkMenuText').value.trim();
             if (!text) return alert("กรุณาวางข้อมูลเมนูที่ต้องการเพิ่ม");
 
-            const lines = text.split('\n');
-            const insertPayload = [];
-            let errorLines = [];
-
-            const btn = document.getElementById('bulkSaveBtn');
-            btn.innerText = "⏳ กำลังประมวลผล..."; btn.disabled = true;
+            const lines = text.split('\n'); const insertPayload = []; let errorLines = [];
+            const btn = document.getElementById('bulkSaveBtn'); btn.innerText = "⏳ กำลังประมวลผล..."; btn.disabled = true;
 
             for (let i = 0; i < lines.length; i++) {
-                const line = lines[i].trim();
-                // ข้ามบรรทัดว่าง
-                if (!line) continue; 
-
+                const line = lines[i].trim(); if (!line) continue; 
                 const parts = line.split(',').map(p => p.trim());
-                
-                if (parts.length < 2) {
-                    errorLines.push(`บรรทัด ${i+1}: ข้อมูลไม่ครบ (${line})`);
-                    continue;
-                }
-
-                const name = parts[0];
-                const price = parseFloat(parts[1]);
-
-                if (isNaN(price)) {
-                    errorLines.push(`บรรทัด ${i+1}: ราคาไม่ใช่ตัวเลข (${line})`);
-                    continue;
-                }
-
-                const catName = parts[2] ? parts[2] : null;
-                let catId = null;
-                // ถ้าร้านใส่ตัวเลือกมา จะเอามารวมกันคืนด้วยคอมม่า
-                const options = parts.length > 3 ? parts.slice(3).join(', ').trim() : ''; 
+                if (parts.length < 2) { errorLines.push(`บรรทัด ${i+1}: ข้อมูลไม่ครบ (${line})`); continue; }
+                const name = parts[0]; const price = parseFloat(parts[1]);
+                if (isNaN(price)) { errorLines.push(`บรรทัด ${i+1}: ราคาไม่ใช่ตัวเลข (${line})`); continue; }
+                const catName = parts[2] ? parts[2] : null; let catId = null; const options = parts.length > 3 ? parts.slice(3).join(', ').trim() : ''; 
 
                 if (catName) {
-                    // หา ID ของหมวดหมู่
                     let existingCat = categories.find(c => c.name.toLowerCase() === catName.toLowerCase());
-                    if (existingCat) {
-                        catId = existingCat.id;
-                    } else {
-                        // ถ้าไม่มีหมวดหมู่นี้ สร้างใหม่ให้อัตโนมัติทันที
-                        const { data: newCat, error: catErr } = await supabaseClient.from('categories')
-                            .insert([{ vendor_id: vendorData.id, name: catName }]).select().single();
-                        if (newCat) {
-                            categories.push(newCat);
-                            catId = newCat.id;
-                        }
+                    if (existingCat) { catId = existingCat.id; } 
+                    else {
+                        const { data: newCat, error: catErr } = await supabaseClient.from('categories').insert([{ vendor_id: vendorData.id, name: catName }]).select().single();
+                        if (newCat) { categories.push(newCat); catId = newCat.id; }
                     }
                 }
-
-                insertPayload.push({
-                    vendor_id: vendorData.id,
-                    name: name,
-                    price: price,
-                    category_id: catId,
-                    options: options,
-                    is_available: true
-                });
+                insertPayload.push({ vendor_id: vendorData.id, name: name, price: price, category_id: catId, options: options, is_available: true });
             }
 
-            if (insertPayload.length === 0) {
-                alert("ไม่มีข้อมูลที่ถูกต้องให้บันทึก\n\nข้อผิดพลาดที่พบ:\n" + errorLines.join('\n'));
-                btn.innerText = "💾 นำเข้าข้อมูล"; btn.disabled = false;
-                return;
-            }
-
+            if (insertPayload.length === 0) { alert("ไม่มีข้อมูลที่ถูกต้องให้บันทึก\n\nข้อผิดพลาดที่พบ:\n" + errorLines.join('\n')); btn.innerText = "💾 นำเข้าข้อมูล"; btn.disabled = false; return; }
             if (errorLines.length > 0) {
                 const confirmMsg = `พบข้อผิดพลาดบางบรรทัด (ถูกข้ามไป):\n${errorLines.join('\n')}\n\nต้องการบันทึกรายการที่ถูกต้อง (${insertPayload.length} รายการ) เลยหรือไม่?`;
-                if (!confirm(confirmMsg)) {
-                    btn.innerText = "💾 นำเข้าข้อมูล"; btn.disabled = false;
-                    return;
-                }
+                if (!confirm(confirmMsg)) { btn.innerText = "💾 นำเข้าข้อมูล"; btn.disabled = false; return; }
             }
 
             try {
-                const { error } = await supabaseClient.from('menu_items').insert(insertPayload);
-                if (error) throw error;
-
-                alert(`🎉 บันทึกสำเร็จทั้งหมด ${insertPayload.length} รายการ!`);
-                closeBulkAddModal();
-                await loadCategories(); 
-                loadMenuItems(); 
-            } catch (err) {
-                alert("เกิดข้อผิดพลาดในการบันทึก: " + err.message);
-            }
-            
+                const { error } = await supabaseClient.from('menu_items').insert(insertPayload); if (error) throw error;
+                alert(`🎉 บันทึกสำเร็จทั้งหมด ${insertPayload.length} รายการ!`); closeBulkAddModal(); await loadCategories(); loadMenuItems(); 
+            } catch (err) { alert("เกิดข้อผิดพลาดในการบันทึก: " + err.message); }
             btn.innerText = "💾 นำเข้าข้อมูล"; btn.disabled = false;
         }
 
         // ==================== ระบบหมวดหมู่ & จัดการเมนู ====================
         async function loadCategories() {
             if (!vendorData) return;
-            const { data, error } = await supabaseClient.from('categories').select('*').eq('vendor_id', vendorData.id).order('created_at', { ascending: true });
-            categories = data || [];
+            const { data, error } = await supabaseClient.from('categories').select('*').eq('vendor_id', vendorData.id).order('created_at', { ascending: true }); categories = data || [];
             const chipsDiv = document.getElementById('categoryChips');
             if (categories.length === 0) { chipsDiv.innerHTML = '<span style="font-size: 13px; color: #888;">ยังไม่มีหมวดหมู่ (กดเพิ่มด้านบนได้เลย)</span>'; } 
-            else {
-                let html = '';
-                categories.forEach(cat => { html += `<span class="cat-chip">${cat.name} <button onclick="editCategory('${cat.id}', '${cat.name}')">✏</button> <button onclick="deleteCategory('${cat.id}', '${cat.name}')" style="color: #d32f2f;">✕</button></span>`; });
-                chipsDiv.innerHTML = html;
-            }
-            const selectEl = document.getElementById('menuCategorySelect'); selectEl.innerHTML = '<option value="">-- ไม่ระบุหมวดหมู่ --</option>';
-            categories.forEach(cat => { selectEl.innerHTML += `<option value="${cat.id}">${cat.name}</option>`; });
+            else { let html = ''; categories.forEach(cat => { html += `<span class="cat-chip">${cat.name} <button onclick="editCategory('${cat.id}', '${cat.name}')">✏</button> <button onclick="deleteCategory('${cat.id}', '${cat.name}')" style="color: #d32f2f;">✕</button></span>`; }); chipsDiv.innerHTML = html; }
+            const selectEl = document.getElementById('menuCategorySelect'); selectEl.innerHTML = '<option value="">-- ไม่ระบุหมวดหมู่ --</option>'; categories.forEach(cat => { selectEl.innerHTML += `<option value="${cat.id}">${cat.name}</option>`; });
         }
         async function saveCategory() {
             const name = document.getElementById('newCategoryName').value.trim(); if (!name) return;
@@ -1366,11 +1116,8 @@
 
         async function addNewMenu() {
             const name = document.getElementById('menuName').value.trim(); const price = document.getElementById('menuPrice').value;
-            const categoryId = document.getElementById('menuCategorySelect').value || null; 
-            const options = document.getElementById('menuOptions').value.trim(); 
-            const fileInput = document.getElementById('menuImage');
-            const btn = document.getElementById('saveMenuBtn');
-            
+            const categoryId = document.getElementById('menuCategorySelect').value || null; const options = document.getElementById('menuOptions').value.trim(); 
+            const fileInput = document.getElementById('menuImage'); const btn = document.getElementById('saveMenuBtn');
             if (!name || !price) { alert("กรุณากรอกชื่อเมนูและราคา"); return; }
             btn.innerText = "กำลังบันทึก..."; btn.disabled = true;
 
@@ -1381,26 +1128,17 @@
                 if (!uploadError) { const { data: publicUrlData } = supabaseClient.storage.from('menu-images').getPublicUrl(fileName); imageUrl = publicUrlData.publicUrl; }
             }
 
-            const updateData = { name: name, price: price, category_id: categoryId, options: options };
-            if (imageUrl) updateData.image_url = imageUrl;
-
-            if (editingMenuId) {
-                await supabaseClient.from('menu_items').update(updateData).eq('id', editingMenuId);
-            } else { 
-                updateData.vendor_id = vendorData.id;
-                updateData.is_available = true;
-                await supabaseClient.from('menu_items').insert([updateData]); 
-            }
+            const updateData = { name: name, price: price, category_id: categoryId, options: options }; if (imageUrl) updateData.image_url = imageUrl;
+            if (editingMenuId) { await supabaseClient.from('menu_items').update(updateData).eq('id', editingMenuId);
+            } else { updateData.vendor_id = vendorData.id; updateData.is_available = true; await supabaseClient.from('menu_items').insert([updateData]); }
             resetFormState(); loadMenuItems(); 
         }
 
         function resetFormState() {
             document.getElementById('menuName').value = ''; document.getElementById('menuPrice').value = ''; document.getElementById('menuImage').value = ''; document.getElementById('menuCategorySelect').value = '';
-            document.getElementById('menuOptions').value = ''; 
-            editingMenuId = null; copiedImageUrl = null;
+            document.getElementById('menuOptions').value = ''; editingMenuId = null; copiedImageUrl = null;
             document.getElementById('formTitle').innerText = "🍔 เพิ่มเมนูใหม่";
-            const btn = document.getElementById('saveMenuBtn'); btn.innerText = "💾 บันทึกเมนูใหม่"; btn.style.background = "#06C755"; btn.disabled = false;
-            document.getElementById('cancelEditBtn').style.display = 'none';
+            const btn = document.getElementById('saveMenuBtn'); btn.innerText = "💾 บันทึกเมนูใหม่"; btn.style.background = "#06C755"; btn.disabled = false; document.getElementById('cancelEditBtn').style.display = 'none';
         }
 
         async function loadMenuItems() {
@@ -1410,69 +1148,31 @@
             if (error || data.length === 0) { menuListDiv.innerHTML = '<p style="text-align: center; color: #888;">ยังไม่มีเมนูอาหาร</p>'; return; }
             let html = '';
             data.forEach(item => {
-                const imgSrc = (item.image_url && item.image_url.trim() !== '') ? item.image_url : 'https://via.placeholder.com/60?text=No+Image'; const statusColor = item.is_available ? 'green' : 'red';
-                const statusText = item.is_available ? '✅ พร้อมขาย' : '❌ ของหมด'; const toggleBtnText = item.is_available ? '⏸️ พักการขาย' : '▶️ เปิดขาย';
-                const toggleBtnColor = item.is_available ? '#ff9800' : '#06C755'; const catBadge = item.categories?.name ? `<span style="background: #eef2ff; color: #4338ca; padding: 2px 7px; border-radius: 10px; font-size: 11px; margin-left: 6px;">🏷️ ${item.categories.name}</span>` : '';
-                const optBadge = item.options ? `<br><small style="color:#00BCD4;">[ตัวเลือก: ${item.options}]</small>` : ''; 
-                
+                const imgSrc = (item.image_url && item.image_url.trim() !== '') ? item.image_url : 'https://via.placeholder.com/60?text=No+Image'; const statusColor = item.is_available ? 'green' : 'red'; const statusText = item.is_available ? '✅ พร้อมขาย' : '❌ ของหมด'; const toggleBtnText = item.is_available ? '⏸️ พักการขาย' : '▶️ เปิดขาย'; const toggleBtnColor = item.is_available ? '#ff9800' : '#06C755'; const catBadge = item.categories?.name ? `<span style="background: #eef2ff; color: #4338ca; padding: 2px 7px; border-radius: 10px; font-size: 11px; margin-left: 6px;">🏷️ ${item.categories.name}</span>` : ''; const optBadge = item.options ? `<br><small style="color:#00BCD4;">[ตัวเลือก: ${item.options}]</small>` : ''; 
                 const safeCatId = item.category_id || ''; const safeOpts = item.options || ''; const safeImgUrl = item.image_url || '';
 
                 html += `<div class="card" style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
                         <img src="${imgSrc}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;">
-                        <div style="flex: 1;">
-                            <h4 style="margin: 0;">${item.name} ${catBadge}</h4>
-                            <p style="margin: 5px 0 0 0; color: #06C755; font-weight: bold;">฿${item.price}</p>${optBadge}
-                            <span style="font-size: 12px; color: ${statusColor}; display:block; margin-top:3px;">${statusText}</span>
-                        </div>
+                        <div style="flex: 1;"><h4 style="margin: 0;">${item.name} ${catBadge}</h4><p style="margin: 5px 0 0 0; color: #06C755; font-weight: bold;">฿${item.price}</p>${optBadge}<span style="font-size: 12px; color: ${statusColor}; display:block; margin-top:3px;">${statusText}</span></div>
                         <div style="display: flex; flex-direction: column; gap: 5px;">
                             <button onclick="copyMenu('${item.name}', ${item.price}, '${safeCatId}', '${safeOpts}', '${safeImgUrl}')" style="background: #9C27B0; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">📑 คัดลอก</button>
                             <button onclick="editMenu('${item.id}', '${item.name}', ${item.price}, '${safeCatId}', '${safeOpts}')" style="background: #2196F3; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">✏️ แก้ไข</button>
                             <button onclick="toggleMenuStatus('${item.id}', ${item.is_available})" style="background: ${toggleBtnColor}; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">${toggleBtnText}</button>
                             <button onclick="deleteMenu('${item.id}', '${item.name}')" style="background: #ff4d4f; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🗑️ ลบ</button>
-                        </div>
-                    </div>`;
+                        </div></div>`;
             });
             menuListDiv.innerHTML = html;
         }
 
-        function editMenu(id, name, price, categoryId, options) { 
-            editingMenuId = id; copiedImageUrl = null;
-            document.getElementById('menuName').value = name; document.getElementById('menuPrice').value = price; 
-            document.getElementById('menuCategorySelect').value = categoryId || ''; 
-            document.getElementById('menuOptions').value = options || ''; 
-            document.getElementById('formTitle').innerText = "✏️ แก้ไขเมนู"; 
-            document.getElementById('saveMenuBtn').innerText = "💾 อัปเดตเมนู"; 
-            document.getElementById('saveMenuBtn').style.background = "#2196F3"; 
-            document.getElementById('cancelEditBtn').style.display = 'block'; 
-            window.scrollTo({ top: 0, behavior: 'smooth' }); 
-        }
-
-        function copyMenu(name, price, categoryId, options, imageUrl) {
-            editingMenuId = null; copiedImageUrl = imageUrl; 
-            document.getElementById('menuName').value = name + " (สำเนา)";
-            document.getElementById('menuPrice').value = price;
-            document.getElementById('menuCategorySelect').value = categoryId || '';
-            document.getElementById('menuOptions').value = options || '';
-            document.getElementById('menuImage').value = ''; 
-            document.getElementById('formTitle').innerText = "📑 สร้างสำเนาเมนู";
-            document.getElementById('saveMenuBtn').innerText = "💾 บันทึกเมนูใหม่ (จากสำเนา)";
-            document.getElementById('saveMenuBtn').style.background = "#9C27B0";
-            document.getElementById('cancelEditBtn').style.display = 'block';
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-        
+        function editMenu(id, name, price, categoryId, options) { editingMenuId = id; copiedImageUrl = null; document.getElementById('menuName').value = name; document.getElementById('menuPrice').value = price; document.getElementById('menuCategorySelect').value = categoryId || ''; document.getElementById('menuOptions').value = options || ''; document.getElementById('formTitle').innerText = "✏️ แก้ไขเมนู"; document.getElementById('saveMenuBtn').innerText = "💾 อัปเดตเมนู"; document.getElementById('saveMenuBtn').style.background = "#2196F3"; document.getElementById('cancelEditBtn').style.display = 'block'; window.scrollTo({ top: 0, behavior: 'smooth' }); }
+        function copyMenu(name, price, categoryId, options, imageUrl) { editingMenuId = null; copiedImageUrl = imageUrl; document.getElementById('menuName').value = name + " (สำเนา)"; document.getElementById('menuPrice').value = price; document.getElementById('menuCategorySelect').value = categoryId || ''; document.getElementById('menuOptions').value = options || ''; document.getElementById('menuImage').value = ''; document.getElementById('formTitle').innerText = "📑 สร้างสำเนาเมนู"; document.getElementById('saveMenuBtn').innerText = "💾 บันทึกเมนูใหม่ (จากสำเนา)"; document.getElementById('saveMenuBtn').style.background = "#9C27B0"; document.getElementById('cancelEditBtn').style.display = 'block'; window.scrollTo({ top: 0, behavior: 'smooth' }); }
         async function deleteMenu(menuId, menuName) { if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบ "${menuName}"?`)) return; await supabaseClient.from('menu_items').delete().eq('id', menuId); loadMenuItems(); }
         async function toggleMenuStatus(menuId, currentStatus) { await supabaseClient.from('menu_items').update({ is_available: !currentStatus }).eq('id', menuId); loadMenuItems(); }
 
         // ==================== ระบบออเดอร์ & อัปเดตสถานะด้วย Flex Message ====================
         async function toggleStoreStatus() {
             if (!vendorData) return;
-            
-            if (!vendorData.is_subscription_active) {
-                alert("⚠️ ไม่สามารถเปิดร้านได้!\nคุณยังไม่ได้ชำระค่าแพ็กเกจ หรือกำลังรอแอดมินตรวจสอบ\n\n👉 กรุณาเลื่อนลงไปที่แท็บ 'ตั้งค่า' เพื่อสแกนจ่ายและแนบสลิปครับ");
-                return;
-            }
-
+            if (!vendorData.is_subscription_active) { alert("⚠️ ไม่สามารถเปิดร้านได้!\nคุณยังไม่ได้ชำระค่าแพ็กเกจ หรือกำลังรอแอดมินตรวจสอบ\n\n👉 กรุณาเลื่อนลงไปที่แท็บ 'ตั้งค่า' เพื่อสแกนจ่ายและแนบสลิปครับ"); return; }
             if (vendorData.subscription_expires_at && new Date() > new Date(vendorData.subscription_expires_at)) { alert("⚠️ ไม่สามารถเปิดร้านได้: แพ็กเกจของคุณหมดอายุแล้ว\nกรุณาต่ออายุที่แท็บ 'ตั้งค่า'"); return; }
             const newStatus = !vendorData.is_open; if (!confirm(newStatus ? "ยืนยันการเปิดรับออเดอร์ใหม่?" : "ปิดรับออเดอร์ชั่วคราวใช่หรือไม่?")) return;
             await supabaseClient.from('vendors').update({ is_open: newStatus }).eq('id', vendorData.id); vendorData.is_open = newStatus; updateStoreStatusUI(newStatus); 
@@ -1487,41 +1187,22 @@
         async function loadOrders() {
             if (!vendorData) return; 
             const orderListDiv = document.getElementById('orderList'); 
-            
-            let query = supabaseClient.from('orders')
-                .select('*')
-                .eq('vendor_id', vendorData.id)
-                .in('status', ['pending', 'processing']);
-
-            if (currentOrderBranchFilter === 'main') {
-                query = query.is('branch_id', null); 
-            } else if (currentOrderBranchFilter !== 'all') {
-                query = query.eq('branch_id', currentOrderBranchFilter); 
-            }
+            let query = supabaseClient.from('orders').select('*').eq('vendor_id', vendorData.id).in('status', ['pending', 'processing']);
+            if (currentOrderBranchFilter === 'main') { query = query.is('branch_id', null); } else if (currentOrderBranchFilter !== 'all') { query = query.eq('branch_id', currentOrderBranchFilter); }
             
             const { data, error } = await query.order('created_at', { ascending: true });
             if (error) return;
 
             const latestOrder = (data && data.length > 0) ? data[data.length - 1] : null;
-
-            if (!initialOrderLoadDone) {
-                lastSeenOrderId = latestOrder ? latestOrder.id : null;
-                initialOrderLoadDone = true;
-            } else if (latestOrder && String(latestOrder.id) !== String(lastSeenOrderId)) {
-                lastSeenOrderId = latestOrder.id;
-                playNotificationSound();
-            }
+            if (!initialOrderLoadDone) { lastSeenOrderId = latestOrder ? latestOrder.id : null; initialOrderLoadDone = true;
+            } else if (latestOrder && String(latestOrder.id) !== String(lastSeenOrderId)) { lastSeenOrderId = latestOrder.id; playNotificationSound(); }
 
             const currentCount = data ? data.length : 0;
-            if (currentCount === 0) { 
-                orderListDiv.innerHTML = '<p style="text-align: center; color: #888;">ยังไม่มีออเดอร์เข้าในขณะนี้</p>'; 
-                return; 
-            }
+            if (currentCount === 0) { orderListDiv.innerHTML = '<p style="text-align: center; color: #888;">ยังไม่มีออเดอร์เข้าในขณะนี้</p>'; return; }
             
             let html = '';
             data.forEach((order) => {
-                const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items; 
-                let itemsHtml = ''; 
+                const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items; let itemsHtml = ''; 
                 const itemsArray = Array.isArray(items) ? items : Object.values(items);
                 itemsArray.forEach(item => {
                     let optStr = item.option && item.option !== '' ? `<br><small style="color:#00BCD4;">👉 ตัวเลือก: ${item.option}</small>` : '';
@@ -1529,26 +1210,17 @@
                     itemsHtml += `<li style="font-size: 15px; margin-bottom: 8px; border-bottom: 1px dashed #eee; padding-bottom: 5px;"><b>${item.qty}x</b> ${item.name} ${optStr} ${noteStr}</li>`;
                 });
                 
-                const d = new Date(order.created_at);
-                const orderTime = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }); 
-                
+                const d = new Date(order.created_at); const orderTime = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }); 
                 const orderRef = order.reference_no ? order.reference_no : `${d.getFullYear().toString().slice(-2) + ('0' + (d.getMonth()+1)).slice(-2) + ('0' + d.getDate()).slice(-2)}-${order.id.substring(0,4).toUpperCase()}`; 
-                const queueNum = order.queue_no ? order.queue_no : "?";
-                const custUid = order.customer_uid || '';
-
+                const queueNum = order.queue_no ? order.queue_no : "?"; const custUid = order.customer_uid || '';
                 let branchTag = '<span style="background:#e1bee7; color:#6a1b9a; padding:3px 8px; border-radius:12px; font-size:11px; margin-left:8px;">👑 สาขาหลัก</span>';
-                if (order.branch_id) {
-                    const bInfo = branchListData.find(b => b.id === order.branch_id);
-                    const bName = bInfo ? bInfo.branch_name : 'สาขาย่อย';
-                    branchTag = `<span style="background:#e3f2fd; color:#0d47a1; padding:3px 8px; border-radius:12px; font-size:11px; margin-left:8px;">🏢 ${bName}</span>`;
-                }
+                if (order.branch_id) { const bInfo = branchListData.find(b => b.id === order.branch_id); const bName = bInfo ? bInfo.branch_name : 'สาขาย่อย'; branchTag = `<span style="background:#e3f2fd; color:#0d47a1; padding:3px 8px; border-radius:12px; font-size:11px; margin-left:8px;">🏢 ${bName}</span>`; }
                 
                 let statusBadge = ''; let actionButtons = '';
                 if (order.status === 'pending') { 
                     statusBadge = '<span style="background: #fff3cd; color: #856404; padding: 3px 8px; border-radius: 12px; font-size: 12px;">รอยืนยันสลิป</span>'; 
                     actionButtons = `<button onclick="updateOrderStatus('${order.id}', 'processing', '${custUid}', '${orderRef}', '${queueNum}', this)" style="background: #06C755; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; flex: 1;">✅ รับออเดอร์</button> <button onclick="updateOrderStatus('${order.id}', 'rejected', '${custUid}', '${orderRef}', '${queueNum}', this)" style="background: #ff4d4f; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; flex: 1;">❌ ปฏิเสธ</button>`; 
-                } 
-                else if (order.status === 'processing') { 
+                } else if (order.status === 'processing') { 
                     statusBadge = '<span style="background: #cce5ff; color: #004085; padding: 3px 8px; border-radius: 12px; font-size: 12px;">กำลังทำอาหาร 🍳</span>'; 
                     actionButtons = `<button onclick="updateOrderStatus('${order.id}', 'completed', '${custUid}', '${orderRef}', '${queueNum}', this)" style="background: #2196F3; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%;">🏁 อาหารเสร็จแล้ว</button>`; 
                 }
@@ -1556,10 +1228,7 @@
                 html += `
                     <div class="card" style="border-left: 4px solid #06C755;">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                            <h3 style="margin: 0; display:flex; flex-direction:column;">
-                                <div>คิวที่ ${queueNum} ${branchTag}</div>
-                                <span style="font-size: 12px; color: #888; font-weight: normal; margin-top:3px;">อ้างอิง: ${orderRef} • ${orderTime}</span>
-                            </h3>
+                            <h3 style="margin: 0; display:flex; flex-direction:column;"><div>คิวที่ ${queueNum} ${branchTag}</div><span style="font-size: 12px; color: #888; font-weight: normal; margin-top:3px;">อ้างอิง: ${orderRef} • ${orderTime}</span></h3>
                             <div>${statusBadge}</div>
                         </div>
                         <div style="display: flex; gap: 15px; margin-bottom: 15px; background: #f9f9f9; padding: 10px; border-radius: 8px;">
@@ -1576,10 +1245,7 @@
             let confirmMsg = newStatus === 'processing' ? "ตรวจสอบสลิปถูกต้อง และรับคิวนี้ใช่หรือไม่?" : newStatus === 'completed' ? "อาหารเสร็จแล้ว ส่งมอบเรียบร้อยใช่หรือไม่?" : "ต้องการยกเลิกออเดอร์นี้ใช่หรือไม่?";
             if (!confirm(confirmMsg)) return;
 
-            const originalText = btnElement.innerText;
-            btnElement.innerText = "⏳ กำลังส่งข้อมูล...";
-            btnElement.disabled = true;
-
+            btnElement.innerText = "⏳ กำลังส่งข้อมูล..."; btnElement.disabled = true;
             await supabaseClient.from('orders').update({ status: newStatus }).eq('id', orderId);
             
             if (customerUid && customerUid !== '') { 
@@ -1592,78 +1258,35 @@
         }
 
         // ==================== ระบบตั้งค่าทั่วไป ====================
-        
         function setPaymentFieldsState(isEditing) {
-            const group = document.getElementById('storeSettingsGroup');
-            const btn = document.getElementById('saveSettingsBtn');
-            
+            const group = document.getElementById('storeSettingsGroup'); const btn = document.getElementById('saveSettingsBtn');
             if (isEditing) {
-                group.style.opacity = '1';
-                group.style.pointerEvents = 'auto'; 
-                document.getElementById('settingStoreName').readOnly = false;
-                document.getElementById('settingPhone').readOnly = false;
-                document.getElementById('settingPromptpay').readOnly = false;
-                document.getElementById('settingBankInfo').readOnly = false;
-                
-                btn.innerText = "💾 บันทึกข้อมูลร้านค้า";
-                btn.style.background = "#06C755";
+                group.style.opacity = '1'; group.style.pointerEvents = 'auto'; 
+                document.getElementById('settingStoreName').readOnly = false; document.getElementById('settingPhone').readOnly = false; document.getElementById('settingPromptpay').readOnly = false; document.getElementById('settingBankInfo').readOnly = false;
+                btn.innerText = "💾 บันทึกข้อมูลร้านค้า"; btn.style.background = "#06C755";
             } else {
-                group.style.opacity = '0.6';
-                group.style.pointerEvents = 'none'; 
-                document.getElementById('settingStoreName').readOnly = true;
-                document.getElementById('settingPhone').readOnly = true;
-                document.getElementById('settingPromptpay').readOnly = true;
-                document.getElementById('settingBankInfo').readOnly = true;
-                
-                btn.innerText = "✏️ แก้ไขข้อมูลร้านค้า";
-                btn.style.background = "#f59e0b"; 
+                group.style.opacity = '0.6'; group.style.pointerEvents = 'none'; 
+                document.getElementById('settingStoreName').readOnly = true; document.getElementById('settingPhone').readOnly = true; document.getElementById('settingPromptpay').readOnly = true; document.getElementById('settingBankInfo').readOnly = true;
+                btn.innerText = "✏️ แก้ไขข้อมูลร้านค้า"; btn.style.background = "#f59e0b"; 
             }
         }
 
         function populateSettingsForm() {
             if (!vendorData) return;
-            document.getElementById('settingStoreName').value = vendorData.name || '';
-            document.getElementById('settingPhone').value = vendorData.phone || '';
-            
-            document.getElementById('settingPaymentType').value = vendorData.payment_type || 'promptpay';
-            document.getElementById('settingPromptpay').value = vendorData.promptpay_number || '';
-            document.getElementById('settingBankInfo').value = vendorData.bank_info || '';
-            document.getElementById('settingAllowCash').checked = vendorData.allow_cash_payment === true;
-            
+            document.getElementById('settingStoreName').value = vendorData.name || ''; document.getElementById('settingPhone').value = vendorData.phone || '';
+            document.getElementById('settingPaymentType').value = vendorData.payment_type || 'promptpay'; document.getElementById('settingPromptpay').value = vendorData.promptpay_number || ''; document.getElementById('settingBankInfo').value = vendorData.bank_info || ''; document.getElementById('settingAllowCash').checked = vendorData.allow_cash_payment === true;
             togglePaymentInputs();
 
-            if (vendorData.name || vendorData.promptpay_number || vendorData.bank_info) {
-                setPaymentFieldsState(false); 
-            } else {
-                setPaymentFieldsState(true); 
-            }
+            if (vendorData.name || vendorData.promptpay_number || vendorData.bank_info) { setPaymentFieldsState(false); } else { setPaymentFieldsState(true); }
 
-            const tokenInput = document.getElementById('settingLineToken');
-            const liffInput = document.getElementById('settingLiffCustomer');
-            const tokenBtn = document.getElementById('saveTokenBtn');
-            
+            const tokenInput = document.getElementById('settingLineToken'); const liffInput = document.getElementById('settingLiffCustomer'); const tokenBtn = document.getElementById('saveTokenBtn');
             if (vendorData.line_token || vendorData.liff_customer_id) {
-                if (vendorData.line_token) {
-                    const hiddenToken = vendorData.line_token.substring(0, 10) + '....................' + vendorData.line_token.substring(vendorData.line_token.length - 10);
-                    tokenInput.placeholder = hiddenToken; 
-                } else {
-                    tokenInput.placeholder = "วาง Token ที่นี่...";
-                }
+                if (vendorData.line_token) { const hiddenToken = vendorData.line_token.substring(0, 10) + '....................' + vendorData.line_token.substring(vendorData.line_token.length - 10); tokenInput.placeholder = hiddenToken; } else { tokenInput.placeholder = "วาง Token ที่นี่..."; }
                 tokenInput.value = ''; 
-                
-                if (vendorData.liff_customer_id) {
-                    liffInput.placeholder = vendorData.liff_customer_id;
-                } else {
-                    liffInput.placeholder = "เช่น 1234567890-AbCdEfGh";
-                }
-                liffInput.value = '';
-
-                tokenBtn.innerText = "✏️ แก้ไข Token & LIFF"; 
-                tokenBtn.style.background = "#f59e0b";
+                if (vendorData.liff_customer_id) { liffInput.placeholder = vendorData.liff_customer_id; } else { liffInput.placeholder = "เช่น 1234567890-AbCdEfGh"; }
+                liffInput.value = ''; tokenBtn.innerText = "✏️ แก้ไข Token & LIFF"; tokenBtn.style.background = "#f59e0b";
             } else {
-                tokenInput.placeholder = "วาง Token ที่นี่..."; tokenInput.value = '';
-                liffInput.placeholder = "เช่น 1234567890-AbCdEfGh"; liffInput.value = '';
-                tokenBtn.innerText = "💾 บันทึก Token & LIFF"; tokenBtn.style.background = "#00B900";
+                tokenInput.placeholder = "วาง Token ที่นี่..."; tokenInput.value = ''; liffInput.placeholder = "เช่น 1234567890-AbCdEfGh"; liffInput.value = ''; tokenBtn.innerText = "💾 บันทึก Token & LIFF"; tokenBtn.style.background = "#00B900";
             }
         }
 
@@ -1674,28 +1297,17 @@
         }
 
         async function updateStoreSettings(btn) {
-            if (btn.innerText.includes("แก้ไข")) {
-                setPaymentFieldsState(true);
-                return;
-            }
+            if (btn.innerText.includes("แก้ไข")) { setPaymentFieldsState(true); return; }
 
-            const name = document.getElementById('settingStoreName').value.trim(); 
-            const phone = document.getElementById('settingPhone').value.trim(); 
-            const payType = document.getElementById('settingPaymentType').value;
-            const promptpayRaw = document.getElementById('settingPromptpay').value.trim(); 
-            const bankInfo = document.getElementById('settingBankInfo').value.trim();
-            const allowCash = document.getElementById('settingAllowCash').checked;
+            const name = document.getElementById('settingStoreName').value.trim(); const phone = document.getElementById('settingPhone').value.trim(); 
+            const payType = document.getElementById('settingPaymentType').value; const promptpayRaw = document.getElementById('settingPromptpay').value.trim(); const bankInfo = document.getElementById('settingBankInfo').value.trim(); const allowCash = document.getElementById('settingAllowCash').checked;
             
             if (!name) return alert("กรุณากรอกชื่อร้าน");
             btn.innerText = "⏳ กำลังบันทึก..."; btn.disabled = true;
 
-            let cleanPromptpay = null;
-            if (payType === 'promptpay' && promptpayRaw) {
-                cleanPromptpay = promptpayRaw.replace(/\D/g, '');
-            }
+            let cleanPromptpay = null; if (payType === 'promptpay' && promptpayRaw) { cleanPromptpay = promptpayRaw.replace(/\D/g, ''); }
 
-            let logoUrl = vendorData.line_picture_url; 
-            const fileInput = document.getElementById('settingStoreLogo');
+            let logoUrl = vendorData.line_picture_url; const fileInput = document.getElementById('settingStoreLogo');
             if (fileInput.files.length > 0) {
                 const file = fileInput.files[0]; const fileName = `logo-${vendorData.id}-${Date.now()}.${file.name.split('.').pop()}`;
                 const { error: uploadError } = await supabaseClient.storage.from('menu-images').upload(fileName, file);
@@ -1703,56 +1315,33 @@
             }
 
             await supabaseClient.from('vendors').update({ 
-                name: name, 
-                phone: phone, 
-                payment_type: payType, 
-                promptpay_number: cleanPromptpay, 
-                bank_info: bankInfo, 
-                line_picture_url: logoUrl,
-                allow_cash_payment: allowCash
+                name: name, phone: phone, payment_type: payType, promptpay_number: cleanPromptpay, bank_info: bankInfo, line_picture_url: logoUrl, allow_cash_payment: allowCash
             }).eq('id', vendorData.id);
             
             alert("อัปเดตข้อมูลร้านค้าเรียบร้อยแล้ว!");
-            
-            vendorData.name = name; vendorData.phone = phone; vendorData.payment_type = payType; vendorData.promptpay_number = cleanPromptpay; 
-            vendorData.bank_info = bankInfo; vendorData.line_picture_url = logoUrl; vendorData.allow_cash_payment = allowCash;
+            vendorData.name = name; vendorData.phone = phone; vendorData.payment_type = payType; vendorData.promptpay_number = cleanPromptpay; vendorData.bank_info = bankInfo; vendorData.line_picture_url = logoUrl; vendorData.allow_cash_payment = allowCash;
             document.getElementById('storeName').innerText = name; if(logoUrl) document.getElementById('storeLogo').src = logoUrl;
             
-            setPaymentFieldsState(false);
-            btn.disabled = false;
+            setPaymentFieldsState(false); btn.disabled = false;
         }
 
         async function updateLineToken(btn) {
-            const tokenInput = document.getElementById('settingLineToken');
-            const liffInput = document.getElementById('settingLiffCustomer');
-            
-            const token = tokenInput.value.trim() !== '' ? tokenInput.value.trim() : (vendorData.line_token || '');
-            const liffId = liffInput.value.trim() !== '' ? liffInput.value.trim() : (vendorData.liff_customer_id || '');
+            const tokenInput = document.getElementById('settingLineToken'); const liffInput = document.getElementById('settingLiffCustomer');
+            const token = tokenInput.value.trim() !== '' ? tokenInput.value.trim() : (vendorData.line_token || ''); const liffId = liffInput.value.trim() !== '' ? liffInput.value.trim() : (vendorData.liff_customer_id || '');
             
             btn.innerText = "⏳ กำลังบันทึก..."; btn.disabled = true;
             try {
-                const { error } = await supabaseClient.from('vendors').update({ 
-                    line_token: token,
-                    liff_customer_id: liffId
-                }).eq('id', vendorData.id);
-                
+                const { error } = await supabaseClient.from('vendors').update({ line_token: token, liff_customer_id: liffId }).eq('id', vendorData.id);
                 if(error) throw error;
-                vendorData.line_token = token;
-                vendorData.liff_customer_id = liffId;
+                vendorData.line_token = token; vendorData.liff_customer_id = liffId;
                 
                 const liffToUse = liffId ? liffId : CONFIG.liffIdCustomer;
                 document.getElementById('customerLinkText').value = `https://liff.line.me/${liffToUse}?vid=${vendorData.id}`;
 
                 await fetch(CONFIG.gasWebhookUrl, {
                     method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
-                    body: JSON.stringify({ 
-                        action: 'update_line_token', 
-                        vendor_id: vendorData.id, 
-                        line_token: token,
-                        liff_id: liffId
-                    })
+                    body: JSON.stringify({ action: 'update_line_token', vendor_id: vendorData.id, line_token: token, liff_id: liffId })
                 });
-                
                 alert("บันทึก LINE Token และ LIFF ID เรียบร้อยแล้ว!");
                 populateSettingsForm(); 
             } catch(e) { alert("เกิดข้อผิดพลาด: " + e.message); }
