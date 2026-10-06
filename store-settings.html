@@ -71,6 +71,10 @@
         .form-control:focus { outline: none; border-color: #E91E63; }
         textarea.form-control { resize: vertical; min-height: 80px; }
 
+        .pin-box { background: #fff8e1; border: 1px dashed #ff9800; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .pin-box h4 { margin: 0 0 10px 0; color: #e65100; }
+        .pin-input { font-size: 18px; letter-spacing: 3px; text-align: center; }
+
         /* Print Area */
         #printArea { display: none; }
         @media print {
@@ -92,7 +96,7 @@
             <li class="menu-item active" onclick="switchTab('hub', this)">🏠 ศูนย์รวม (Hub)</li>
             <li class="menu-item" onclick="switchTab('menu', this); loadMenus();">🍔 จัดการเมนูอาหาร</li>
             <li class="menu-item" onclick="switchTab('table', this); loadTables();">🪑 จัดการโต๊ะ & QR</li>
-            <li class="menu-item" onclick="switchTab('settings', this); loadSettings();">⚙️ ตั้งค่ารับเงิน</li>
+            <li class="menu-item" onclick="switchTab('settings', this); loadSettings();">⚙️ ตั้งค่าร้านค้า & PIN</li>
         </ul>
         <div class="vendor-info" id="vendorIdDisplay">
             Vendor ID: -
@@ -105,23 +109,31 @@
         <!-- Tab 1: Hub -->
         <div id="tab-hub" class="tab-content active">
             <h2>🏠 ศูนย์รวมการปฏิบัติงานหน้าร้าน</h2>
-            <p style="color: #666; margin-bottom: 30px;">เลือกระบบที่คุณต้องการเปิดใช้งานบนอุปกรณ์นี้</p>
+            <p style="color: #666; margin-bottom: 30px;">หน้าต่างสำหรับเข้าสู่ระบบพนักงาน (เปิดค้างไว้บนแท็บเล็ตหน้าร้าน)</p>
             
             <div class="hub-grid">
-                <a href="restaurant-orders.html" target="_blank" class="hub-card">
-                    <div class="hub-icon">👨‍🍳</div>
-                    <div class="hub-title">หน้าจอแคชเชียร์ / พนักงาน</div>
-                    <div class="hub-desc">รับออเดอร์, ดูสถานะโต๊ะ, เช็คบิล</div>
+                <!-- ทางเข้าพนักงาน (ลิงก์ไปหน้า staff-login.html พร้อมส่ง vid) -->
+                <a href="#" onclick="openStaffLogin()" class="hub-card" style="border-bottom: 4px solid #3f51b5; grid-column: 1 / -1; margin-bottom: 20px;">
+                    <div class="hub-icon">👨‍💼</div>
+                    <div class="hub-title" style="font-size: 24px; color: #3f51b5;">เข้าสู่ระบบพนักงาน (Login)</div>
+                    <div class="hub-desc">สำหรับแคชเชียร์และห้องครัว กรอก PIN เพื่อเข้าทำงาน</div>
                 </a>
-                <a href="kitchen.html" target="_blank" class="hub-card" style="border-bottom: 4px solid #FF9800;">
+
+                <!-- ทางเข้าลัดอื่นๆ (กรณีเจ้าของร้านอยากเปิดดูโดยตรง) -->
+                <a href="#" onclick="openDirectPage('restaurant-orders.html')" class="hub-card">
+                    <div class="hub-icon">👨‍🍳</div>
+                    <div class="hub-title">หน้าจอแคชเชียร์</div>
+                    <div class="hub-desc">(ทางเข้าลัดเจ้าของร้าน)</div>
+                </a>
+                <a href="#" onclick="openDirectPage('kitchen.html')" class="hub-card" style="border-bottom: 4px solid #FF9800;">
                     <div class="hub-icon">🍳</div>
                     <div class="hub-title">หน้าจอห้องครัว (KDS)</div>
-                    <div class="hub-desc">ดูออเดอร์เข้าใหม่และอัปเดตสถานะอาหาร</div>
+                    <div class="hub-desc">(ทางเข้าลัดเจ้าของร้าน)</div>
                 </a>
-                <a href="sales-dashboard.html" target="_blank" class="hub-card" style="border-bottom: 4px solid #06C755;">
+                <a href="#" onclick="openDirectPage('sales-dashboard.html')" class="hub-card" style="border-bottom: 4px solid #06C755;">
                     <div class="hub-icon">📊</div>
                     <div class="hub-title">รายงานยอดขายประจำวัน</div>
-                    <div class="hub-desc">สรุปยอดเงิน, ดูบิลย้อนหลัง, ปิดกะ (EOD)</div>
+                    <div class="hub-desc">สรุปยอดเงิน, ดูบิลย้อนหลัง, ปิดกะ</div>
                 </a>
             </div>
         </div>
@@ -174,18 +186,46 @@
 
         <!-- Tab 4: Settings -->
         <div id="tab-settings" class="tab-content">
-            <h2>⚙️ ตั้งค่าบัญชีรับเงินของร้าน</h2>
+            <h2>⚙️ ตั้งค่าร้านค้า และรหัสพนักงาน (PIN)</h2>
             <div class="card">
-                <div class="form-group" style="max-width: 400px;">
-                    <label>ชื่อร้านอาหาร</label>
-                    <input type="text" id="settingStoreName" class="form-control" disabled>
-                    <small style="color:#aaa;">(ชื่อร้านจะอ้างอิงจากฐานข้อมูลหลักของระบบ SaaS)</small>
+                <div style="display: flex; gap: 30px; flex-wrap: wrap;">
+                    
+                    <!-- ส่วนข้อมูลพื้นฐาน -->
+                    <div style="flex: 1; min-width: 300px;">
+                        <h3 style="margin-top: 0; color: #1a237e; border-bottom: 1px solid #eee; padding-bottom: 10px;">ข้อมูลร้านค้าและรับเงิน</h3>
+                        <div class="form-group">
+                            <label>ชื่อร้านอาหาร</label>
+                            <input type="text" id="settingStoreName" class="form-control" disabled>
+                            <small style="color:#aaa;">(ชื่อร้านจะอ้างอิงจากฐานข้อมูลหลักของระบบ SaaS)</small>
+                        </div>
+                        <div class="form-group" style="margin-top: 20px;">
+                            <label>เบอร์พร้อมเพย์ หรือ เลขบัตรประชาชน (สำหรับสแกนจ่ายเงินโอน)</label>
+                            <input type="text" id="settingPromptPay" class="form-control" placeholder="เช่น 0812345678">
+                        </div>
+                        <button class="btn btn-primary" style="margin-top: 15px; width: 100%;" onclick="saveSettings()">💾 บันทึกข้อมูลร้าน</button>
+                    </div>
+
+                    <!-- ส่วนรหัส PIN พนักงาน -->
+                    <div style="flex: 1; min-width: 300px;">
+                        <h3 style="margin-top: 0; color: #e65100; border-bottom: 1px solid #eee; padding-bottom: 10px;">ตั้งค่ารหัสผ่านพนักงาน (PIN)</h3>
+                        <p style="font-size: 12px; color: #666;">กำหนดรหัสผ่าน 4 หลัก เพื่อให้พนักงานใช้ล็อกอินเข้าใช้งานในส่วนต่างๆ (หากเปลี่ยนรหัส พนักงานที่ล็อกอินอยู่จะถูกเตะออกทันที)</p>
+                        
+                        <div class="pin-box">
+                            <h4>👨‍🍳 รหัส PIN แคชเชียร์ (Cashier)</h4>
+                            <p style="font-size: 11px; color: #666; margin-top: 0;">สิทธิ์: รับออเดอร์, จัดการโต๊ะ, คิดเงิน, ดูยอดขาย, เปิด/ปิดเมนู</p>
+                            <input type="password" id="pinCashier" class="form-control pin-input" maxlength="4" placeholder="****" inputmode="numeric">
+                        </div>
+
+                        <div class="pin-box" style="border-color: #00BCD4; background: #e0f7fa;">
+                            <h4 style="color: #00838F;">🍳 รหัส PIN ห้องครัว (Kitchen)</h4>
+                            <p style="font-size: 11px; color: #666; margin-top: 0;">สิทธิ์: ดูคิวอาหาร และกดอัปเดตสถานะอาหารเสร็จแล้ว</p>
+                            <input type="password" id="pinKitchen" class="form-control pin-input" maxlength="4" placeholder="****" inputmode="numeric">
+                        </div>
+
+                        <button class="btn" style="background: #FF9800; width: 100%; margin-top: 5px;" onclick="saveStaffPins()">🔐 บันทึกรหัส PIN พนักงาน</button>
+                    </div>
+
                 </div>
-                <div class="form-group" style="margin-top: 20px; max-width: 400px;">
-                    <label>เบอร์พร้อมเพย์ หรือ เลขบัตรประชาชน (สำหรับสแกนจ่ายเงินโอน)</label>
-                    <input type="text" id="settingPromptPay" class="form-control" placeholder="เช่น 0812345678">
-                </div>
-                <button class="btn btn-primary" style="margin-top: 15px;" onclick="saveSettings()">💾 บันทึกการตั้งค่า</button>
             </div>
         </div>
 
@@ -211,7 +251,6 @@
                 <label>หมวดหมู่</label>
                 <select id="modalMenuCategory" class="form-control">
                     <option value="">-- ไม่ระบุหมวดหมู่ --</option>
-                    <!-- โหลดข้อมูลหมวดหมู่มาใส่ที่นี่ -->
                 </select>
             </div>
             
@@ -238,22 +277,44 @@
         </div>
     </div>
 
-    <!-- พื้นที่สำหรับพิมพ์ QR Code -->
     <div id="printArea"></div>
 
     <script>
-        const VENDOR_ID = localStorage.getItem('test_vendor_id') || prompt("กรุณาระบุ Vendor ID ของร้านคุณ:");
-        if (VENDOR_ID) localStorage.setItem('test_vendor_id', VENDOR_ID);
+        // ดึง vid (vendor id) จาก URL ถ้ามี (ส่งมาจาก dashboard หลัก)
+        const urlParams = new URLSearchParams(window.location.search);
+        let urlVid = urlParams.get('vid');
+
+        let VENDOR_ID = urlVid || localStorage.getItem('test_vendor_id');
+
+        if (urlVid) {
+            localStorage.setItem('test_vendor_id', urlVid);
+        } else if (!VENDOR_ID) {
+            alert("ไม่พบรหัสร้านค้า กรุณาเข้าใช้งานผ่านปุ่มใน 'ระบบจัดการร้านค้า (LINE)'");
+            window.location.href = "index.html"; 
+        }
 
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
         
         let globalMenuItems = [];
         let globalCategories = [];
+        let mainBranchId = null; // เก็บ ID ของสาขาหลักเพื่อใช้อัปเดต PIN
 
         window.onload = () => {
             document.getElementById('vendorIdDisplay').innerText = `Vendor ID: ${VENDOR_ID.substring(0,8)}...`;
             loadCategoriesList();
+            fetchMainBranchId();
         };
+
+        // ทางเข้าพนักงาน (Login)
+        function openStaffLogin() {
+            window.open(`staff-login.html?vid=${VENDOR_ID}`, '_blank');
+        }
+
+        // ทางเข้าลัดข้าม Login (ส่ง vid และกำหนด role ใน URL เพื่อให้หน้าปลายทางยอมให้เข้า)
+        // **หมายเหตุ: ในระบบจริง หน้าปลายทางต้องรับรู้พารามิเตอร์นี้ด้วย ว่ามาแบบข้ามการเช็ค PIN**
+        function openDirectPage(pageName) {
+            window.open(`${pageName}?vid=${VENDOR_ID}&bypass_auth=true`, '_blank');
+        }
 
         function switchTab(tabId, element) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -262,8 +323,7 @@
             element.classList.add('active');
         }
 
-        // ==================== 🍔 Menu Management (CRUD) ====================
-        
+        // ==================== 🍔 Menu Management ====================
         async function loadCategoriesList() {
             const { data } = await supabaseClient.from('categories').select('*').eq('vendor_id', VENDOR_ID);
             globalCategories = data || [];
@@ -293,7 +353,6 @@
                 globalMenuItems.forEach(menu => {
                     const imgSrc = menu.image_url ? menu.image_url : 'https://via.placeholder.com/60?text=No+Image';
                     const checked = menu.is_available ? 'checked' : '';
-                    
                     html += `
                         <tr>
                             <td><img src="${imgSrc}" style="width: 50px; height: 50px; border-radius: 8px; object-fit: cover;"></td>
@@ -325,10 +384,7 @@
         async function toggleMenuAvailability(menuId, isAvailable) {
             try {
                 await supabaseClient.from('menu_items').update({ is_available: isAvailable }).eq('id', menuId);
-            } catch (err) {
-                alert("เกิดข้อผิดพลาดในการอัปเดต: " + err.message);
-                loadMenus(); 
-            }
+            } catch (err) { alert("เกิดข้อผิดพลาดในการอัปเดต: " + err.message); loadMenus(); }
         }
 
         function openMenuModal(menuId = null) {
@@ -336,7 +392,6 @@
             document.getElementById('modalMenuImage').value = '';
             
             if (menuId) {
-                // โหมดแก้ไข
                 document.getElementById('menuModalTitle').innerText = "✏️ แก้ไขเมนูอาหาร";
                 const menu = globalMenuItems.find(m => m.id === menuId);
                 if(menu) {
@@ -355,7 +410,6 @@
                     }
                 }
             } else {
-                // โหมดเพิ่มใหม่
                 document.getElementById('menuModalTitle').innerText = "➕ เพิ่มเมนูใหม่";
                 document.getElementById('modalMenuId').value = '';
                 document.getElementById('modalMenuName').value = '';
@@ -367,9 +421,7 @@
             }
         }
 
-        function closeMenuModal() {
-            document.getElementById('menuModal').style.display = 'none';
-        }
+        function closeMenuModal() { document.getElementById('menuModal').style.display = 'none'; }
 
         async function saveMenu() {
             const id = document.getElementById('modalMenuId').value;
@@ -380,16 +432,12 @@
             const fileInput = document.getElementById('modalMenuImage');
             let imageUrl = document.getElementById('modalMenuImageUrl').value;
 
-            if (!name || isNaN(price)) {
-                return alert("กรุณากรอกชื่อเมนู และราคาให้ถูกต้อง");
-            }
+            if (!name || isNaN(price)) { return alert("กรุณากรอกชื่อเมนู และราคาให้ถูกต้อง"); }
 
             const btn = document.getElementById('btnSaveMenu');
-            btn.innerText = "กำลังบันทึก...";
-            btn.disabled = true;
+            btn.innerText = "กำลังบันทึก..."; btn.disabled = true;
 
             try {
-                // จัดการอัปโหลดรูปภาพ (ถ้ามีการเลือกไฟล์ใหม่)
                 if (fileInput.files.length > 0) {
                     const file = fileInput.files[0];
                     const fileExt = file.name.split('.').pop();
@@ -398,80 +446,46 @@
                     const { error: uploadError } = await supabaseClient.storage.from('menu-images').upload(fileName, file);
                     if (uploadError) {
                         console.error("Upload error:", uploadError);
-                        alert("อัปโหลดรูปไม่สำเร็จ (กรุณาเช็คว่าสร้าง Bucket 'menu-images' แบบ Public แล้วหรือยัง)");
-                        // ไปต่อโดยไม่ใช้รูปใหม่
+                        alert("อัปโหลดรูปไม่สำเร็จ");
                     } else {
                         const { data: publicData } = supabaseClient.storage.from('menu-images').getPublicUrl(fileName);
                         imageUrl = publicData.publicUrl;
                     }
                 }
 
-                const menuData = {
-                    vendor_id: VENDOR_ID,
-                    name: name,
-                    price: price,
-                    category_id: categoryId,
-                    options: options,
-                    image_url: imageUrl,
-                    is_available: true
-                };
-
+                const menuData = { vendor_id: VENDOR_ID, name: name, price: price, category_id: categoryId, options: options, image_url: imageUrl, is_available: true };
                 if (id) {
-                    // Update
                     const { error } = await supabaseClient.from('menu_items').update(menuData).eq('id', id);
                     if (error) throw error;
                 } else {
-                    // Insert
                     const { error } = await supabaseClient.from('menu_items').insert([menuData]);
                     if (error) throw error;
                 }
-
-                closeMenuModal();
-                loadMenus();
-
-            } catch (err) {
-                alert("เกิดข้อผิดพลาด: " + err.message);
-            }
-            
-            btn.innerText = "💾 บันทึกข้อมูล";
-            btn.disabled = false;
+                closeMenuModal(); loadMenus();
+            } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); }
+            btn.innerText = "💾 บันทึกข้อมูล"; btn.disabled = false;
         }
 
         async function deleteMenu(id, name) {
             if(!confirm(`⚠️ ต้องการลบเมนู "${name}" ออกจากระบบใช่หรือไม่?\n(การลบจะไม่สามารถกู้คืนได้)`)) return;
-            
             try {
                 const { error } = await supabaseClient.from('menu_items').delete().eq('id', id);
                 if (error) throw error;
                 loadMenus();
-            } catch (err) {
-                alert("เกิดข้อผิดพลาดในการลบ: " + err.message);
-            }
+            } catch (err) { alert("เกิดข้อผิดพลาดในการลบ: " + err.message); }
         }
 
         async function copyMenu(id) {
             const menu = globalMenuItems.find(m => m.id === id);
             if(!menu) return;
-
             if(!confirm(`ต้องการคัดลอกเมนู "${menu.name}" ใช่หรือไม่?`)) return;
 
-            const copyData = {
-                vendor_id: VENDOR_ID,
-                name: menu.name + " (Copy)",
-                price: menu.price,
-                category_id: menu.category_id,
-                options: menu.options,
-                image_url: menu.image_url,
-                is_available: false // ปิดไว้ก่อนกันพลาด
-            };
-
+            const copyData = { vendor_id: VENDOR_ID, name: menu.name + " (Copy)", price: menu.price, category_id: menu.category_id, options: menu.options, image_url: menu.image_url, is_available: false };
             try {
                 const { error } = await supabaseClient.from('menu_items').insert([copyData]);
                 if (error) throw error;
                 loadMenus();
-            } catch (err) {
-                alert("เกิดข้อผิดพลาดในการคัดลอก: " + err.message);
-            }
+            } catch (err) { alert("เกิดข้อผิดพลาดในการคัดลอก: " + err.message); }
         }
 
         // ==================== 🪑 Table Management ====================
@@ -526,7 +540,6 @@
 
         function printTableQR(encodedTable) {
             const table = JSON.parse(decodeURIComponent(encodedTable));
-            
             let baseUrl = window.location.href.split('?')[0].replace('store-settings.html', '');
             if (!baseUrl.endsWith('/')) baseUrl += '/';
             const orderUrl = baseUrl + 'table-order.html?table_token=' + table.table_token;
@@ -546,7 +559,20 @@
             setTimeout(() => { window.print(); }, 300);
         }
 
-        // ==================== ⚙️ Settings ====================
+        // ==================== ⚙️ Settings & PIN ====================
+        
+        async function fetchMainBranchId() {
+            try {
+                // ค้นหาสาขาหลักเพื่อนำ ID มาใช้อัปเดต PIN
+                const { data } = await supabaseClient.from('branches').select('id, cashier_pin, kitchen_pin').eq('merchant_id', VENDOR_ID).eq('branch_name', 'สาขาหลัก').single();
+                if (data) {
+                    mainBranchId = data.id;
+                    if(data.cashier_pin) document.getElementById('pinCashier').value = data.cashier_pin;
+                    if(data.kitchen_pin) document.getElementById('pinKitchen').value = data.kitchen_pin;
+                }
+            } catch (e) { console.error(e); }
+        }
+
         async function loadSettings() {
             try {
                 const { data: vendor, error } = await supabaseClient.from('vendors')
@@ -564,18 +590,39 @@
             btn.disabled = true;
 
             const ppNumber = document.getElementById('settingPromptPay').value.trim();
-            
             try {
                 const { error } = await supabaseClient.from('vendors').update({
                     promptpay_number: ppNumber
                 }).eq('id', VENDOR_ID);
 
                 if (error) throw error;
-                alert("💾 บันทึกการตั้งค่ารับเงินเรียบร้อยแล้ว!");
+                alert("💾 บันทึกข้อมูลร้านค้าเรียบร้อยแล้ว!");
             } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); }
             
-            btn.innerText = "💾 บันทึกการตั้งค่า";
+            btn.innerText = "💾 บันทึกข้อมูลร้าน";
             btn.disabled = false;
+        }
+
+        async function saveStaffPins() {
+            if (!mainBranchId) return alert("ไม่พบข้อมูลสาขาหลัก ไม่สามารถบันทึก PIN ได้");
+            
+            const pCashier = document.getElementById('pinCashier').value;
+            const pKitchen = document.getElementById('pinKitchen').value;
+
+            if (pCashier && pCashier.length !== 4) return alert("PIN แคชเชียร์ต้องเป็นตัวเลข 4 หลัก");
+            if (pKitchen && pKitchen.length !== 4) return alert("PIN ห้องครัวต้องเป็นตัวเลข 4 หลัก");
+
+            try {
+                const { error } = await supabaseClient.from('branches').update({
+                    cashier_pin: pCashier || null,
+                    kitchen_pin: pKitchen || null
+                }).eq('id', mainBranchId);
+
+                if (error) throw error;
+                alert("🔐 อัปเดตรหัส PIN พนักงานเรียบร้อยแล้ว!\n(พนักงานที่ใช้รหัสเดิมอยู่ จะถูกเตะออกจากระบบใหม่อัตโนมัติ)");
+            } catch (err) {
+                alert("เกิดข้อผิดพลาดในการบันทึก PIN: " + err.message);
+            }
         }
 
     </script>
