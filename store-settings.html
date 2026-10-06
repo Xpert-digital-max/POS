@@ -39,14 +39,17 @@
         /* Tables & Lists */
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
         .action-bar { display: flex; justify-content: flex-end; margin-bottom: 15px; }
-        .btn { padding: 10px 20px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; font-size: 14px; }
+        .btn { padding: 10px 20px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: 0.2s; font-size: 14px; }
         .btn-primary { background: #06C755; color: white; }
         .btn-primary:hover { background: #05a044; }
         .btn-outline { background: transparent; border: 1px solid #ccc; color: #333; }
         .btn-outline:hover { background: #f0f0f0; }
+        .btn-danger { background: #f44336; color: white; }
+        .btn-warning { background: #FF9800; color: white; }
+        .btn-info { background: #2196F3; color: white; }
 
         table { width: 100%; border-collapse: collapse; text-align: left; }
-        th, td { padding: 12px 15px; border-bottom: 1px solid #eee; }
+        th, td { padding: 12px 15px; border-bottom: 1px solid #eee; vertical-align: middle; }
         th { background-color: #f9fafb; font-weight: bold; color: #555; }
         tr:hover { background-color: #fcfcfc; }
 
@@ -58,11 +61,15 @@
         input:checked + .slider { background-color: #E91E63; }
         input:checked + .slider:before { transform: translateX(22px); }
 
-        /* Form Controls */
-        .form-group { margin-bottom: 15px; max-width: 400px; }
+        /* Form Controls & Modal */
+        .modal-overlay { display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: white; width: 90%; max-width: 500px; border-radius: 12px; padding: 25px; box-sizing: border-box; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        
+        .form-group { margin-bottom: 15px; width: 100%; }
         .form-group label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; font-size: 14px; }
-        .form-control { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; box-sizing: border-box; }
+        .form-control { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; box-sizing: border-box; font-family: inherit; }
         .form-control:focus { outline: none; border-color: #E91E63; }
+        textarea.form-control { resize: vertical; min-height: 80px; }
 
         /* Print Area */
         #printArea { display: none; }
@@ -124,7 +131,7 @@
             <h2>🍔 จัดการเมนูอาหาร</h2>
             <div class="card">
                 <div class="action-bar">
-                    <button class="btn btn-primary" onclick="alert('ฟีเจอร์เพิ่ม/ลบเมนูและอัปโหลดรูปภาพ จะอัปเดตในแพทช์ถัดไปครับ ตอนนี้ให้ใช้ปุ่มสวิตช์เปิด/ปิดเมนูที่ของหมดไปก่อนนะครับ')">➕ เพิ่มเมนูใหม่</button>
+                    <button class="btn btn-primary" onclick="openMenuModal()">➕ เพิ่มเมนูใหม่</button>
                 </div>
                 <table>
                     <thead>
@@ -132,11 +139,12 @@
                             <th width="60">รูปภาพ</th>
                             <th>ชื่อเมนู</th>
                             <th>ราคา (฿)</th>
-                            <th style="text-align: center;">สถานะ (เปิดขาย/ของหมด)</th>
+                            <th style="text-align: center;">เปิดขาย/ของหมด</th>
+                            <th style="text-align: center; width: 200px;">จัดการ</th>
                         </tr>
                     </thead>
                     <tbody id="menuTableBody">
-                        <tr><td colspan="4" style="text-align: center; color: #888;">กำลังโหลดข้อมูล...</td></tr>
+                        <tr><td colspan="5" style="text-align: center; color: #888;">กำลังโหลดข้อมูล...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -168,12 +176,12 @@
         <div id="tab-settings" class="tab-content">
             <h2>⚙️ ตั้งค่าบัญชีรับเงินของร้าน</h2>
             <div class="card">
-                <div class="form-group">
+                <div class="form-group" style="max-width: 400px;">
                     <label>ชื่อร้านอาหาร</label>
                     <input type="text" id="settingStoreName" class="form-control" disabled>
                     <small style="color:#aaa;">(ชื่อร้านจะอ้างอิงจากฐานข้อมูลหลักของระบบ SaaS)</small>
                 </div>
-                <div class="form-group" style="margin-top: 20px;">
+                <div class="form-group" style="margin-top: 20px; max-width: 400px;">
                     <label>เบอร์พร้อมเพย์ หรือ เลขบัตรประชาชน (สำหรับสแกนจ่ายเงินโอน)</label>
                     <input type="text" id="settingPromptPay" class="form-control" placeholder="เช่น 0812345678">
                 </div>
@@ -181,6 +189,53 @@
             </div>
         </div>
 
+    </div>
+
+    <!-- Modal เพิ่ม/แก้ไข เมนูอาหาร -->
+    <div id="menuModal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 id="menuModalTitle" style="margin-top: 0; color: #E91E63; border-bottom: none; padding-bottom: 0;">เพิ่มเมนูใหม่</h2>
+            <input type="hidden" id="modalMenuId">
+            
+            <div class="form-group">
+                <label>ชื่อเมนู *</label>
+                <input type="text" id="modalMenuName" class="form-control" placeholder="เช่น ข้าวผัดหมู" required>
+            </div>
+            
+            <div class="form-group">
+                <label>ราคา (บาท) *</label>
+                <input type="number" id="modalMenuPrice" class="form-control" placeholder="เช่น 50" required>
+            </div>
+            
+            <div class="form-group">
+                <label>หมวดหมู่</label>
+                <select id="modalMenuCategory" class="form-control">
+                    <option value="">-- ไม่ระบุหมวดหมู่ --</option>
+                    <!-- โหลดข้อมูลหมวดหมู่มาใส่ที่นี่ -->
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>ตัวเลือกเสริม (แยกด้วย ; และ ,)</label>
+                <textarea id="modalMenuOptions" class="form-control" placeholder="รูปแบบ: ชื่อกลุ่ม: ตัวเลือก1,ตัวเลือก2;&#10;เช่น ระดับความเผ็ด: ไม่เผ็ด,เผ็ดน้อย,เผ็ดมาก;"></textarea>
+                <small style="color: #888;">ถ้ามีหลายกลุ่ม ให้คั่นกลุ่มด้วยเครื่องหมาย ; (เซมิโคลอน)</small>
+            </div>
+            
+            <div class="form-group">
+                <label>รูปภาพเมนู</label>
+                <input type="file" id="modalMenuImage" class="form-control" accept="image/*">
+                <input type="hidden" id="modalMenuImageUrl">
+                <div id="previewImageContainer" style="margin-top: 10px; display: none;">
+                    <img id="previewImage" src="" style="width: 100px; height: 100px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd;">
+                </div>
+                <small style="color: #888;">*ระบบจะอัปโหลดรูปอัตโนมัติเมื่อกดบันทึก</small>
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-top: 25px;">
+                <button class="btn btn-outline" style="flex: 1;" onclick="closeMenuModal()">ยกเลิก</button>
+                <button class="btn btn-primary" style="flex: 1;" id="btnSaveMenu" onclick="saveMenu()">💾 บันทึกข้อมูล</button>
+            </div>
+        </div>
     </div>
 
     <!-- พื้นที่สำหรับพิมพ์ QR Code -->
@@ -191,48 +246,74 @@
         if (VENDOR_ID) localStorage.setItem('test_vendor_id', VENDOR_ID);
 
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
+        
+        let globalMenuItems = [];
+        let globalCategories = [];
 
         window.onload = () => {
             document.getElementById('vendorIdDisplay').innerText = `Vendor ID: ${VENDOR_ID.substring(0,8)}...`;
+            loadCategoriesList();
         };
 
-        // Navigation
         function switchTab(tabId, element) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
-            
             document.getElementById(`tab-${tabId}`).classList.add('active');
             element.classList.add('active');
         }
 
-        // ==================== 🍔 Menu Management ====================
+        // ==================== 🍔 Menu Management (CRUD) ====================
+        
+        async function loadCategoriesList() {
+            const { data } = await supabaseClient.from('categories').select('*').eq('vendor_id', VENDOR_ID);
+            globalCategories = data || [];
+            const catSelect = document.getElementById('modalMenuCategory');
+            catSelect.innerHTML = '<option value="">-- ไม่ระบุหมวดหมู่ --</option>';
+            globalCategories.forEach(c => {
+                catSelect.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+            });
+        }
+
         async function loadMenus() {
             const tbody = document.getElementById('menuTableBody');
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">กำลังโหลด...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">กำลังโหลด...</td></tr>';
             try {
                 const { data: menus, error } = await supabaseClient.from('menu_items')
                     .select('*').eq('vendor_id', VENDOR_ID).order('created_at', { ascending: false });
                 
                 if (error) throw error;
-                if (!menus || menus.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #888;">ยังไม่มีเมนูอาหาร</td></tr>';
+                globalMenuItems = menus || [];
+
+                if (globalMenuItems.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #888;">ยังไม่มีเมนูอาหาร</td></tr>';
                     return;
                 }
 
                 let html = '';
-                menus.forEach(menu => {
+                globalMenuItems.forEach(menu => {
                     const imgSrc = menu.image_url ? menu.image_url : 'https://via.placeholder.com/60?text=No+Image';
                     const checked = menu.is_available ? 'checked' : '';
+                    
                     html += `
                         <tr>
                             <td><img src="${imgSrc}" style="width: 50px; height: 50px; border-radius: 8px; object-fit: cover;"></td>
-                            <td style="font-weight: bold;">${menu.name}</td>
+                            <td>
+                                <strong style="font-size:15px;">${menu.name}</strong>
+                                ${menu.options ? `<br><small style="color:#888; font-size:11px;">มีตัวเลือกเสริม</small>` : ''}
+                            </td>
                             <td style="color: #E91E63; font-weight: bold;">฿${menu.price}</td>
                             <td style="text-align: center;">
                                 <label class="switch">
                                     <input type="checkbox" ${checked} onchange="toggleMenuAvailability('${menu.id}', this.checked)">
                                     <span class="slider"></span>
                                 </label>
+                            </td>
+                            <td>
+                                <div style="display: flex; gap: 5px; justify-content: center;">
+                                    <button class="btn btn-info" style="padding: 6px 10px; font-size: 12px;" onclick="openMenuModal('${menu.id}')">✏️</button>
+                                    <button class="btn btn-warning" style="padding: 6px 10px; font-size: 12px;" onclick="copyMenu('${menu.id}')">📋</button>
+                                    <button class="btn btn-danger" style="padding: 6px 10px; font-size: 12px;" onclick="deleteMenu('${menu.id}', '${menu.name}')">🗑️</button>
+                                </div>
                             </td>
                         </tr>
                     `;
@@ -247,6 +328,149 @@
             } catch (err) {
                 alert("เกิดข้อผิดพลาดในการอัปเดต: " + err.message);
                 loadMenus(); 
+            }
+        }
+
+        function openMenuModal(menuId = null) {
+            document.getElementById('menuModal').style.display = 'flex';
+            document.getElementById('modalMenuImage').value = '';
+            
+            if (menuId) {
+                // โหมดแก้ไข
+                document.getElementById('menuModalTitle').innerText = "✏️ แก้ไขเมนูอาหาร";
+                const menu = globalMenuItems.find(m => m.id === menuId);
+                if(menu) {
+                    document.getElementById('modalMenuId').value = menu.id;
+                    document.getElementById('modalMenuName').value = menu.name;
+                    document.getElementById('modalMenuPrice').value = menu.price;
+                    document.getElementById('modalMenuCategory').value = menu.category_id || '';
+                    document.getElementById('modalMenuOptions').value = menu.options || '';
+                    document.getElementById('modalMenuImageUrl').value = menu.image_url || '';
+                    
+                    if(menu.image_url) {
+                        document.getElementById('previewImage').src = menu.image_url;
+                        document.getElementById('previewImageContainer').style.display = 'block';
+                    } else {
+                        document.getElementById('previewImageContainer').style.display = 'none';
+                    }
+                }
+            } else {
+                // โหมดเพิ่มใหม่
+                document.getElementById('menuModalTitle').innerText = "➕ เพิ่มเมนูใหม่";
+                document.getElementById('modalMenuId').value = '';
+                document.getElementById('modalMenuName').value = '';
+                document.getElementById('modalMenuPrice').value = '';
+                document.getElementById('modalMenuCategory').value = '';
+                document.getElementById('modalMenuOptions').value = '';
+                document.getElementById('modalMenuImageUrl').value = '';
+                document.getElementById('previewImageContainer').style.display = 'none';
+            }
+        }
+
+        function closeMenuModal() {
+            document.getElementById('menuModal').style.display = 'none';
+        }
+
+        async function saveMenu() {
+            const id = document.getElementById('modalMenuId').value;
+            const name = document.getElementById('modalMenuName').value.trim();
+            const price = parseFloat(document.getElementById('modalMenuPrice').value);
+            const categoryId = document.getElementById('modalMenuCategory').value || null;
+            const options = document.getElementById('modalMenuOptions').value.trim();
+            const fileInput = document.getElementById('modalMenuImage');
+            let imageUrl = document.getElementById('modalMenuImageUrl').value;
+
+            if (!name || isNaN(price)) {
+                return alert("กรุณากรอกชื่อเมนู และราคาให้ถูกต้อง");
+            }
+
+            const btn = document.getElementById('btnSaveMenu');
+            btn.innerText = "กำลังบันทึก...";
+            btn.disabled = true;
+
+            try {
+                // จัดการอัปโหลดรูปภาพ (ถ้ามีการเลือกไฟล์ใหม่)
+                if (fileInput.files.length > 0) {
+                    const file = fileInput.files[0];
+                    const fileExt = file.name.split('.').pop();
+                    const fileName = `menu-${VENDOR_ID}-${Date.now()}.${fileExt}`;
+                    
+                    const { error: uploadError } = await supabaseClient.storage.from('menu-images').upload(fileName, file);
+                    if (uploadError) {
+                        console.error("Upload error:", uploadError);
+                        alert("อัปโหลดรูปไม่สำเร็จ (กรุณาเช็คว่าสร้าง Bucket 'menu-images' แบบ Public แล้วหรือยัง)");
+                        // ไปต่อโดยไม่ใช้รูปใหม่
+                    } else {
+                        const { data: publicData } = supabaseClient.storage.from('menu-images').getPublicUrl(fileName);
+                        imageUrl = publicData.publicUrl;
+                    }
+                }
+
+                const menuData = {
+                    vendor_id: VENDOR_ID,
+                    name: name,
+                    price: price,
+                    category_id: categoryId,
+                    options: options,
+                    image_url: imageUrl,
+                    is_available: true
+                };
+
+                if (id) {
+                    // Update
+                    const { error } = await supabaseClient.from('menu_items').update(menuData).eq('id', id);
+                    if (error) throw error;
+                } else {
+                    // Insert
+                    const { error } = await supabaseClient.from('menu_items').insert([menuData]);
+                    if (error) throw error;
+                }
+
+                closeMenuModal();
+                loadMenus();
+
+            } catch (err) {
+                alert("เกิดข้อผิดพลาด: " + err.message);
+            }
+            
+            btn.innerText = "💾 บันทึกข้อมูล";
+            btn.disabled = false;
+        }
+
+        async function deleteMenu(id, name) {
+            if(!confirm(`⚠️ ต้องการลบเมนู "${name}" ออกจากระบบใช่หรือไม่?\n(การลบจะไม่สามารถกู้คืนได้)`)) return;
+            
+            try {
+                const { error } = await supabaseClient.from('menu_items').delete().eq('id', id);
+                if (error) throw error;
+                loadMenus();
+            } catch (err) {
+                alert("เกิดข้อผิดพลาดในการลบ: " + err.message);
+            }
+        }
+
+        async function copyMenu(id) {
+            const menu = globalMenuItems.find(m => m.id === id);
+            if(!menu) return;
+
+            if(!confirm(`ต้องการคัดลอกเมนู "${menu.name}" ใช่หรือไม่?`)) return;
+
+            const copyData = {
+                vendor_id: VENDOR_ID,
+                name: menu.name + " (Copy)",
+                price: menu.price,
+                category_id: menu.category_id,
+                options: menu.options,
+                image_url: menu.image_url,
+                is_available: false // ปิดไว้ก่อนกันพลาด
+            };
+
+            try {
+                const { error } = await supabaseClient.from('menu_items').insert([copyData]);
+                if (error) throw error;
+                loadMenus();
+            } catch (err) {
+                alert("เกิดข้อผิดพลาดในการคัดลอก: " + err.message);
             }
         }
 
@@ -303,12 +527,10 @@
         function printTableQR(encodedTable) {
             const table = JSON.parse(decodeURIComponent(encodedTable));
             
-            // สร้าง URL ลิงก์สำหรับสั่งอาหาร
             let baseUrl = window.location.href.split('?')[0].replace('store-settings.html', '');
             if (!baseUrl.endsWith('/')) baseUrl += '/';
             const orderUrl = baseUrl + 'table-order.html?table_token=' + table.table_token;
             
-            // สร้างรูป QR Code
             const qr = new QRious({ value: orderUrl, size: 250, level: 'L' });
             const qrDataUrl = qr.toDataURL();
             
