@@ -996,8 +996,8 @@
             let optionsHtml = '';
             if (CONFIG.pricingPlans) {
                 CONFIG.pricingPlans.filter(p => p.price > 0).forEach(p => { 
-                    // เพิ่มข้อความ (ได้โควต้า...บิล) หากมี quota > 0
-                    const quotaText = p.quota > 0 ? ` (ได้โควต้า ${p.quota} บิล)` : '';
+                    // เพิ่มข้อความ (โควต้า...บิล) หากมี quota > 0
+                    const quotaText = p.quota > 0 ? ` (โควต้า ${p.quota} บิล)` : '';
                     optionsHtml += `<option value="${p.id}" data-price="${p.price}" data-days="${p.days}" data-quota="${p.quota || 0}">${p.name}${quotaText} - ฿${p.price}</option>`; 
                 });
                 renewSelect.innerHTML = optionsHtml;
