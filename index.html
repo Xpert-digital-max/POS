@@ -61,58 +61,36 @@
             <input type="tel" id="phoneNumber" placeholder="เช่น 0812345678" required>
         </div>
         <div class="input-group">
-            <label>เบอร์พร้อมเพย์ หรือ เลขบัญชีรับเงิน (สามารถแก้ไขทีหลังได้)</label>
+            <label>เบอร์พร้อมเพย์ หรือ เลขบัญชีรับเงิน</label>
             <input type="text" id="promptpayNumber" placeholder="เช่น 0812345678 หรือ เลขบัญชี" required>
         </div>
 
         <div class="input-group">
-            <label>เลือกแพ็กเกจการใช้งาน</label>
-            <div class="plans-container" id="plansContainer"></div>
+            <label>แพ็กเกจเริ่มต้นของคุณ</label>
+            <div class="plans-container">
+                <div class="plan-card active">
+                    <span class="plan-tag">รับสิทธิ์ฟรี 10 วัน</span>
+                    <div class="plan-header" style="margin-top: 10px;">
+                        <span class="plan-name">ทดลองใช้ Full Access</span>
+                        <span class="plan-price">ฟรี</span>
+                    </div>
+                    <div class="plan-desc">ใช้งานระบบร้านอาหารเต็มรูปแบบ, โต๊ะไม่จำกัด, โควต้าสลิปอัตโนมัติ 20 บิล <br> <span style="color:#06C755; font-weight:500;">(เริ่มทดลองใช้ทันที ไม่ต้องชำระเงิน)</span></div>
+                </div>
+            </div>
         </div>
         
-        <button id="registerBtn" onclick="registerVendor()" disabled>ยืนยันลงทะเบียน</button>
+        <button id="registerBtn" onclick="registerVendor()" disabled>ยืนยันลงทะเบียนและรับสิทธิ์ฟรี</button>
     </div>
 
     <script>
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
         let lineData = {};
-        let selectedPlan = CONFIG.pricingPlans[0]; 
         
         // อ่านค่าผู้แนะนำจาก URL
         const urlParams = new URLSearchParams(window.location.search);
         const referrerId = urlParams.get('ref') || null;
 
-        function renderPricingPlans() {
-            const container = document.getElementById('plansContainer');
-            let html = '';
-            CONFIG.pricingPlans.forEach((plan, index) => {
-                const isActive = index === 0 ? 'active' : '';
-                const priceText = plan.price === 0 ? 'ฟรี' : `฿${plan.price}`;
-                const tagHtml = plan.tag ? `<span class="plan-tag">${plan.tag}</span>` : '';
-                html += `
-                    <div class="plan-card ${isActive}" id="plan-${plan.id}" onclick="selectPlan('${plan.id}')">
-                        ${tagHtml}
-                        <div class="plan-header" style="margin-top: ${plan.tag ? '10px' : '0'};">
-                            <span class="plan-name">${plan.name}</span>
-                            <span class="plan-price">${priceText}</span>
-                        </div>
-                        <div class="plan-desc">${plan.desc} <br> <span style="color:#06C755; font-weight:500;">(อายุการใช้งาน ${plan.days} วัน)</span></div>
-                    </div>
-                `;
-            });
-            container.innerHTML = html;
-        }
-
-        function selectPlan(planId) {
-            const plan = CONFIG.pricingPlans.find(p => p.id === planId);
-            if (!plan) return;
-            selectedPlan = plan;
-            document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('active'));
-            document.getElementById(`plan-${planId}`).classList.add('active');
-        }
-
         async function initializeLiff() {
-            renderPricingPlans();
             try {
                 await liff.init({ liffId: CONFIG.liffIdRegister });
                 if (liff.isLoggedIn()) {
@@ -144,11 +122,10 @@
         // ==================== ระบบสร้างรหัสร้านค้า (Vendor ID Generator) ====================
         async function generateVendorId() {
             const now = new Date();
-            const yearStr = (now.getFullYear() + 543).toString().slice(-2); // ปี พ.ศ. สองตัวท้าย
-            const monthStr = ('0' + (now.getMonth() + 1)).slice(-2); // เดือน สองตัว
+            const yearStr = (now.getFullYear() + 543).toString().slice(-2);
+            const monthStr = ('0' + (now.getMonth() + 1)).slice(-2);
             const prefix = `NPX${yearStr}${monthStr}-`;
 
-            // ค้นหารหัสล่าสุดในเดือนนี้จากฐานข้อมูล
             const { data, error } = await supabaseClient
                 .from('vendors')
                 .select('id')
@@ -158,7 +135,6 @@
 
             let nextNumber = 1;
             if (data && data.length > 0) {
-                // เอารหัสล่าสุดมาตัดเอาแค่ตัวเลข 4 หลักท้าย แล้ว +1
                 const lastId = data[0].id;
                 const lastNumberStr = lastId.split('-')[1];
                 if (lastNumberStr) {
@@ -166,7 +142,6 @@
                 }
             }
 
-            // จัดรูปแบบให้เป็น 0001, 0002 ...
             const sequenceStr = ('0000' + nextNumber).slice(-4);
             return `${prefix}${sequenceStr}`;
         }
@@ -181,22 +156,17 @@
             const btn = document.getElementById('registerBtn');
             btn.innerText = "⏳ กำลังสร้างร้านค้า..."; btn.disabled = true;
 
-            // [NEW] ตรวจสอบว่าเป็นแพ็กเกจฟรี หรือ เสียเงิน
-            let isActive = true;
-            let statusText = "Active";
+            // ==================================================
+            // [ระบบ Trial อัตโนมัติ] สิทธิ์การใช้งาน 10 วัน (Full Access)
+            // ==================================================
+            const trialDays = 10;
+            const trialQuota = 20;
             const expiresAt = new Date();
-
-            if (selectedPlan.price > 0) {
-                // ถ้าเสียเงิน -> ให้สถานะ Inactive และหมดอายุทันที เพื่อล็อคไม่ให้เปิดร้านจนกว่าจะจ่ายเงิน
-                isActive = false;
-                statusText = "Inactive";
-            } else {
-                // ถ้าฟรี -> ใช้งานได้เลย บวกวันหมดอายุเข้าไป
-                expiresAt.setDate(expiresAt.getDate() + selectedPlan.days);
-            }
+            expiresAt.setDate(expiresAt.getDate() + trialDays);
             
             const newVendorId = await generateVendorId();
 
+            // Insert ข้อมูลพร้อมตั้งค่า Trial ให้จบในครั้งเดียว ไม่ต้อง Update ซ้ำซ้อน
             const { data, error } = await supabaseClient.from('vendors').insert([{ 
                 id: newVendorId, 
                 line_owner_uid: lineData.uid, 
@@ -206,26 +176,26 @@
                 phone: phoneNumber,
                 promptpay_number: promptpay,
                 is_open: false,
-                slip_check_mode: selectedPlan.mode,
-                subscription_plan: selectedPlan.id,
-                subscription_days: selectedPlan.days,
+                slip_check_mode: 'auto',
+                subscription_plan: 'trial',         // ตั้งสถานะเป็น Trial
+                subscription_days: trialDays,
                 subscription_expires_at: expiresAt.toISOString(),
-                is_subscription_active: isActive, 
+                is_subscription_active: true,       // เปิดให้ใช้งานได้ทันที
                 referrer_id: referrerId, 
                 wallet_balance: 0,
-                slip_quota: selectedPlan.quota || 0
+                slip_quota: trialQuota,             // แจกโควต้าฟรี 20 บิล
+                trial_started_at: new Date().toISOString(),
+                trial_used: true,                   // เก็บประวัติว่ารับสิทธิ์ไปแล้ว
+                restaurant_mode_enabled: true       // 🌟 เปิด Full Access โหมดร้านอาหาร
             }]).select();
 
             if (error) {
                 alert("เกิดข้อผิดพลาด: " + error.message);
                 btn.innerText = "ลองใหม่อีกครั้ง"; btn.disabled = false;
             } else {
-                if(isActive) {
-                    alert(`ลงทะเบียนสำเร็จ!\nรหัสร้าน: ${newVendorId}\nแพ็กเกจ: ${selectedPlan.name}`);
-                } else {
-                    alert(`ลงทะเบียนสำเร็จ! (รหัสร้าน: ${newVendorId})\n\n⚠️ คุณเลือกแพ็กเกจ ${selectedPlan.name}\nกรุณาแนบสลิปชำระเงินในเมนู "ตั้งค่า" เพื่อเปิดใช้งานระบบครับ`);
-                }
+                alert(`ลงทะเบียนสำเร็จ!\nรหัสร้าน: ${newVendorId}\n\n🎉 คุณได้รับสิทธิ์ทดลองใช้ฟรี 10 วันเต็ม!`);
                 
+                // แจ้งเตือนส่งผ่าน Webhook
                 try {
                     await fetch(CONFIG.gasWebhookUrl, {
                         method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -235,15 +205,16 @@
                             store_name: storeName, 
                             owner_uid: lineData.uid, 
                             display_name: lineData.name, 
-                            plan: selectedPlan.name, 
+                            plan: 'Trial 10 Days (Full Access)', 
                             expires_at: expiresAt.toLocaleDateString('th-TH'),
                             referrer_id: referrerId,
-                            status: statusText,
-                            phone: phoneNumber // <--- [เพิ่มบรรทัดนี้เข้าไปครับ]
+                            status: 'Active (Trial)',
+                            phone: phoneNumber 
                         })
                     });
                 } catch(e) {}
 
+                // ส่งไปยังหน้า Dashboard ร้านค้า
                 window.location.href = "dashboard.html"; 
             }
         }
