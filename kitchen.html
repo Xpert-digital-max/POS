@@ -63,8 +63,15 @@
     </div>
 
     <script>
-        const VENDOR_ID = localStorage.getItem('test_vendor_id') || prompt("กรุณาระบุ Vendor ID ของคุณ:");
-        if (VENDOR_ID) localStorage.setItem('test_vendor_id', VENDOR_ID);
+        // ดึง vid จาก URL
+        const urlParams = new URLSearchParams(window.location.search);
+        let urlVid = urlParams.get('vid');
+
+        let VENDOR_ID = urlVid || localStorage.getItem('test_vendor_id');
+
+        if (urlVid) {
+            localStorage.setItem('test_vendor_id', urlVid);
+        }
 
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
         
@@ -157,12 +164,15 @@
                     
                     let itemBtn = '';
                     if (item.status === 'new') {
-                        itemBtn = `<button onclick="updateItemStatus('${order.id}', ${index}, 'preparing')" class="item-action-btn btn-item-start">🔥 ทำ</button>`;
-                    } else if (item.status === 'preparing') {
-                        itemBtn = `<button onclick="updateItemStatus('${order.id}', ${index}, 'served')" class="item-action-btn btn-item-done">✅ เสร็จ</button>`;
+                        // เปลี่ยนเป็นส่งสถานะ 'cooking' เพื่อให้สอดคล้องกับฝั่งแคชเชียร์
+                        itemBtn = `<button onclick="updateItemStatus('${order.id}', ${index}, 'cooking')" class="item-action-btn btn-item-start">🔥 ทำ</button>`;
+                    } else if (item.status === 'cooking' || item.status === 'preparing') {
+                        // เปลี่ยนเป็นส่งสถานะ 'done' เพื่อให้สอดคล้องกับฝั่งแคชเชียร์
+                        itemBtn = `<button onclick="updateItemStatus('${order.id}', ${index}, 'done')" class="item-action-btn btn-item-done">✅ เสร็จ</button>`;
                     }
 
-                    const opacity = item.status === 'served' ? '0.5' : '1';
+                    // ปรับ opacity ถ้าไอเทมนี้ทำเสร็จแล้ว
+                    const opacity = item.status === 'done' || item.status === 'served' ? '0.5' : '1';
 
                     itemsHtml += `
                     <div class="item-row" style="opacity: ${opacity};">
@@ -184,9 +194,9 @@
                 
                 let orderActionBtn = '';
                 if (hasNew) {
-                    orderActionBtn = `<button onclick="updateAllItemsStatus('${order.id}', 'preparing')" class="btn-large btn-start">รับทำทั้งหมด</button>`;
+                    orderActionBtn = `<button onclick="updateAllItemsStatus('${order.id}', 'cooking')" class="btn-large btn-start">รับทำทั้งหมด</button>`;
                 } else {
-                    orderActionBtn = `<button onclick="updateAllItemsStatus('${order.id}', 'served')" class="btn-large btn-done">เสร็จทั้งหมด</button>`;
+                    orderActionBtn = `<button onclick="updateAllItemsStatus('${order.id}', 'done')" class="btn-large btn-done">เสร็จทั้งหมด</button>`;
                 }
 
                 html += `
@@ -221,12 +231,12 @@
                 let allServed = true;
                 let hasNew = false;
                 items.forEach(i => {
-                    if (i.status !== 'served') allServed = false;
+                    if (i.status !== 'done' && i.status !== 'served') allServed = false;
                     if (i.status === 'new') hasNew = true;
                 });
 
                 let orderStatus = 'preparing';
-                if (allServed) orderStatus = 'served';
+                if (allServed) orderStatus = 'served'; // ถ้ารายการเสร็จหมด ให้ครัวมองว่าออเดอร์นี้หลุดจากหน้าไปเลย
                 else if (hasNew && order.order_status === 'new') orderStatus = 'new';
                 
                 order.items = items;
@@ -247,16 +257,18 @@
                 let items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
                 items.forEach(i => i.status = newStatus);
 
+                let orderStatus = newStatus === 'done' ? 'served' : 'preparing';
+
                 order.items = items;
-                order.order_status = newStatus;
+                order.order_status = orderStatus;
                 renderOrders();
 
                 await supabaseClient.from('table_orders').update({ 
                     items: items,
-                    order_status: newStatus 
+                    order_status: orderStatus 
                 }).eq('id', orderId);
                 
-                if(newStatus === 'served') fetchOrders();
+                if(orderStatus === 'served') fetchOrders();
 
             } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); }
         }
@@ -265,6 +277,76 @@
             await supabaseClient.from('table_orders').update({ order_status: 'served' }).eq('id', orderId);
             fetchOrders();
         }
+
+        // ==================== AUTH GUARD (KITCHEN & CASHIER ROLE) ====================
+        let authCheckTimer = null;
+        
+        async function verifyStaffSession() {
+            if (!VENDOR_ID) {
+                forceLogout("ไม่พบรหัสร้านค้า");
+                return false;
+            }
+
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('bypass_auth') === 'true') return true; // ข้ามการเช็คถ้ามาจากเจ้าของร้าน
+
+            const sessionRaw = localStorage.getItem('staff_session');
+            if (!sessionRaw) {
+                forceLogout("กรุณาเข้าสู่ระบบก่อนใช้งาน");
+                return false;
+            }
+
+            try {
+                const session = JSON.parse(sessionRaw);
+                // อนุญาตให้เข้าได้ทั้งแคชเชียร์และห้องครัว
+                if (session.role !== 'kitchen' && session.role !== 'cashier') {
+                    forceLogout("คุณไม่มีสิทธิ์เข้าถึงหน้านี้");
+                    return false;
+                }
+                
+                let query = supabaseClient.from('branches').select('cashier_pin, kitchen_pin').eq('merchant_id', session.vid);
+                if (session.bid && session.bid !== 'null') query = query.eq('id', session.bid);
+                else query = query.eq('branch_name', 'สาขาหลัก');
+
+                const { data, error } = await query.single();
+                
+                let isValid = false;
+                if (!error && data) {
+                    if (session.role === 'kitchen' && data.kitchen_pin === session.pin) isValid = true;
+                    if (session.role === 'cashier' && data.cashier_pin === session.pin) isValid = true;
+                }
+
+                if (!isValid) {
+                    forceLogout("รหัสผ่านถูกเปลี่ยนแปลง กรุณาเข้าสู่ระบบใหม่");
+                    return false;
+                }
+
+                if (!authCheckTimer) {
+                    authCheckTimer = setInterval(verifyStaffSession, 5000);
+                }
+                return true;
+
+            } catch (e) {
+                forceLogout("ข้อมูลเซสชันไม่ถูกต้อง");
+                return false;
+            }
+        }
+
+        function forceLogout(msg) {
+            alert(msg);
+            localStorage.removeItem('staff_session');
+            let loginUrl = `staff-login.html?vid=${VENDOR_ID}`;
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('bid') && urlParams.get('bid') !== 'null') loginUrl += `&bid=${urlParams.get('bid')}`;
+            window.location.href = loginUrl;
+        }
+
+        window.onload = async () => {
+            const isAuth = await verifyStaffSession();
+            // หน้าครัวให้รอคลิกปุ่ม Start ถึงจะทำงานต่อ
+        };
+        // ================================================================
+
     </script>
 </body>
 </html>
