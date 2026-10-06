@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>รายงานยอดขายประจำวัน (Sales Dashboard)</title>
+    <title>รายงานยอดขาย (Sales Dashboard)</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <style>
@@ -32,15 +32,21 @@
 
         /* Actions */
         .action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: white; padding: 15px 20px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); flex-wrap: wrap; gap: 15px; }
-        .shift-status { font-size: 16px; font-weight: bold; color: #06C755; display: flex; align-items: center; gap: 8px; }
+        .shift-status { font-size: 16px; font-weight: bold; color: #06C755; display: flex; align-items: center; gap: 10px; }
         .action-buttons { display: flex; gap: 10px; }
         
+        .filter-select { padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 15px; outline: none; cursor: pointer; }
+        .filter-date { padding: 9px; border-radius: 8px; border: 1px solid #ccc; font-size: 15px; outline: none; cursor: pointer; }
+
         .btn { padding: 12px 20px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; border: none; transition: 0.2s; }
         .btn-print { background: #e0e0e0; color: #333; }
         .btn-print:hover { background: #d5d5d5; }
         .btn-eod { background: #c62828; color: white; box-shadow: 0 4px 6px rgba(198, 40, 40, 0.3); }
         .btn-eod:hover { background: #b71c1c; }
-        .btn-eod:disabled { background: #ccc; cursor: not-allowed; box-shadow: none; }
+        .btn-eod:disabled { background: #ccc !important; cursor: not-allowed; box-shadow: none !important; }
+        
+        .btn-send-history { background: #00BCD4; color: white; box-shadow: 0 4px 6px rgba(0, 188, 212, 0.3); }
+        .btn-send-history:hover { background: #00acc1; }
 
         /* Table */
         .table-container { background: white; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); overflow: hidden; }
@@ -66,13 +72,11 @@
             .print-only h2 { margin: 0 0 5px 0; font-size: 24px; }
             .print-only p { margin: 0; font-size: 14px; color: #333; }
             
-            /* แปลงหน้าตา Card ให้ออกมาเป็นสลิปความร้อนได้ */
             .summary-grid { display: block; margin-bottom: 20px; }
             .card { padding: 10px 0; border: none; border-bottom: 1px dashed #000; border-radius: 0; box-shadow: none; display: flex; justify-content: space-between; align-items: center; margin: 0;}
             .card-title { font-size: 14px; margin: 0; color: #000; font-weight: normal; }
             .card-value { font-size: 16px; color: #000 !important; }
             
-            /* แปลง Table */
             .table-container { box-shadow: none; border-radius: 0; border-top: 2px solid #000; padding-top: 10px;}
             table { font-size: 12px; }
             th, td { padding: 5px 2px; border-bottom: 1px dotted #ccc; }
@@ -83,7 +87,7 @@
 <body>
 
     <div class="header">
-        <h1>📊 รายงานยอดขายประจำวัน (รอบปัจจุบัน)</h1>
+        <h1>📊 รายงานยอดขายร้านอาหาร</h1>
         <div style="font-size: 14px;" id="loginInfo">รอการเชื่อมต่อ...</div>
     </div>
 
@@ -96,14 +100,19 @@
         </div>
 
         <div class="action-bar">
-            <div class="shift-status">
-                🟢 รอบการขายเปิดอยู่ (นับยอดรวมต่อเนื่องจนกว่าจะกดปิดรอบ)
+            <div class="shift-status" id="statusIndicator">
+                <select id="reportMode" class="filter-select" onchange="changeReportMode()">
+                    <option value="current">🟢 รอบปัจจุบัน (ยังไม่ปิดยอด)</option>
+                    <option value="history">🗓️ ดูย้อนหลังตามวันที่</option>
+                </select>
+                <input type="date" id="historyDate" class="filter-date" style="display: none;" onchange="loadShiftData()">
             </div>
+            
             <div class="action-buttons">
                 <button class="btn btn-print" onclick="printReport()">
                     🖨️ พิมพ์รายงาน
                 </button>
-                <button id="btnEndOfDay" class="btn btn-eod" onclick="processEndOfDay()">
+                <button id="btnEndOfDay" class="btn btn-eod" onclick="processAction()">
                     🔒 ปิดยอดประจำวัน (ส่ง LINE)
                 </button>
             </div>
@@ -124,7 +133,7 @@
             </div>
         </div>
 
-        <h3 style="color: #333; margin-bottom: 15px;">🧾 รายการบิลที่ชำระเงินแล้วในรอบนี้</h3>
+        <h3 style="color: #333; margin-bottom: 15px;">🧾 รายการบิลรับเงินในหน้านี้</h3>
         <div class="table-container">
             <table>
                 <thead>
@@ -140,7 +149,7 @@
                 </tbody>
             </table>
             <div id="emptyState" class="empty-state" style="display: none;">
-                ยังไม่มีรายการชำระเงินในรอบบิลปัจจุบัน
+                กำลังโหลดข้อมูล...
             </div>
         </div>
 
@@ -153,27 +162,86 @@
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
         
         let currentShiftBills = [];
+        let currentViewMode = 'current';
 
         async function initApp() {
             document.getElementById('loginInfo').innerText = `Vendor ID: ${VENDOR_ID.substring(0,8)}...`;
+            
+            // ตั้งค่าวันที่ปัจจุบันให้ date picker
+            document.getElementById('historyDate').valueAsDate = new Date();
+            
             await loadShiftData();
         }
 
+        function changeReportMode() {
+            currentViewMode = document.getElementById('reportMode').value;
+            const dateInput = document.getElementById('historyDate');
+            const actionBtn = document.getElementById('btnEndOfDay');
+
+            if (currentViewMode === 'current') {
+                dateInput.style.display = 'none';
+                actionBtn.className = "btn btn-eod";
+                actionBtn.innerHTML = "🔒 ปิดยอดประจำวัน (ส่ง LINE)";
+            } else {
+                dateInput.style.display = 'inline-block';
+                actionBtn.className = "btn btn-send-history";
+                actionBtn.innerHTML = "📤 ส่งรายงานนี้เข้า LINE";
+            }
+            
+            loadShiftData();
+        }
+
         async function loadShiftData() {
+            const tbody = document.getElementById('billTableBody');
+            const emptyState = document.getElementById('emptyState');
+            
+            tbody.innerHTML = '';
+            emptyState.style.display = 'block';
+            emptyState.innerText = "กำลังโหลดข้อมูล...";
+            document.getElementById('btnEndOfDay').disabled = true;
+
             try {
-                // ดึงเฉพาะบิลที่จ่ายเงินแล้ว (closed) และ ยังไม่ได้กดปิดรอบวัน (is_eod_closed = false หรือ null)
-                const { data: bills, error } = await supabaseClient.from('table_sessions')
+                let query = supabaseClient.from('table_sessions')
                     .select('*, restaurant_tables(table_name)')
                     .eq('vendor_id', VENDOR_ID)
-                    .eq('session_status', 'closed')
-                    .or('is_eod_closed.is.null,is_eod_closed.eq.false')
-                    .order('closed_at', { ascending: false });
+                    .eq('session_status', 'closed');
 
+                if (currentViewMode === 'current') {
+                    // ดึงบิลที่ยังไม่ได้ปิดกะ
+                    query = query.or('is_eod_closed.is.null,is_eod_closed.eq.false')
+                                 .order('closed_at', { ascending: false });
+                } else {
+                    // ดึงบิลย้อนหลังตามวันที่กำหนด (ต้องเป็นบิลที่ปิดกะไปแล้ว)
+                    const dateVal = document.getElementById('historyDate').value;
+                    if (!dateVal) return;
+
+                    const d = new Date(dateVal);
+                    // สร้างเวลาเริ่มต้น 00:00:00 และสิ้นสุด 23:59:59 ของวันที่เลือก
+                    const startOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0).toISOString();
+                    const endOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999).toISOString();
+
+                    query = query.eq('is_eod_closed', true)
+                                 .gte('closed_at', startOfDay)
+                                 .lte('closed_at', endOfDay)
+                                 .order('closed_at', { ascending: false });
+                }
+
+                const { data: bills, error } = await query;
                 if (error) throw error;
+                
                 currentShiftBills = bills || [];
-                renderDashboard();
+                
+                if (currentShiftBills.length === 0) {
+                    emptyState.innerText = currentViewMode === 'current' ? "ยังไม่มีรายการชำระเงินในรอบปัจจุบัน" : "ไม่มีข้อมูลยอดขายในวันที่เลือก";
+                    document.getElementById('valTotal').innerText = "0.00";
+                    document.getElementById('valCash').innerText = "0.00";
+                    document.getElementById('valTransfer').innerText = "0.00";
+                } else {
+                    renderDashboard();
+                }
+
             } catch (err) {
-                alert("โหลดข้อมูลผิดพลาด: " + err.message);
+                emptyState.innerText = "โหลดข้อมูลผิดพลาด: " + err.message;
             }
         }
 
@@ -183,42 +251,34 @@
             let transferTotal = 0;
 
             const tbody = document.getElementById('billTableBody');
-            const emptyState = document.getElementById('emptyState');
-            tbody.innerHTML = '';
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('btnEndOfDay').disabled = false;
 
-            if (currentShiftBills.length === 0) {
-                emptyState.style.display = 'block';
-                document.getElementById('btnEndOfDay').disabled = true;
-            } else {
-                emptyState.style.display = 'none';
-                document.getElementById('btnEndOfDay').disabled = false;
+            currentShiftBills.forEach(bill => {
+                const amount = Number(bill.bill_amount) || 0;
+                total += amount;
+                
+                let paymentMethodHtml = '-';
+                if (bill.payment_method === 'cash' || bill.payment_status === 'paid_cash') {
+                    cashTotal += amount;
+                    paymentMethodHtml = '<span class="badge badge-cash">💵 เงินสด</span>';
+                } else if (bill.payment_method === 'transfer' || bill.payment_status === 'verified' || bill.payment_status === 'verified_manual') {
+                    transferTotal += amount;
+                    paymentMethodHtml = '<span class="badge badge-transfer">📲 เงินโอน</span>';
+                }
 
-                currentShiftBills.forEach(bill => {
-                    const amount = Number(bill.bill_amount) || 0;
-                    total += amount;
-                    
-                    let paymentMethodHtml = '-';
-                    if (bill.payment_method === 'cash' || bill.payment_status === 'paid_cash') {
-                        cashTotal += amount;
-                        paymentMethodHtml = '<span class="badge badge-cash">💵 เงินสด</span>';
-                    } else if (bill.payment_method === 'transfer' || bill.payment_status === 'verified' || bill.payment_status === 'verified_manual') {
-                        transferTotal += amount;
-                        paymentMethodHtml = '<span class="badge badge-transfer">📲 เงินโอน</span>';
-                    }
+                const timeStr = bill.closed_at ? new Date(bill.closed_at).toLocaleTimeString('th-TH') : '-';
+                const tableName = bill.restaurant_tables ? bill.restaurant_tables.table_name : '-';
 
-                    const timeStr = bill.closed_at ? new Date(bill.closed_at).toLocaleTimeString('th-TH') : '-';
-                    const tableName = bill.restaurant_tables ? bill.restaurant_tables.table_name : '-';
-
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td>${timeStr}</td>
-                        <td><b>โต๊ะ ${tableName}</b></td>
-                        <td style="font-weight: bold; color: #E91E63;">฿${amount.toLocaleString('th-TH', {minimumFractionDigits: 2})}</td>
-                        <td>${paymentMethodHtml}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            }
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${timeStr}</td>
+                    <td><b>โต๊ะ ${tableName}</b></td>
+                    <td style="font-weight: bold; color: #E91E63;">฿${amount.toLocaleString('th-TH', {minimumFractionDigits: 2})}</td>
+                    <td>${paymentMethodHtml}</td>
+                `;
+                tbody.appendChild(tr);
+            });
 
             document.getElementById('valTotal').innerText = total.toLocaleString('th-TH', {minimumFractionDigits: 2});
             document.getElementById('valCash').innerText = cashTotal.toLocaleString('th-TH', {minimumFractionDigits: 2});
@@ -226,61 +286,87 @@
         }
 
         function printReport() {
-            document.getElementById('printTimestamp').innerText = "พิมพ์เมื่อ: " + new Date().toLocaleString('th-TH');
+            let titleDate = currentViewMode === 'current' ? "รอบปัจจุบัน" : `วันที่ ${new Date(document.getElementById('historyDate').value).toLocaleDateString('th-TH')}`;
+            document.getElementById('printTimestamp').innerText = `พิมพ์เมื่อ: ${new Date().toLocaleString('th-TH')} (${titleDate})`;
             window.print();
         }
 
-        async function processEndOfDay() {
+        async function processAction() {
             if (currentShiftBills.length === 0) return;
 
             const totalStr = document.getElementById('valTotal').innerText;
             const cashStr = document.getElementById('valCash').innerText;
             const transferStr = document.getElementById('valTransfer').innerText;
             const billCount = currentShiftBills.length;
-
-            const confirmMsg = `ยืนยันการ "ปิดยอดประจำวัน" ใช่หรือไม่?\n\nยอดขายรวมทั้งหมด: ${totalStr} บาท\n\nเมื่อกดยืนยันแล้ว ยอดขายจะถูกบันทึก ล้างหน้าจอนี้ และส่งแจ้งเตือนสรุปยอดเข้า LINE เจ้าของร้านทันที`;
-            
-            if (!confirm(confirmMsg)) return;
-
             const btn = document.getElementById('btnEndOfDay');
-            btn.innerText = "กำลังประมวลผล...";
-            btn.disabled = true;
 
-            try {
-                // 1. อัปเดตบิลที่เปิดอยู่ทั้งหมดให้เป็น "ปิดรอบแล้ว"
-                const { error } = await supabaseClient.from('table_sessions')
-                    .update({ is_eod_closed: true })
-                    .eq('vendor_id', VENDOR_ID)
-                    .eq('session_status', 'closed')
-                    .or('is_eod_closed.is.null,is_eod_closed.eq.false');
+            // กรณีปิดยอดประจำวัน
+            if (currentViewMode === 'current') {
+                const confirmMsg = `ยืนยันการ "ปิดยอดประจำวัน" ใช่หรือไม่?\n\nยอดขายรวมทั้งหมด: ${totalStr} บาท\n\nเมื่อกดยืนยันแล้ว ยอดขายจะถูกบันทึก ล้างหน้าจอนี้ และส่งแจ้งเตือนสรุปยอดเข้า LINE ทันที`;
+                if (!confirm(confirmMsg)) return;
 
-                if (error) throw error;
+                btn.innerText = "กำลังประมวลผล...";
+                btn.disabled = true;
 
-                // 2. ส่ง Webhook แจ้งเตือนเข้า LINE ผ่าน Google Apps Script
-                // แนะนำให้เพิ่มเงื่อนไข if(data.action === 'notify_eod') ในสคริปต์ GAS ฝั่งคุณด้วยนะครับ
-                fetch(CONFIG.gasWebhookUrl, {
-                    method: 'POST',
-                    redirect: 'follow',
-                    headers: { "Content-Type": "text/plain;charset=utf-8" },
-                    body: JSON.stringify({
-                        action: 'notify_eod',
-                        vendor_id: VENDOR_ID,
-                        total_amount: totalStr,
-                        cash_amount: cashStr,
-                        transfer_amount: transferStr,
-                        total_bills: billCount,
-                        timestamp: new Date().toLocaleString('th-TH')
-                    })
-                }).catch(e => console.log("Webhook Notification Error:", e));
+                try {
+                    const { error } = await supabaseClient.from('table_sessions')
+                        .update({ is_eod_closed: true })
+                        .eq('vendor_id', VENDOR_ID)
+                        .eq('session_status', 'closed')
+                        .or('is_eod_closed.is.null,is_eod_closed.eq.false');
 
-                alert("🎉 ปิดยอดประจำวันสำเร็จ! ส่งแจ้งเตือนเข้า LINE แล้ว");
-                await loadShiftData();
+                    if (error) throw error;
 
-            } catch (err) {
-                alert("เกิดข้อผิดพลาดในการปิดยอด: " + err.message);
-            }
+                    sendLineWebhook('notify_eod', totalStr, cashStr, transferStr, billCount, null);
+
+                    alert("🎉 ปิดยอดประจำวันสำเร็จ! ส่งแจ้งเตือนเข้า LINE แล้ว");
+                    await loadShiftData();
+
+                } catch (err) {
+                    alert("เกิดข้อผิดพลาดในการปิดยอด: " + err.message);
+                }
+                btn.innerHTML = "🔒 ปิดยอดประจำวัน (ส่ง LINE)";
+                btn.disabled = false;
             
-            btn.innerHTML = "🔒 ปิดยอดประจำวัน (ส่ง LINE)";
+            // กรณีดูย้อนหลัง ส่งข้อมูลเข้าไลน์ซ้ำ
+            } else {
+                const selectedDateStr = new Date(document.getElementById('historyDate').value).toLocaleDateString('th-TH');
+                if (!confirm(`ต้องการส่งสรุปยอดขายของวันที่ ${selectedDateStr} จำนวน ${totalStr} บาท เข้า LINE อีกครั้งใช่หรือไม่?`)) return;
+
+                btn.innerText = "กำลังส่ง...";
+                btn.disabled = true;
+
+                sendLineWebhook('notify_eod', totalStr, cashStr, transferStr, billCount, selectedDateStr);
+
+                setTimeout(() => {
+                    alert("📤 ส่งรายงานย้อนหลังเข้า LINE เรียบร้อยแล้ว!");
+                    btn.innerHTML = "📤 ส่งรายงานนี้เข้า LINE";
+                    btn.disabled = false;
+                }, 1000);
+            }
+        }
+
+        // ฟังก์ชันยิง Webhook
+        function sendLineWebhook(action, total, cash, transfer, count, specificDateStr) {
+            let timestampStr = new Date().toLocaleString('th-TH');
+            if (specificDateStr) {
+                timestampStr = `(ย้อนหลัง) ประจำวันที่ ${specificDateStr}`;
+            }
+
+            fetch(CONFIG.gasWebhookUrl, {
+                method: 'POST',
+                redirect: 'follow',
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({
+                    action: action,
+                    vendor_id: VENDOR_ID,
+                    total_amount: total,
+                    cash_amount: cash,
+                    transfer_amount: transfer,
+                    total_bills: count,
+                    timestamp: timestampStr
+                })
+            }).catch(e => console.log("Webhook Error:", e));
         }
 
         window.onload = initApp;
