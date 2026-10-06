@@ -8,64 +8,54 @@
     <script src="config.js"></script>
     <style>
         body { font-family: sans-serif; margin: 0; background-color: #121212; color: #ffffff; }
-        
-        /* Header */
         .header { background: #1f1f1f; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
         .header h2 { margin: 0; font-size: 20px; display: flex; align-items: center; gap: 10px; color: #E91E63; }
         .clock { font-size: 24px; font-weight: bold; color: #00BCD4; font-family: monospace; }
-        
-        /* Grid Layout */
         .container { padding: 20px; }
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
         
-        /* Ticket Card */
         .ticket { background: #1e1e1e; border-radius: 12px; padding: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); border-top: 6px solid #333; display: flex; flex-direction: column; justify-content: space-between; }
-        .ticket.status-new { border-top-color: #E91E63; } /* ออเดอร์ใหม่สีชมพูแดง */
-        .ticket.status-preparing { border-top-color: #FF9800; } /* กำลังทำสีส้ม */
+        .ticket.status-new { border-top-color: #E91E63; } 
+        .ticket.status-preparing { border-top-color: #FF9800; } 
         
         .ticket-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #444; padding-bottom: 15px; margin-bottom: 15px; }
         .table-name { font-size: 26px; font-weight: bold; color: #fff; margin: 0; }
         .order-time { font-size: 14px; color: #aaa; background: #333; padding: 4px 8px; border-radius: 4px; }
         
-        /* Items */
-        .items-container { flex-grow: 1; margin-bottom: 20px; }
-        .item-row { margin-bottom: 12px; font-size: 18px; line-height: 1.4; border-bottom: 1px solid #2a2a2a; padding-bottom: 10px; }
+        .items-container { flex-grow: 1; margin-bottom: 10px; }
+        .item-row { margin-bottom: 10px; font-size: 18px; line-height: 1.4; border-bottom: 1px solid #2a2a2a; padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center;}
         .item-qty { font-weight: bold; color: #00BCD4; margin-right: 10px; font-size: 20px; }
         .item-name { color: #fff; }
         .item-option { display: block; color: #8bc34a; font-size: 15px; margin-left: 30px; margin-top: 4px; }
         .item-note { display: block; color: #ff5252; font-size: 15px; font-weight: bold; margin-left: 30px; margin-top: 4px; }
         
-        /* Buttons */
-        .btn-large { width: 100%; padding: 18px; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
-        .btn-start { background: #FF9800; color: #000; }
-        .btn-start:active { background: #e68a00; }
-        .btn-done { background: #06C755; color: white; }
-        .btn-done:active { background: #05a044; }
+        .item-action-btn { padding: 6px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; }
+        .btn-item-start { background: #FF9800; color: #000; }
+        .btn-item-done { background: #06C755; color: white; }
 
-        /* Sound Unlock Overlay */
+        .btn-large { width: 100%; padding: 15px; font-size: 16px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.2); margin-top: 10px;}
+        .btn-start { background: #ffcc80; color: #e65100; border: 1px solid #e65100;}
+        .btn-done { background: #a5d6a7; color: #1b5e20; border: 1px solid #1b5e20;}
+
         #soundUnlockOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; text-align: center; padding: 20px; box-sizing: border-box; }
         .start-btn { padding: 20px 50px; font-size: 24px; font-weight: bold; background: #E91E63; color: white; border: none; border-radius: 12px; cursor: pointer; margin-top: 30px; box-shadow: 0 4px 15px rgba(233, 30, 99, 0.4); }
 
-        /* Empty State */
         .empty-state { text-align: center; color: #555; font-size: 24px; margin-top: 100px; grid-column: 1 / -1; }
     </style>
 </head>
 <body>
 
-    <!-- Overlay ปลดล็อคเสียง -->
     <div id="soundUnlockOverlay">
         <h1 style="color: #E91E63; margin-bottom: 10px;">🍳 ระบบหน้าจอห้องครัว (KDS)</h1>
         <p style="color: #ccc; font-size: 18px;">กดปุ่มด้านล่างเพื่อเปิดรับออเดอร์และอนุญาตให้ระบบแจ้งเตือนด้วยเสียง</p>
         <button onclick="startSystem()" class="start-btn">🔊 เริ่มทำงาน (เข้ากะ)</button>
     </div>
 
-    <!-- Header -->
     <div class="header">
         <h2>🍳 KDS - ครัวกลาง</h2>
         <div id="clockDisplay" class="clock">00:00:00</div>
     </div>
 
-    <!-- Orders Grid -->
     <div class="container">
         <div id="orderGrid" class="grid">
             <div class="empty-state">กำลังโหลดออเดอร์...</div>
@@ -82,38 +72,31 @@
         let pollingTimer = null;
         let audioContext = null;
 
-        // นาฬิกา
         setInterval(() => {
             document.getElementById('clockDisplay').innerText = new Date().toLocaleTimeString('th-TH');
         }, 1000);
 
         function startSystem() {
             document.getElementById('soundUnlockOverlay').style.display = 'none';
-            
             if (!audioContext) { audioContext = new (window.AudioContext || window.webkitAudioContext)(); }
             if (audioContext.state === 'suspended') { audioContext.resume(); }
             const osc = audioContext.createOscillator(); osc.connect(audioContext.destination); osc.start(); osc.stop(audioContext.currentTime + 0.01);
-            
             fetchOrders();
-            pollingTimer = setInterval(fetchOrders, 3000); // อัปเดตทุก 3 วินาที
+            pollingTimer = setInterval(fetchOrders, 3000); 
         }
 
         async function fetchOrders() {
             try {
-                // ดึงออเดอร์ที่สถานะเป็น new (ใหม่) หรือ preparing (กำลังทำ) เท่านั้น
                 const { data: ordData, error } = await supabaseClient.from('table_orders')
                     .select('*, restaurant_tables(table_name)')
                     .eq('vendor_id', VENDOR_ID)
                     .in('order_status', ['new', 'preparing'])
-                    .order('created_at', { ascending: true }); // เรียงตามเวลาเก่าสุดขึ้นก่อน (First In, First Out)
-                
+                    .order('created_at', { ascending: true }); 
                 if (error) throw error;
 
-                // เช็คออเดอร์ใหม่เพื่อเล่นเสียงเตือน (ร้องเฉพาะบิลใหม่)
                 if (ordData) {
                     let hasNewOrder = false;
                     ordData.forEach(order => {
-                        // ถ้าเจอออเดอร์ที่สถานะ new และยังไม่มีในระบบ (ไม่เคยร้องเตือน)
                         const existingOrder = activeOrders.find(o => o.id === order.id);
                         if (!existingOrder && order.order_status === 'new') {
                             hasNewOrder = true;
@@ -125,43 +108,29 @@
                 activeOrders = ordData || [];
                 renderOrders();
 
-            } catch (err) {
-                console.error("Fetch Error:", err);
-            }
+            } catch (err) { console.error("Fetch Error:", err); }
         }
 
         function playAlertSound() {
             if (!audioContext) return;
             if (audioContext.state === 'suspended') audioContext.resume();
             
-            // เสียงเตือนครัวแบบเร่งด่วน (ตื้ดดดดด สั้นๆ 2 ที)
             const playBeep = (startTime) => {
-                const osc = audioContext.createOscillator();
-                const gain = audioContext.createGain();
-                osc.type = 'square';
-                osc.frequency.setValueAtTime(750, startTime);
-                
-                osc.connect(gain);
-                gain.connect(audioContext.destination);
-                
-                gain.gain.setValueAtTime(0.5, startTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.2);
-                
-                osc.start(startTime);
-                osc.stop(startTime + 0.2);
+                const osc = audioContext.createOscillator(); const gain = audioContext.createGain();
+                osc.type = 'square'; osc.frequency.setValueAtTime(750, startTime);
+                osc.connect(gain); gain.connect(audioContext.destination);
+                gain.gain.setValueAtTime(0.5, startTime); gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.2);
+                osc.start(startTime); osc.stop(startTime + 0.2);
             };
 
             const now = audioContext.currentTime;
-            playBeep(now);
-            playBeep(now + 0.3);
+            playBeep(now); playBeep(now + 0.3);
         }
 
         function renderOrders() {
             const container = document.getElementById('orderGrid');
-            
             if (activeOrders.length === 0) { 
-                container.innerHTML = '<div class="empty-state">🎉 เยี่ยมมาก! ไม่มีออเดอร์ค้างในครัวเลย</div>'; 
-                return; 
+                container.innerHTML = '<div class="empty-state">🎉 เยี่ยมมาก! ไม่มีออเดอร์ค้างในครัวเลย</div>'; return; 
             }
 
             let html = '';
@@ -169,32 +138,55 @@
                 const tableName = order.restaurant_tables ? order.restaurant_tables.table_name : '-';
                 const timeStr = new Date(order.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
                 
-                // คำนวณเวลาที่รอ (นาที)
                 const waitTimeMin = Math.floor((new Date() - new Date(order.created_at)) / 60000);
                 const waitTimeDisplay = waitTimeMin > 0 ? `(รอ ${waitTimeMin} นาที)` : '(เพิ่งสั่ง)';
-                const timeColor = waitTimeMin > 15 ? 'color: #ff5252;' : ''; // ถ้ารอนานเกิน 15 นาที ให้เวลาเป็นสีแดง
+                const timeColor = waitTimeMin > 15 ? 'color: #ff5252;' : ''; 
 
                 let itemsHtml = '';
-                const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
-                items.forEach(item => {
+                let items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+                let allServed = true;
+                let hasNew = false;
+
+                items.forEach((item, index) => {
+                    if (!item.status) item.status = 'new';
+                    if (item.status !== 'served') allServed = false;
+                    if (item.status === 'new') hasNew = true;
+
                     let optStr = item.option ? `<span class="item-option">👉 ${item.option}</span>` : '';
                     let noteStr = item.note ? `<span class="item-note">📝 ** ${item.note}</span>` : '';
+                    
+                    let itemBtn = '';
+                    if (item.status === 'new') {
+                        itemBtn = `<button onclick="updateItemStatus('${order.id}', ${index}, 'preparing')" class="item-action-btn btn-item-start">🔥 ทำ</button>`;
+                    } else if (item.status === 'preparing') {
+                        itemBtn = `<button onclick="updateItemStatus('${order.id}', ${index}, 'served')" class="item-action-btn btn-item-done">✅ เสร็จ</button>`;
+                    }
+
+                    const opacity = item.status === 'served' ? '0.5' : '1';
+
                     itemsHtml += `
-                    <div class="item-row">
-                        <div><span class="item-qty">${item.qty}x</span> <span class="item-name">${item.name}</span></div>
-                        ${optStr} ${noteStr}
+                    <div class="item-row" style="opacity: ${opacity};">
+                        <div>
+                            <div><span class="item-qty">${item.qty}x</span> <span class="item-name">${item.name}</span></div>
+                            ${optStr} ${noteStr}
+                        </div>
+                        <div>${itemBtn}</div>
                     </div>`;
                 });
 
-                // กำหนดสถานะและปุ่ม
-                const isNew = order.order_status === 'new';
+                if (allServed) {
+                    updateOrderToServed(order.id);
+                    return; // ไม่วาดกล่องนี้
+                }
+
+                const isNew = hasNew && order.order_status === 'new';
                 const cardClass = isNew ? 'status-new' : 'status-preparing';
                 
-                let actionBtn = '';
-                if (isNew) {
-                    actionBtn = `<button onclick="updateOrderStatus('${order.id}', 'preparing')" class="btn-large btn-start">🔥 เริ่มทำอาหาร</button>`;
+                let orderActionBtn = '';
+                if (hasNew) {
+                    orderActionBtn = `<button onclick="updateAllItemsStatus('${order.id}', 'preparing')" class="btn-large btn-start">รับทำทั้งหมด</button>`;
                 } else {
-                    actionBtn = `<button onclick="updateOrderStatus('${order.id}', 'served')" class="btn-large btn-done">✅ ทำเสร็จแล้ว (ให้พนักงานเสิร์ฟ)</button>`;
+                    orderActionBtn = `<button onclick="updateAllItemsStatus('${order.id}', 'served')" class="btn-large btn-done">เสร็จทั้งหมด</button>`;
                 }
 
                 html += `
@@ -212,7 +204,7 @@
                         </div>
                     </div>
                     <div>
-                        ${actionBtn}
+                        ${items.length > 1 ? orderActionBtn : ''}
                     </div>
                 </div>`;
             });
@@ -220,24 +212,58 @@
             container.innerHTML = html;
         }
 
-        async function updateOrderStatus(orderId, newStatus) {
+        async function updateItemStatus(orderId, itemIndex, newStatus) {
             try {
-                // กดแล้วอัปเดตหน้าจอตัวเองทันทีให้ดูไว
-                const orderIndex = activeOrders.findIndex(o => o.id === orderId);
-                if (orderIndex > -1) {
-                    activeOrders[orderIndex].order_status = newStatus;
-                    renderOrders();
-                }
+                const order = activeOrders.find(o => o.id === orderId);
+                let items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+                items[itemIndex].status = newStatus;
 
-                // ส่งข้อมูลไปฐานข้อมูล
-                await supabaseClient.from('table_orders').update({ order_status: newStatus }).eq('id', orderId);
+                let allServed = true;
+                let hasNew = false;
+                items.forEach(i => {
+                    if (i.status !== 'served') allServed = false;
+                    if (i.status === 'new') hasNew = true;
+                });
+
+                let orderStatus = 'preparing';
+                if (allServed) orderStatus = 'served';
+                else if (hasNew && order.order_status === 'new') orderStatus = 'new';
                 
-                // ดึงข้อมูลใหม่เพื่อความชัวร์
-                fetchOrders();
+                order.items = items;
+                order.order_status = orderStatus;
+                renderOrders();
 
-            } catch (err) {
-                alert("เกิดข้อผิดพลาดในการอัปเดตสถานะ: " + err.message);
-            }
+                await supabaseClient.from('table_orders').update({ 
+                    items: items,
+                    order_status: orderStatus 
+                }).eq('id', orderId);
+
+            } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); }
+        }
+
+        async function updateAllItemsStatus(orderId, newStatus) {
+            try {
+                const order = activeOrders.find(o => o.id === orderId);
+                let items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+                items.forEach(i => i.status = newStatus);
+
+                order.items = items;
+                order.order_status = newStatus;
+                renderOrders();
+
+                await supabaseClient.from('table_orders').update({ 
+                    items: items,
+                    order_status: newStatus 
+                }).eq('id', orderId);
+                
+                if(newStatus === 'served') fetchOrders();
+
+            } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); }
+        }
+
+        async function updateOrderToServed(orderId) {
+            await supabaseClient.from('table_orders').update({ order_status: 'served' }).eq('id', orderId);
+            fetchOrders();
         }
     </script>
 </body>
