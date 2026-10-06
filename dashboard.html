@@ -986,40 +986,122 @@
         }
 
         async function verifyAndRenewSubscription(btn) {
-            const fileInput = document.getElementById('renewSlipImage'); const select = document.getElementById('renewPlanSelect'); const opt = select.options[select.selectedIndex]; 
+            const fileInput = document.getElementById('renewSlipImage'); 
+            const select = document.getElementById('renewPlanSelect'); 
+            const opt = select.options[select.selectedIndex]; 
+            
             if (fileInput.files.length === 0) { alert("กรุณาเลือกไฟล์สลิป"); return; }
-            const expectedPrice = opt.getAttribute('data-price'); const planDays = parseInt(opt.getAttribute('data-days')); const addedQuota = parseInt(opt.getAttribute('data-quota') || 0); const planId = select.value; 
-            const selectedPlanObj = CONFIG.pricingPlans.find(p => p.id === planId);
-            if (!selectedPlanObj) { alert("เกิดข้อผิดพลาด: ไม่พบแพ็กเกจในระบบ"); throw new Error("ไม่พบแพ็กเกจใน CONFIG.pricingPlans: " + planId); }
+            
+            const expectedPrice = opt.getAttribute('data-price'); 
+            const planId = select.value; 
+            
+            // [NEW] ดึงข้อมูลจาก CONFIG.pricingPlans เพื่อใช้เป็น Source of Truth
+            const selectedPlanObj = CONFIG.pricingPlans.find(p => p.id === planId) || 
+                                    CONFIG.branchPlans.find(p => p.id === planId);
+            
+            if (!selectedPlanObj) { 
+                alert("เกิดข้อผิดพลาด: ไม่พบแพ็กเกจในระบบ"); 
+                throw new Error("ไม่พบแพ็กเกจใน Config: " + planId); 
+            }
+
+            const planDays = selectedPlanObj.days; 
+            const addedQuota = selectedPlanObj.quota || 0;
 
             btn.innerText = "⏳ กำลังตรวจสอบ..."; btn.disabled = true;
             try {
-                const file = fileInput.files[0]; const fileName = `sub-slip-${vendorData.id}-${Date.now()}.${file.name.split('.').pop()}`;
-                const { error: uploadError } = await supabaseClient.storage.from('slip-images').upload(fileName, file); if (uploadError) throw uploadError;
-                const { data: publicData } = supabaseClient.storage.from('slip-images').getPublicUrl(fileName); const slipUrl = publicData.publicUrl;
+                const file = fileInput.files[0]; 
+                const fileName = `sub-slip-${vendorData.id}-${Date.now()}.${file.name.split('.').pop()}`;
+                const { error: uploadError } = await supabaseClient.storage.from('slip-images').upload(fileName, file); 
+                if (uploadError) throw uploadError;
+                
+                const { data: publicData } = supabaseClient.storage.from('slip-images').getPublicUrl(fileName); 
+                const slipUrl = publicData.publicUrl;
 
-                const { data: verifyResult, error: verifyError } = await supabaseClient.functions.invoke('verify-slip-thunder', { body: { slip_url: slipUrl, amount: Number(expectedPrice), vendor_id: vendorData.id, branch_id: null, payment_context: 'SUBSCRIPTION_PAYMENT' } });
-                if (verifyError || !verifyResult) { throw new Error(verifyError ? verifyError.message : "ไม่มีการตอบกลับจากระบบตรวจสลิป"); }
+                const { data: verifyResult, error: verifyError } = await supabaseClient.functions.invoke('verify-slip-thunder', { 
+                    body: { slip_url: slipUrl, amount: Number(expectedPrice), vendor_id: vendorData.id, branch_id: null, payment_context: 'SUBSCRIPTION_PAYMENT' } 
+                });
+                
+                if (verifyError || !verifyResult) { 
+                    throw new Error(verifyError ? verifyError.message : "ไม่มีการตอบกลับจากระบบตรวจสลิป"); 
+                }
 
                 const isDuplicate = verifyResult.data?.isDuplicate === true || verifyResult.debug?.code === 'DUPLICATE_SLIP';
-                await supabaseClient.from('payment_transactions').insert([{ vendor_id: vendorData.id, payment_context: 'SUBSCRIPTION_PAYMENT', amount_expected: Number(expectedPrice), amount_in_slip: verifyResult.data?.amountInSlip || null, slip_url: slipUrl, verification_status: verifyResult.status, is_duplicate: isDuplicate, raw_response: verifyResult }]);
+                await supabaseClient.from('payment_transactions').insert([{ 
+                    vendor_id: vendorData.id, payment_context: 'SUBSCRIPTION_PAYMENT', amount_expected: Number(expectedPrice), 
+                    amount_in_slip: verifyResult.data?.amountInSlip || null, slip_url: slipUrl, verification_status: verifyResult.status, 
+                    is_duplicate: isDuplicate, raw_response: verifyResult 
+                }]);
 
                 if (verifyResult.status === 'success') {
-                    let baseDate = new Date(); if (vendorData.subscription_expires_at) { const currentExp = new Date(vendorData.subscription_expires_at); if (currentExp > baseDate) baseDate = currentExp; }
-                    baseDate.setDate(baseDate.getDate() + planDays); const newQuota = (vendorData.slip_quota || 0) + addedQuota;
-                    await supabaseClient.from('vendors').update({ subscription_plan: planId, subscription_days: planDays, subscription_expires_at: baseDate.toISOString(), slip_check_mode: selectedPlanObj.mode, is_subscription_active: true, slip_quota: newQuota }).eq('id', vendorData.id);
+                    // [NEW] กรณีซื้อ Branch Add-on (แยกตาราง branches) - เตรียมไว้เผื่อมี UI ต่ออายุรายสาขา
+                    if (selectedPlanObj.type === 'branch') {
+                        alert("สำหรับต่ออายุสาขาย่อย กรุณาไปที่เมนู 'จัดการสาขา' ระบบกำลังอัปเดตเพื่อรองรับการต่ออายุรายสาขาครับ");
+                        // ตัวอย่าง Logic อนาคต: await supabaseClient.from('branches').update({ subscription_expires_at: newDate }).eq('id', branchId);
+                        btn.innerText = "ยืนยันการต่ออายุ"; btn.disabled = false;
+                        return;
+                    }
 
+                    // คำนวณวันหมดอายุใหม่
+                    let baseDate = new Date(); 
+                    if (vendorData.subscription_expires_at) { 
+                        const currentExp = new Date(vendorData.subscription_expires_at); 
+                        if (currentExp > baseDate) baseDate = currentExp; 
+                    }
+                    baseDate.setDate(baseDate.getDate() + planDays); 
+                    
+                    const newQuota = (vendorData.slip_quota || 0) + addedQuota;
+                    
+                    // [NEW] ตรวจสอบว่าเป็น Restaurant Pro หรือไม่ ถ้าใช่ให้เปิด restaurant_mode_enabled
+                    const enableRestaurantMode = (selectedPlanObj.type === 'restaurant');
+
+                    await supabaseClient.from('vendors').update({ 
+                        subscription_plan: planId, 
+                        subscription_days: planDays, 
+                        subscription_expires_at: baseDate.toISOString(), 
+                        slip_check_mode: selectedPlanObj.mode || 'auto', 
+                        is_subscription_active: true, 
+                        slip_quota: newQuota,
+                        restaurant_mode_enabled: enableRestaurantMode
+                    }).eq('id', vendorData.id);
+
+                    // จ่ายค่าคอมมิชชั่น
                     const commission = vendorData.referrer_id ? Number(selectedPlanObj.comm || 0) : 0;
                     if (vendorData.referrer_id && commission > 0) {
                         const { data: refData, error: refError } = await supabaseClient.from('vendors').select('id, wallet_balance').eq('id', vendorData.referrer_id).single();
-                        if (!refError) { const newBalance = Number(refData.wallet_balance || 0) + commission; await supabaseClient.from('vendors').update({ wallet_balance: newBalance }).eq('id', vendorData.referrer_id); }
+                        if (!refError) { 
+                            const newBalance = Number(refData.wallet_balance || 0) + commission; 
+                            await supabaseClient.from('vendors').update({ wallet_balance: newBalance }).eq('id', vendorData.referrer_id); 
+                        }
                     }
 
-                    vendorData.subscription_plan = planId; vendorData.subscription_expires_at = baseDate.toISOString(); vendorData.slip_check_mode = selectedPlanObj.mode; vendorData.is_subscription_active = true; vendorData.slip_quota = newQuota;
-                    fetch(CONFIG.gasWebhookUrl, { method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: 'notify_admin_payment', type: 'renew', vendor_id: vendorData.id, store_name: vendorData.name, plan_name: selectedPlanObj.name, amount: expectedPrice, referrer_id: vendorData.referrer_id || null, commission: commission, expire_date: baseDate.toISOString() }) }).catch(e => console.log(e));
-                    alert(`🎉 ต่ออายุแพ็กเกจเรียบร้อยแล้ว\nใช้งานได้ถึง ${baseDate.toLocaleDateString('th-TH')}`); renderSubscriptionInfo(); await loadBillingInfo(); fileInput.value = '';
+                    // อัปเดตข้อมูล UI
+                    vendorData.subscription_plan = planId; 
+                    vendorData.subscription_expires_at = baseDate.toISOString(); 
+                    vendorData.slip_check_mode = selectedPlanObj.mode || 'auto'; 
+                    vendorData.is_subscription_active = true; 
+                    vendorData.slip_quota = newQuota;
+                    vendorData.restaurant_mode_enabled = enableRestaurantMode;
+
+                    // แจ้งเตือนแอดมิน
+                    fetch(CONFIG.gasWebhookUrl, { 
+                        method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" }, 
+                        body: JSON.stringify({ action: 'notify_admin_payment', type: 'renew', vendor_id: vendorData.id, store_name: vendorData.name, plan_name: selectedPlanObj.name, amount: expectedPrice, referrer_id: vendorData.referrer_id || null, commission: commission, expire_date: baseDate.toISOString() }) 
+                    }).catch(e => console.log(e));
+                    
+                    alert(`🎉 ต่ออายุแพ็กเกจเรียบร้อยแล้ว\nใช้งานได้ถึง ${baseDate.toLocaleDateString('th-TH')}`); 
+                    
+                    // หากอัปเกรดเป็น Restaurant Mode รีเฟรชหน้าต่างเพื่อให้แท็บ 'จัดการโต๊ะ' ปรากฏขึ้น
+                    if (enableRestaurantMode && document.getElementById('tabBtnRestaurant').style.display === 'none') {
+                        document.getElementById('tabBtnRestaurant').style.display = 'block';
+                    }
+
+                    renderSubscriptionInfo(); 
+                    await loadBillingInfo(); 
+                    fileInput.value = '';
                 } else { 
-                    let errorMsg = verifyResult.msg; if (verifyResult.debug?.code === 'AMOUNT_UNMATCHED') { errorMsg = `ยอดโอนไม่ตรง! (ในสลิป ${verifyResult.debug.amountInSlip || 0} ฿, ต้องชำระ ${expectedPrice} ฿)`; } alert(`❌ ตรวจสลิปไม่ผ่าน:\n${errorMsg}`);
+                    let errorMsg = verifyResult.msg; 
+                    if (verifyResult.debug?.code === 'AMOUNT_UNMATCHED') { errorMsg = `ยอดโอนไม่ตรง! (ในสลิป ${verifyResult.debug.amountInSlip || 0} ฿, ต้องชำระ ${expectedPrice} ฿)`; } 
+                    alert(`❌ ตรวจสลิปไม่ผ่าน:\n${errorMsg}`);
                 }
             } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); }
             btn.innerText = "ยืนยันการต่ออายุ"; btn.disabled = false;
