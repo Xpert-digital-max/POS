@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบหน้าจอห้องครัว (KDS)</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 0; background-color: #121212; color: #ffffff; }
+        
+        /* Header */
+        .header { background: #1f1f1f; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .header h2 { margin: 0; font-size: 20px; display: flex; align-items: center; gap: 10px; color: #E91E63; }
+        .clock { font-size: 24px; font-weight: bold; color: #00BCD4; font-family: monospace; }
+        
+        /* Grid Layout */
+        .container { padding: 20px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+        
+        /* Ticket Card */
+        .ticket { background: #1e1e1e; border-radius: 12px; padding: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); border-top: 6px solid #333; display: flex; flex-direction: column; justify-content: space-between; }
+        .ticket.status-new { border-top-color: #E91E63; } /* ออเดอร์ใหม่สีชมพูแดง */
+        .ticket.status-preparing { border-top-color: #FF9800; } /* กำลังทำสีส้ม */
+        
+        .ticket-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #444; padding-bottom: 15px; margin-bottom: 15px; }
+        .table-name { font-size: 26px; font-weight: bold; color: #fff; margin: 0; }
+        .order-time { font-size: 14px; color: #aaa; background: #333; padding: 4px 8px; border-radius: 4px; }
+        
+        /* Items */
+        .items-container { flex-grow: 1; margin-bottom: 20px; }
+        .item-row { margin-bottom: 12px; font-size: 18px; line-height: 1.4; border-bottom: 1px solid #2a2a2a; padding-bottom: 10px; }
+        .item-qty { font-weight: bold; color: #00BCD4; margin-right: 10px; font-size: 20px; }
+        .item-name { color: #fff; }
+        .item-option { display: block; color: #8bc34a; font-size: 15px; margin-left: 30px; margin-top: 4px; }
+        .item-note { display: block; color: #ff5252; font-size: 15px; font-weight: bold; margin-left: 30px; margin-top: 4px; }
+        
+        /* Buttons */
+        .btn-large { width: 100%; padding: 18px; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+        .btn-start { background: #FF9800; color: #000; }
+        .btn-start:active { background: #e68a00; }
+        .btn-done { background: #06C755; color: white; }
+        .btn-done:active { background: #05a044; }
+
+        /* Sound Unlock Overlay */
+        #soundUnlockOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; text-align: center; padding: 20px; box-sizing: border-box; }
+        .start-btn { padding: 20px 50px; font-size: 24px; font-weight: bold; background: #E91E63; color: white; border: none; border-radius: 12px; cursor: pointer; margin-top: 30px; box-shadow: 0 4px 15px rgba(233, 30, 99, 0.4); }
+
+        /* Empty State */
+        .empty-state { text-align: center; color: #555; font-size: 24px; margin-top: 100px; grid-column: 1 / -1; }
+    </style>
+</head>
+<body>
+
+    <!-- Overlay ปลดล็อคเสียง -->
+    <div id="soundUnlockOverlay">
+        <h1 style="color: #E91E63; margin-bottom: 10px;">🍳 ระบบหน้าจอห้องครัว (KDS)</h1>
+        <p style="color: #ccc; font-size: 18px;">กดปุ่มด้านล่างเพื่อเปิดรับออเดอร์และอนุญาตให้ระบบแจ้งเตือนด้วยเสียง</p>
+        <button onclick="startSystem()" class="start-btn">🔊 เริ่มทำงาน (เข้ากะ)</button>
+    </div>
+
+    <!-- Header -->
+    <div class="header">
+        <h2>🍳 KDS - ครัวกลาง</h2>
+        <div id="clockDisplay" class="clock">00:00:00</div>
+    </div>
+
+    <!-- Orders Grid -->
+    <div class="container">
+        <div id="orderGrid" class="grid">
+            <div class="empty-state">กำลังโหลดออเดอร์...</div>
+        </div>
+    </div>
+
+    <script>
+        const VENDOR_ID = localStorage.getItem('test_vendor_id') || prompt("กรุณาระบุ Vendor ID ของคุณ:");
+        if (VENDOR_ID) localStorage.setItem('test_vendor_id', VENDOR_ID);
+
+        const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
+        
+        let activeOrders = [];
+        let pollingTimer = null;
+        let audioContext = null;
+
+        // นาฬิกา
+        setInterval(() => {
+            document.getElementById('clockDisplay').innerText = new Date().toLocaleTimeString('th-TH');
+        }, 1000);
+
+        function startSystem() {
+            document.getElementById('soundUnlockOverlay').style.display = 'none';
+            
+            if (!audioContext) { audioContext = new (window.AudioContext || window.webkitAudioContext)(); }
+            if (audioContext.state === 'suspended') { audioContext.resume(); }
+            const osc = audioContext.createOscillator(); osc.connect(audioContext.destination); osc.start(); osc.stop(audioContext.currentTime + 0.01);
+            
+            fetchOrders();
+            pollingTimer = setInterval(fetchOrders, 3000); // อัปเดตทุก 3 วินาที
+        }
+
+        async function fetchOrders() {
+            try {
+                // ดึงออเดอร์ที่สถานะเป็น new (ใหม่) หรือ preparing (กำลังทำ) เท่านั้น
+                const { data: ordData, error } = await supabaseClient.from('table_orders')
+                    .select('*, restaurant_tables(table_name)')
+                    .eq('vendor_id', VENDOR_ID)
+                    .in('order_status', ['new', 'preparing'])
+                    .order('created_at', { ascending: true }); // เรียงตามเวลาเก่าสุดขึ้นก่อน (First In, First Out)
+                
+                if (error) throw error;
+
+                // เช็คออเดอร์ใหม่เพื่อเล่นเสียงเตือน (ร้องเฉพาะบิลใหม่)
+                if (ordData) {
+                    let hasNewOrder = false;
+                    ordData.forEach(order => {
+                        // ถ้าเจอออเดอร์ที่สถานะ new และยังไม่มีในระบบ (ไม่เคยร้องเตือน)
+                        const existingOrder = activeOrders.find(o => o.id === order.id);
+                        if (!existingOrder && order.order_status === 'new') {
+                            hasNewOrder = true;
+                        }
+                    });
+                    if (hasNewOrder) playAlertSound();
+                }
+                
+                activeOrders = ordData || [];
+                renderOrders();
+
+            } catch (err) {
+                console.error("Fetch Error:", err);
+            }
+        }
+
+        function playAlertSound() {
+            if (!audioContext) return;
+            if (audioContext.state === 'suspended') audioContext.resume();
+            
+            // เสียงเตือนครัวแบบเร่งด่วน (ตื้ดดดดด สั้นๆ 2 ที)
+            const playBeep = (startTime) => {
+                const osc = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(750, startTime);
+                
+                osc.connect(gain);
+                gain.connect(audioContext.destination);
+                
+                gain.gain.setValueAtTime(0.5, startTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.2);
+                
+                osc.start(startTime);
+                osc.stop(startTime + 0.2);
+            };
+
+            const now = audioContext.currentTime;
+            playBeep(now);
+            playBeep(now + 0.3);
+        }
+
+        function renderOrders() {
+            const container = document.getElementById('orderGrid');
+            
+            if (activeOrders.length === 0) { 
+                container.innerHTML = '<div class="empty-state">🎉 เยี่ยมมาก! ไม่มีออเดอร์ค้างในครัวเลย</div>'; 
+                return; 
+            }
+
+            let html = '';
+            activeOrders.forEach(order => {
+                const tableName = order.restaurant_tables ? order.restaurant_tables.table_name : '-';
+                const timeStr = new Date(order.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+                
+                // คำนวณเวลาที่รอ (นาที)
+                const waitTimeMin = Math.floor((new Date() - new Date(order.created_at)) / 60000);
+                const waitTimeDisplay = waitTimeMin > 0 ? `(รอ ${waitTimeMin} นาที)` : '(เพิ่งสั่ง)';
+                const timeColor = waitTimeMin > 15 ? 'color: #ff5252;' : ''; // ถ้ารอนานเกิน 15 นาที ให้เวลาเป็นสีแดง
+
+                let itemsHtml = '';
+                const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+                items.forEach(item => {
+                    let optStr = item.option ? `<span class="item-option">👉 ${item.option}</span>` : '';
+                    let noteStr = item.note ? `<span class="item-note">📝 ** ${item.note}</span>` : '';
+                    itemsHtml += `
+                    <div class="item-row">
+                        <div><span class="item-qty">${item.qty}x</span> <span class="item-name">${item.name}</span></div>
+                        ${optStr} ${noteStr}
+                    </div>`;
+                });
+
+                // กำหนดสถานะและปุ่ม
+                const isNew = order.order_status === 'new';
+                const cardClass = isNew ? 'status-new' : 'status-preparing';
+                
+                let actionBtn = '';
+                if (isNew) {
+                    actionBtn = `<button onclick="updateOrderStatus('${order.id}', 'preparing')" class="btn-large btn-start">🔥 เริ่มทำอาหาร</button>`;
+                } else {
+                    actionBtn = `<button onclick="updateOrderStatus('${order.id}', 'served')" class="btn-large btn-done">✅ ทำเสร็จแล้ว (ให้พนักงานเสิร์ฟ)</button>`;
+                }
+
+                html += `
+                <div class="ticket ${cardClass}">
+                    <div>
+                        <div class="ticket-header">
+                            <h3 class="table-name">โต๊ะ ${tableName}</h3>
+                            <div style="text-align: right;">
+                                <span class="order-time">⏰ ${timeStr}</span>
+                                <div style="font-size: 12px; margin-top: 4px; ${timeColor}">${waitTimeDisplay}</div>
+                            </div>
+                        </div>
+                        <div class="items-container">
+                            ${itemsHtml}
+                        </div>
+                    </div>
+                    <div>
+                        ${actionBtn}
+                    </div>
+                </div>`;
+            });
+
+            container.innerHTML = html;
+        }
+
+        async function updateOrderStatus(orderId, newStatus) {
+            try {
+                // กดแล้วอัปเดตหน้าจอตัวเองทันทีให้ดูไว
+                const orderIndex = activeOrders.findIndex(o => o.id === orderId);
+                if (orderIndex > -1) {
+                    activeOrders[orderIndex].order_status = newStatus;
+                    renderOrders();
+                }
+
+                // ส่งข้อมูลไปฐานข้อมูล
+                await supabaseClient.from('table_orders').update({ order_status: newStatus }).eq('id', orderId);
+                
+                // ดึงข้อมูลใหม่เพื่อความชัวร์
+                fetchOrders();
+
+            } catch (err) {
+                alert("เกิดข้อผิดพลาดในการอัปเดตสถานะ: " + err.message);
+            }
+        }
+    </script>
+</body>
+</html>
