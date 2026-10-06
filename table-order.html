@@ -49,6 +49,9 @@
         .btn-transfer { background: #00BCD4; color: white; }
         .btn-cash { background: #fff8e1; color: #FF9800; border: 1px solid #FF9800; }
         .btn-cancel { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; margin-top: 10px; }
+        
+        /* ปุ่มดาวน์โหลด QR */
+        .btn-download-qr { background: #f0f0f0; color: #333; border: 1px solid #ccc; padding: 10px 15px; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 15px; text-decoration: none; }
 
         /* Modal Options & Cart */
         .modal-overlay { display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 300; justify-content: center; align-items: flex-end; }
@@ -86,7 +89,7 @@
     <div id="orderingSection">
         <div class="ordering-toolbar">
             <div class="action-bar">
-                <button id="btnCallStaff" onclick="callStaff()" class="action-btn btn-call">🛎️ เรียกพนักงาน</button>
+                <button id="btnCallStaff" onclick="callStaff()" class="action-btn btn-call">🛎️️ เรียกพนักงาน</button>
                 <button onclick="requestBill()" class="action-btn btn-bill">🧾 รอจ่ายเงิน / เช็คบิล</button>
             </div>
             <div id="categoryTabs" class="category-scroll"></div>
@@ -109,16 +112,21 @@
             <h3 style="margin-top: 0; color: #00BCD4;">สแกนเพื่อชำระเงิน</h3>
             <p style="color: #666; font-size: 13px; margin-bottom: 15px;">ยอดชำระ: <b>฿<span id="qrAmountDisplay">0.00</span></b></p>
             
-            <img id="promptpayQrImage" src="" style="width: 200px; height: 200px; margin: 0 auto 15px auto; border: 1px solid #ddd; padding: 10px; border-radius: 8px; display: none;">
+            <img id="promptpayQrImage" src="" style="width: 200px; height: 200px; margin: 0 auto 10px auto; border: 1px solid #ddd; padding: 10px; border-radius: 8px; display: none;">
+            
+            <!-- [แก้ไข] เพิ่มปุ่มดาวน์โหลดภาพ QR -->
+            <a id="downloadQrBtn" href="#" download="promptpay-qr.png" class="btn-download-qr" style="display: none;">📥 บันทึกภาพ QR Code</a>
+
             <div id="bankInfoText" style="display: none; background: #f5f5f5; padding: 15px; border-radius: 8px; font-size: 14px; text-align: left; margin-bottom: 15px;"></div>
 
-            <div style="text-align: left; margin-top: 25px; background: #e0f7fa; padding: 15px; border-radius: 12px; border: 1px dashed #00BCD4;">
+            <div style="text-align: left; margin-top: 20px; background: #e0f7fa; padding: 15px; border-radius: 12px; border: 1px dashed #00BCD4;">
                 <p style="margin: 0 0 10px 0; color: #00838F; font-size: 14px; font-weight: bold; text-align: center;">กรุณาแนบสลิปโอนเงินที่นี่ ⬇️</p>
                 <input type="file" id="slipImageInput" accept="image/*" style="width: 100%; padding: 10px; border: 1px solid #00BCD4; border-radius: 8px; background: white; box-sizing: border-box;">
                 <button id="verifySlipBtn" onclick="verifyTableSlip()" style="width: 100%; padding: 15px; background: #06C755; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 16px; margin-top: 15px; cursor: pointer;">✅ ส่งสลิปโอนเงิน</button>
             </div>
             
-            <button onclick="hideWindow()" style="width: 100%; padding: 12px; background: transparent; color: #888; border: none; font-weight: bold; font-size: 14px; margin-top: 15px; cursor: pointer; text-decoration: underline;">ปิดหน้าต่าง</button>
+            <!-- [แก้ไข] เปลี่ยนเป็นปุ่มยกเลิกเพื่อให้ลูกค้ากลับไปหน้าเมนูได้ -->
+            <button onclick="cancelBillCustomer()" style="width: 100%; padding: 12px; background: transparent; color: #c62828; border: none; font-weight: bold; font-size: 14px; margin-top: 15px; cursor: pointer; text-decoration: underline;">❌ ยกเลิกการชำระเงิน (กลับไปสั่งอาหารต่อ)</button>
         </div>
 
     </div>
@@ -419,10 +427,6 @@
             document.getElementById('paymentSelectionModal').style.display = 'none'; 
         }
 
-        function hideWindow() { 
-            alert("สามารถสลับแอปไปโอนเงิน แล้วกลับมาหน้าเดิมเพื่อแนบสลิปได้เลยครับ"); 
-        }
-
         async function submitCheckbill(method) {
             closePaymentModal();
             const finalAmount = parseFloat(document.getElementById('checkbillAmountDisplay').innerText);
@@ -457,6 +461,7 @@
 
                 if (branchPayType === 'bank' || !branchPrompt) {
                     document.getElementById('promptpayQrImage').style.display = 'none'; 
+                    document.getElementById('downloadQrBtn').style.display = 'none';
                     document.getElementById('bankInfoText').style.display = 'block'; 
                     document.getElementById('bankInfoText').innerHTML = `<b>โอนเข้าบัญชี:</b><br>${branchBankInfo.replace(/\n/g, '<br>')}`;
                 } else {
@@ -464,8 +469,14 @@
                     const payload = generatePromptPayPayloadSafe(branchPrompt, finalAmount);
                     if (payload) { 
                         const qr = new QRious({ value: payload, size: 250, level: 'L' }); 
-                        document.getElementById('promptpayQrImage').src = qr.toDataURL(); 
+                        const dataUrl = qr.toDataURL();
+                        document.getElementById('promptpayQrImage').src = dataUrl; 
                         document.getElementById('promptpayQrImage').style.display = 'block'; 
+                        
+                        // อัปเดตลิงก์ให้ปุ่มดาวน์โหลด QR
+                        const downloadBtn = document.getElementById('downloadQrBtn');
+                        downloadBtn.href = dataUrl;
+                        downloadBtn.style.display = 'inline-flex';
                     }
                 }
             }
@@ -489,6 +500,12 @@
                 sessionData.session_status = 'open'; 
                 sessionData.payment_status = 'unpaid'; 
                 sessionData.payment_method = null; 
+                
+                // รีเซ็ตปุ่มตรวจสลิปและช่องใส่ไฟล์กลับมาเป็นเหมือนเดิม
+                document.getElementById('verifySlipBtn').innerText = "✅ ส่งสลิปโอนเงิน";
+                document.getElementById('verifySlipBtn').disabled = false;
+                document.getElementById('slipImageInput').value = "";
+                
                 renderUIBasedOnStatus();
             } catch (err) { 
                 alert("เกิดข้อผิดพลาด: " + err.message); 
