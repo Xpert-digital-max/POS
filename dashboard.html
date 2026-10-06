@@ -605,7 +605,6 @@
             let html = '';
             branchCount = 0; 
             
-            // [PHASE 2] เติมสาขาลงใน Dropdown ของหน้าสร้างโต๊ะ
             const tableBranchSelect = document.getElementById('newTableBranch');
             if (tableBranchSelect) {
                 let tbOpts = '<option value="">สาขาหลัก</option>';
@@ -615,6 +614,15 @@
 
             if (data && data.length > 0) {
                 branchCount = data.length;
+                
+                // เตรียม Options ของ Branch Plans ไว้ก่อน เผื่อต้องแสดงให้กดต่ออายุ
+                let branchPlanOptionsHtml = '';
+                if (CONFIG.branchPlans) {
+                    CONFIG.branchPlans.forEach(p => { 
+                        branchPlanOptionsHtml += `<option value="${p.id}" data-price="${p.price}" data-days="${p.days}">${p.name} - ฿${p.price}</option>`; 
+                    });
+                }
+
                 data.forEach(b => {
                     const customerLink = `${mainCustomerLink}&bid=${b.id}`;
                     const staffLink = `${staffBaseUrl}?bid=${b.id}`;
@@ -624,11 +632,45 @@
                     if (b.payment_type === 'bank') { branchPaymentInfo = `<span style="font-size:12px; color:#666;">🏦 รับเงินโอน: ${b.bank_info || 'ยังไม่ได้ระบุ'}</span>`; } 
                     else { branchPaymentInfo = `<span style="font-size:12px; color:#666;">📱 พร้อมเพย์: ${b.promptpay_number || b.promptpay || 'ยังไม่ได้ระบุ'}</span>`; }
 
+                    // [NEW] ส่วนของการจัดการอายุใช้งานสาขา (เฉพาะสาขาย่อย และโหมดร้านอาหารเปิดอยู่)
+                    let branchSubscriptionUI = '';
+                    if (b.branch_name !== 'สาขาหลัก' && vendorData.restaurant_mode_enabled === true) {
+                        let expStatus = 'ยังไม่ชำระเงิน';
+                        let expColor = '#e65100';
+                        if (b.subscription_expires_at) {
+                            const expDateObj = new Date(b.subscription_expires_at);
+                            if (expDateObj > new Date()) {
+                                expStatus = `ใช้งานได้ถึง ${expDateObj.toLocaleDateString('th-TH')}`;
+                                expColor = '#06C755';
+                            } else {
+                                expStatus = 'หมดอายุแล้ว';
+                                expColor = '#c62828';
+                            }
+                        }
+
+                        branchSubscriptionUI = `
+                            <div style="background:#f3e5f5; padding:10px; border-radius:6px; margin-bottom:10px; border: 1px dashed #ab47bc;">
+                                <label style="font-size:12px; font-weight:bold; color:#6a1b9a;">💳 3. ต่ออายุสาขาย่อย (Branch Add-on)</label>
+                                <p style="font-size:11px; margin: 3px 0 8px 0; color:#555;">สถานะ: <span style="font-weight:bold; color:${expColor};">${expStatus}</span></p>
+                                
+                                <div style="display:flex; flex-direction:column; gap:5px;">
+                                    <select id="branchPlanSelect_${b.id}" style="padding:6px; border:1px solid #ddd; border-radius:4px; font-size:12px;">
+                                        ${branchPlanOptionsHtml}
+                                    </select>
+                                    <button onclick="openBranchPaymentModal('${b.id}', '${b.branch_name}')" style="background:#6a1b9a; color:white; border:none; padding:8px 10px; border-radius:4px; font-size:12px; cursor:pointer; font-weight:bold;">
+                                        ชำระเงินต่ออายุสาขานี้
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }
+
                     html += `<div style="padding:15px; border-bottom:1px solid #f0f0f0; margin-bottom:10px; background:#fff; border-radius:8px; border: 1px solid #e1bee7;">
                         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 10px;">
                             <div><strong style="font-size:16px;">🏢 ${b.branch_name}</strong><br>${branchPaymentInfo}</div>
                             ${b.branch_name !== 'สาขาหลัก' ? `<button onclick="deleteBranch('${b.id}')" style="background:#ff4d4f; color:white; border:none; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;">ลบสาขา</button>` : `<span style="background:#e1bee7; color:#6a1b9a; padding:3px 8px; border-radius:12px; font-size:11px;">สาขาหลัก</span>`}
                         </div>
+                        
                         <div style="background:#f4fdf6; padding:10px; border-radius:6px; margin-bottom:10px; border: 1px dashed #00B900;">
                             <label style="font-size:12px; font-weight:bold; color:#00B900;">🍔 1. ช่องทางสั่งกลับบ้าน (Takeaway QR)</label>
                             <div style="display:flex; gap:5px; margin-top:5px;">
@@ -636,8 +678,9 @@
                                 <button onclick="showBranchQr('${customerLink}', '${b.branch_name}')" style="flex:1; background:#00BCD4; color:white; border:none; padding:8px; border-radius:4px; font-size:12px; cursor:pointer; font-weight:bold;">📷 โชว์ QR Code</button>
                             </div>
                         </div>
-                        <div style="background:#fff8e1; padding:10px; border-radius:6px; border: 1px dashed #ff9800;">
-                            <label style="font-size:12px; font-weight:bold; color:#e65100;">👨‍‍🍳 2. หน้ารับออเดอร์ของพนักงาน (Staff Access)</label>
+                        
+                        <div style="background:#fff8e1; padding:10px; border-radius:6px; margin-bottom:10px; border: 1px dashed #ff9800;">
+                            <label style="font-size:12px; font-weight:bold; color:#e65100;">👨‍🍳 2. หน้ารับออเดอร์ของพนักงาน (Staff Access)</label>
                             <p style="font-size:11px; margin: 3px 0 8px 0; color:#555;">สถานะ: ${isPasswordSet}</p>
                             <div style="display:flex; gap:5px;">
                                 <input type="password" id="pw_${b.id}" placeholder="ตั้งรหัสผ่านสาขา" style="flex:1; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:12px;">
@@ -647,6 +690,9 @@
                                 <button onclick="navigator.clipboard.writeText('${staffLink}'); alert('คัดลอกลิงก์ให้พนักงานสำเร็จ!');" style="flex:1; background:#fff; color:#ff9800; border:1px solid #ff9800; padding:8px; border-radius:4px; font-size:12px; cursor:pointer; font-weight:bold;">📋 คัดลอกลิงก์ให้พนักงาน</button>
                             </div>
                         </div>
+
+                        ${branchSubscriptionUI}
+                        
                     </div>`;
                 });
             }
