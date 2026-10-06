@@ -125,7 +125,7 @@
         </div>
     </div>
 
-    <!-- Modal จัดการโต๊ะ -->
+    <!-- Modal จัดการโต๊ะ (ดูออเดอร์ / เช็คบิล / ปิดโต๊ะ) -->
     <div id="tableModal" class="modal-overlay no-print">
         <div class="modal-content">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 15px;">
@@ -140,10 +140,19 @@
 
             <div id="modalBillArea">
                 <h4 style="margin: 0 0 10px 0; color: #555;">รายการอาหารที่สั่งทั้งหมด</h4>
-                <div id="modalOrderItems" style="max-height: 250px; overflow-y: auto; background: #fafafa; padding: 10px; border-radius: 8px; border: 1px solid #eee;"></div>
-                <div class="bill-total"><span>ยอดรวมสุทธิ:</span><span id="modalTotalAmount">฿0</span></div>
-                <div id="modalActionButtons" class="action-row"></div>
+                <div id="modalOrderItems" style="max-height: 250px; overflow-y: auto; background: #fafafa; padding: 10px; border-radius: 8px; border: 1px solid #eee;">
+                    <!-- รายการบิลจะมาอยู่ตรงนี้ -->
+                </div>
+                <div class="bill-total">
+                    <span>ยอดรวมสุทธิ:</span>
+                    <span id="modalTotalAmount">฿0</span>
+                </div>
+                
+                <div id="modalActionButtons" class="action-row">
+                    <!-- ปุ่ม Action จะแปรผันตามสถานะโต๊ะ -->
+                </div>
             </div>
+
             <button onclick="closeTableModal()" style="width: 100%; padding: 12px; margin-top: 15px; background: #eee; border: none; border-radius: 8px; font-weight: bold; color: #555; cursor: pointer;">ปิดหน้าต่าง</button>
         </div>
     </div>
@@ -151,13 +160,15 @@
     <script>
         const VENDOR_ID = localStorage.getItem('test_vendor_id') || prompt("กรุณาระบุ Vendor ID ของคุณ (เพื่อใช้ทดสอบ):");
         if (VENDOR_ID) localStorage.setItem('test_vendor_id', VENDOR_ID);
+        
+        const BRANCH_ID = null; 
 
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
         
         let tables = [];
         let activeSessions = [];
         let newOrders = [];
-        let printedOrderIds = JSON.parse(localStorage.getItem('printed_orders') || '[]'); // เก็บ ID ออเดอร์ที่พิมพ์ไปแล้ว
+        let printedOrderIds = JSON.parse(localStorage.getItem('printed_orders') || '[]'); 
         let serviceRequests = [];
         
         let currentViewingTable = null;
@@ -196,17 +207,14 @@
 
                 const { data: ordData } = await supabaseClient.from('table_orders').select('*, restaurant_tables(table_name)').eq('vendor_id', VENDOR_ID).in('order_status', ['new', 'preparing']).order('created_at');
                 
-                // ตรวจสอบออเดอร์ใหม่เพื่อแจ้งเตือนและ Auto-print
                 if (ordData) {
                     let hasNewAlert = false;
                     ordData.forEach(order => {
                         if (!newOrders.find(o => o.id === order.id)) {
                             hasNewAlert = true;
-                            // ถ้าระบบ Auto Print เปิดอยู่ และออเดอร์นี้ยังไม่เคยปริ้น ให้ปริ้นเลย
                             if (isAutoPrint && !printedOrderIds.includes(order.id)) {
                                 printKitchenTicket(encodeURIComponent(JSON.stringify(order)), false);
                                 printedOrderIds.push(order.id);
-                                // เก็บไว้แค่ 100 อันล่าสุดกันล้น
                                 if (printedOrderIds.length > 100) printedOrderIds.shift();
                                 localStorage.setItem('printed_orders', JSON.stringify(printedOrderIds));
                             }
@@ -302,17 +310,13 @@
         }
 
         async function markOrderServed(orderId) {
-            await supabaseClient.from('table_orders').update({ order_status: 'served' }).eq('id', orderId);
-            fetchData();
+            await supabaseClient.from('table_orders').update({ order_status: 'served' }).eq('id', orderId); fetchData();
         }
 
         async function cancelOrder(orderId, encodedOrder) {
             if(!confirm("ต้องการยกเลิกออเดอร์นี้ใช่หรือไม่? (ยอดเงินจะไม่ถูกนำไปรวมในบิล)")) return;
             await supabaseClient.from('table_orders').update({ order_status: 'cancelled' }).eq('id', orderId);
-            
-            // สั่งพิมพ์ใบยกเลิกเข้าครัว
-            printKitchenTicket(encodedOrder, true);
-            fetchData();
+            printKitchenTicket(encodedOrder, true); fetchData();
         }
 
         function printKitchenTicket(encodedOrder, isCancel) {
@@ -392,44 +396,51 @@
             renderModalActionButtons(totalAmt);
         }
 
+        // ---------- ตรงนี้คือส่วนที่อัปเดตให้มีปุ่มยกเลิกบิล ----------
         function renderModalActionButtons(totalAmt) {
             const actionDiv = document.getElementById('modalActionButtons');
             if (!currentViewingSession) return;
-            const sStat = currentViewingSession.session_status; const pStat = currentViewingSession.payment_status;
+
+            const sStat = currentViewingSession.session_status; 
+            const pStat = currentViewingSession.payment_status;
             
+            // ปุ่มยกเลิกบิล (ให้กลับไปสั่งอาหารต่อ)
+            const cancelBtn = `<button onclick="cancelBill()" class="btn-large" style="background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; flex: 0.5;">❌ ยกเลิก</button>`;
+
             // รอเช็คบิล: ลูกค้ายังไม่เลือกวิธีจ่าย
             if (sStat === 'billing_requested' || pStat === 'unpaid') {
-                actionDiv.innerHTML = `<button onclick="printCustomerBill(${totalAmt})" class="btn-large" style="background: #2196F3; color: white;">🖨 พิมพ์บิลเช็คยอด</button>`;
-            }
+                actionDiv.innerHTML = `${cancelBtn} <button onclick="printCustomerBill(${totalAmt})" class="btn-large" style="background: #2196F3; color: white;">🖨 พิมพ์บิลเช็คยอด</button>`;
+            } 
             // ขอจ่ายเงินสด: แสดงปุ่มรับเงินสด
             else if (pStat === 'cash_requested') {
                 actionDiv.innerHTML = `
-                    <button onclick="closeTableSession('paid_cash')" class="btn-large" style="background: #06C755; color: white;">💵 รับเงินสดแล้ว (ปิดโต๊ะ)</button>
-                    <button onclick="printCustomerBill(${totalAmt})" class="btn-large" style="background: #2196F3; color: white;">🖨 พิมพ์บิลไปเก็บเงิน</button>
+                    ${cancelBtn}
+                    <button onclick="printCustomerBill(${totalAmt})" class="btn-large" style="background: #2196F3; color: white; flex: 0.5;">🖨 พิมพ์บิล</button>
+                    <button onclick="closeTableSession('paid_cash')" class="btn-large" style="background: #06C755; color: white;">💵 จ่ายแล้ว (ปิดโต๊ะ)</button>
                 `;
             }
             // โอนเงินสำเร็จแล้ว
             else if (pStat === 'verified' || pStat === 'verified_manual') {
                 actionDiv.innerHTML = `<button onclick="closeTableSession('${pStat}')" class="btn-large" style="background: #06C755; color: white;">✅ โอนสำเร็จ (ปิดโต๊ะ)</button>`;
             }
-            // ตรวจสลิป Manual
-            else if (pStat === 'pending_review' || pStat === 'waiting_transfer') {
+            // ตรวจสลิป Manual หรือกำลังโอน
+            else if (pStat === 'pending_review' || pStat === 'waiting_transfer' || (sStat === 'payment_pending' && currentViewingSession.payment_method === 'transfer')) {
                 actionDiv.innerHTML = `
-                    <button onclick="confirmManualTransfer()" class="btn-large" style="background: #06C755; color: white;">✅ ตรวจสอบสลิปผ่าน (ปิดโต๊ะ)</button>
-                    <button onclick="cancelBill()" class="btn-large" style="background: #eee; color: #333;">❌ ยกเลิกบิล</button>
+                    ${cancelBtn}
+                    <button onclick="confirmManualTransfer()" class="btn-large" style="background: #06C755; color: white;">✅ ตรวจผ่าน (ปิดโต๊ะ)</button>
                 `;
             }
             // โต๊ะปกติที่กำลังกินอยู่
             else {
-                actionDiv.innerHTML = `<button onclick="printCustomerBill(${totalAmt})" class="btn-large" style="background: #2196F3; color: white;">🖨 พิมพ์บิลสรุปยอด</button>`;
+                actionDiv.innerHTML = `<button onclick="printCustomerBill(${totalAmt})" class="btn-large" style="background: #2196F3; color: white;">🖨 พิมพ์สรุปยอด</button>`;
             }
         }
 
         async function acceptServiceRequest(reqId) { await supabaseClient.from('table_service_requests').update({ status: 'completed' }).eq('id', reqId); fetchData(); }
         
         async function cancelBill() {
-            if(!confirm("ต้องการยกเลิกบิล และเปิดให้ลูกค้าสั่งอาหาร/เลือกวิธีจ่ายใหม่ใช่หรือไม่?")) return;
-            await supabaseClient.from('table_sessions').update({ session_status: 'open', payment_status: 'unpaid' }).eq('id', currentViewingSession.id); fetchData();
+            if(!confirm("ต้องการยกเลิกการเรียกเก็บเงิน และเปิดให้ลูกค้าสั่งอาหารต่อใช่หรือไม่?")) return;
+            await supabaseClient.from('table_sessions').update({ session_status: 'open', payment_status: 'unpaid', payment_method: null }).eq('id', currentViewingSession.id); fetchData();
         }
 
         async function confirmManualTransfer() {
@@ -447,7 +458,7 @@
         function printCustomerBill(totalAmt) {
             const tableName = currentViewingTable.table_name; const time = new Date().toLocaleTimeString('th-TH');
             const printDiv = document.getElementById('printArea'); const itemsContainer = document.querySelector('#modalBillArea > div:nth-child(2)').innerHTML;
-            printDiv.innerHTML = `<div class="print-ticket"><div class="print-header"><h2 style="margin: 0; font-size: 20px;">ใบสรุปยอดอาหาร</h2><div class="print-table-name">โต๊ะ ${tableName}</div><div>เวลา: ${time}</div></div><div style="margin-top: 10px; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px;">${itemsContainer}</div><div class="print-total">ยอดรวมสุทธิ: ฿${totalAmt}</div><div style="text-align: center; margin-top: 20px; font-size: 12px;">ขอบคุณที่ใช้บริการ</div></div>`;
+            printDiv.innerHTML = `<div class="print-ticket"><div class="print-header"><h2 style="margin: 0; font-size: 20px;">ใบสรุปยอดอาหาร (Check Bill)</h2><div class="print-table-name">โต๊ะ ${tableName}</div><div>เวลา: ${time}</div></div><div style="margin-top: 10px; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px;">${itemsContainer}</div><div class="print-total">ยอดรวมสุทธิ: ฿${totalAmt}</div><div style="text-align: center; margin-top: 20px; font-size: 12px;">ขอบคุณที่ใช้บริการ</div></div>`;
             setTimeout(() => { window.print(); }, 200);
         }
     </script>
