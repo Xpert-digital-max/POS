@@ -41,14 +41,22 @@
         .ticket-btn { flex: 1; padding: 8px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
         .btn-print { background: #eee; color: #333; }
         .btn-accept { background: #06C755; color: white; }
+        .btn-cancel { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
+
+        /* Toggle Button */
+        .toggle-container { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; padding: 10px; background: #e8f5e9; border-radius: 8px; border: 1px dashed #06C755; }
+        .switch { position: relative; display: inline-block; width: 50px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #06C755; }
+        input:checked + .slider:before { transform: translateX(26px); }
 
         /* Modal Table Details (เช็คบิล) */
         .modal-overlay { display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 300; justify-content: center; align-items: center; }
         .modal-content { background: white; width: 90%; max-width: 500px; border-radius: 12px; padding: 20px; box-sizing: border-box; max-height: 90vh; overflow-y: auto; }
-        
         .bill-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; border-bottom: 1px dashed #eee; padding-bottom: 8px; }
         .bill-total { display: flex; justify-content: space-between; font-size: 20px; font-weight: bold; color: #E91E63; margin-top: 15px; border-top: 2px solid #333; padding-top: 15px; }
-        
         .action-row { display: flex; gap: 10px; margin-top: 20px; }
         .btn-large { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer; }
 
@@ -73,11 +81,10 @@
 </head>
 <body>
 
-    <!-- Overlay ปลดล็อคเสียง -->
     <div id="soundUnlockOverlay">
         <h1 style="margin-bottom: 10px;">👨‍🍳 ระบบพนักงานร้านอาหาร</h1>
-        <p style="color: #b3e5fc; max-width: 400px; line-height: 1.5;">เบราว์เซอร์จำเป็นต้องให้คุณกดยืนยันหนึ่งครั้ง เพื่ออนุญาตให้ระบบเล่นเสียงแจ้งเตือน "เรียกพนักงาน" และ "ออเดอร์เข้าใหม่" ได้</p>
-        <button onclick="startSystem()" style="padding: 15px 40px; font-size: 18px; font-weight: bold; background: #06C755; color: white; border: none; border-radius: 8px; cursor: pointer; margin-top: 30px; box-shadow: 0 4px 10px rgba(6, 199, 85, 0.4);">🔊 คลิกเพื่อเปิดระบบและเปิดเสียง</button>
+        <p style="color: #b3e5fc; max-width: 400px; line-height: 1.5;">กดปุ่มด้านล่างเพื่อเปิดระบบรับออเดอร์และอนุญาตให้แจ้งเตือนด้วยเสียง</p>
+        <button onclick="startSystem()" style="padding: 15px 40px; font-size: 18px; font-weight: bold; background: #06C755; color: white; border: none; border-radius: 8px; cursor: pointer; margin-top: 30px; box-shadow: 0 4px 10px rgba(6, 199, 85, 0.4);">🔊 เริ่มการทำงาน</button>
     </div>
 
     <!-- พื้นที่สำหรับพิมพ์ -->
@@ -100,13 +107,25 @@
         <!-- Order Queue -->
         <div class="order-queue">
             <h3 style="margin-top: 0; color: #E91E63; border-bottom: 2px solid #fce4ec; padding-bottom: 10px;">คิวอาหารที่ต้องทำ / รอเสิร์ฟ</h3>
+            
+            <div class="toggle-container">
+                <label class="switch">
+                    <input type="checkbox" id="autoPrintToggle" onchange="toggleAutoPrint()">
+                    <span class="slider"></span>
+                </label>
+                <div style="font-size: 13px; color: #333;">
+                    <strong style="display: block;">🖨️ พิมพ์ใบเข้าครัวอัตโนมัติ</strong>
+                    <span style="color: #666;">(ไม่ต้องกดพิมพ์เองเมื่อมีออเดอร์ใหม่)</span>
+                </div>
+            </div>
+
             <div id="orderTicketList">
                 <p style="color: #888; text-align: center; margin-top: 50px;">ไม่มีออเดอร์ค้าง...</p>
             </div>
         </div>
     </div>
 
-    <!-- Modal จัดการโต๊ะ (ดูออเดอร์ / เช็คบิล / ปิดโต๊ะ) -->
+    <!-- Modal จัดการโต๊ะ -->
     <div id="tableModal" class="modal-overlay no-print">
         <div class="modal-content">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 15px;">
@@ -121,19 +140,10 @@
 
             <div id="modalBillArea">
                 <h4 style="margin: 0 0 10px 0; color: #555;">รายการอาหารที่สั่งทั้งหมด</h4>
-                <div id="modalOrderItems" style="max-height: 250px; overflow-y: auto; background: #fafafa; padding: 10px; border-radius: 8px; border: 1px solid #eee;">
-                    <!-- รายการบิลจะมาอยู่ตรงนี้ -->
-                </div>
-                <div class="bill-total">
-                    <span>ยอดรวมสุทธิ:</span>
-                    <span id="modalTotalAmount">฿0</span>
-                </div>
-                
-                <div id="modalActionButtons" class="action-row">
-                    <!-- ปุ่ม Action จะแปรผันตามสถานะโต๊ะ -->
-                </div>
+                <div id="modalOrderItems" style="max-height: 250px; overflow-y: auto; background: #fafafa; padding: 10px; border-radius: 8px; border: 1px solid #eee;"></div>
+                <div class="bill-total"><span>ยอดรวมสุทธิ:</span><span id="modalTotalAmount">฿0</span></div>
+                <div id="modalActionButtons" class="action-row"></div>
             </div>
-
             <button onclick="closeTableModal()" style="width: 100%; padding: 12px; margin-top: 15px; background: #eee; border: none; border-radius: 8px; font-weight: bold; color: #555; cursor: pointer;">ปิดหน้าต่าง</button>
         </div>
     </div>
@@ -141,14 +151,13 @@
     <script>
         const VENDOR_ID = localStorage.getItem('test_vendor_id') || prompt("กรุณาระบุ Vendor ID ของคุณ (เพื่อใช้ทดสอบ):");
         if (VENDOR_ID) localStorage.setItem('test_vendor_id', VENDOR_ID);
-        
-        const BRANCH_ID = null; 
 
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
         
         let tables = [];
         let activeSessions = [];
         let newOrders = [];
+        let printedOrderIds = JSON.parse(localStorage.getItem('printed_orders') || '[]'); // เก็บ ID ออเดอร์ที่พิมพ์ไปแล้ว
         let serviceRequests = [];
         
         let currentViewingTable = null;
@@ -156,49 +165,57 @@
         
         let pollingTimer = null;
         let audioContext = null;
+        let isAutoPrint = localStorage.getItem('auto_print_kitchen') === 'true';
 
-        // ฟังก์ชันปลดล็อคเสียงและเริ่มระบบ
         function startSystem() {
             document.getElementById('soundUnlockOverlay').style.display = 'none';
             document.getElementById('loginInfo').innerText = `Vendor ID: ${VENDOR_ID.substring(0,8)}...`;
             
-            // เตรียม Audio Context
-            if (!audioContext) {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (audioContext.state === 'suspended') {
-                audioContext.resume();
-            }
+            document.getElementById('autoPrintToggle').checked = isAutoPrint;
+
+            if (!audioContext) { audioContext = new (window.AudioContext || window.webkitAudioContext)(); }
+            if (audioContext.state === 'suspended') { audioContext.resume(); }
+            const osc = audioContext.createOscillator(); osc.connect(audioContext.destination); osc.start(); osc.stop(audioContext.currentTime + 0.01);
             
-            // เล่นเสียงความถี่ต่ำและสั้นมากๆ เพื่อหลอกเบราว์เซอร์ว่ามีการโต้ตอบเสียงแล้ว
-            const osc = audioContext.createOscillator();
-            osc.connect(audioContext.destination);
-            osc.start();
-            osc.stop(audioContext.currentTime + 0.01);
-            
-            // เริ่มดึงข้อมูล
             fetchData();
             pollingTimer = setInterval(fetchData, 3000);
         }
 
+        function toggleAutoPrint() {
+            isAutoPrint = document.getElementById('autoPrintToggle').checked;
+            localStorage.setItem('auto_print_kitchen', isAutoPrint);
+        }
+
         async function fetchData() {
             try {
-                // 1. โหลดข้อมูลโต๊ะ
                 const { data: tbData } = await supabaseClient.from('restaurant_tables').select('*').eq('vendor_id', VENDOR_ID).eq('is_active', true).order('table_name');
                 tables = tbData || [];
 
-                // 2. โหลด Session ที่เปิดอยู่
                 const { data: sessData } = await supabaseClient.from('table_sessions').select('*').eq('vendor_id', VENDOR_ID).neq('session_status', 'closed').neq('session_status', 'cancelled');
                 activeSessions = sessData || [];
 
-                // 3. โหลดออเดอร์อาหารที่ค้างอยู่ (ดึงทั้งสถานะ new และ preparing เพื่อนำมาโชว์ในแถบขวา)
                 const { data: ordData } = await supabaseClient.from('table_orders').select('*, restaurant_tables(table_name)').eq('vendor_id', VENDOR_ID).in('order_status', ['new', 'preparing']).order('created_at');
                 
-                // เช็คว่ามีออเดอร์ใหม่เข้ามาเพิ่มหรือไม่ (เช็คจากความยาวที่เปลี่ยนไป หรือ ID ที่ไม่เคยเจอ)
-                if (ordData && newOrders.length < ordData.length) { playAlertSound('order'); }
+                // ตรวจสอบออเดอร์ใหม่เพื่อแจ้งเตือนและ Auto-print
+                if (ordData) {
+                    let hasNewAlert = false;
+                    ordData.forEach(order => {
+                        if (!newOrders.find(o => o.id === order.id)) {
+                            hasNewAlert = true;
+                            // ถ้าระบบ Auto Print เปิดอยู่ และออเดอร์นี้ยังไม่เคยปริ้น ให้ปริ้นเลย
+                            if (isAutoPrint && !printedOrderIds.includes(order.id)) {
+                                printKitchenTicket(encodeURIComponent(JSON.stringify(order)), false);
+                                printedOrderIds.push(order.id);
+                                // เก็บไว้แค่ 100 อันล่าสุดกันล้น
+                                if (printedOrderIds.length > 100) printedOrderIds.shift();
+                                localStorage.setItem('printed_orders', JSON.stringify(printedOrderIds));
+                            }
+                        }
+                    });
+                    if (hasNewAlert) playAlertSound('order');
+                }
                 newOrders = ordData || [];
 
-                // 4. โหลดการเรียกพนักงาน (status = pending)
                 const { data: reqData } = await supabaseClient.from('table_service_requests').select('*, restaurant_tables(table_name)').eq('vendor_id', VENDOR_ID).eq('status', 'pending');
                 if (reqData && serviceRequests.length < reqData.length) { playAlertSound('call'); }
                 serviceRequests = reqData || [];
@@ -206,38 +223,26 @@
                 renderTableBoard();
                 renderOrderQueue();
                 
-                // ถ้าเปิด Modal โต๊ะค้างอยู่ ให้รีเฟรชยอดเงิน/ข้อมูลใน Modal ด้วย
-                if (currentViewingTable) {
-                    refreshModalData();
-                }
-            } catch (err) {
-                console.error("Fetch Data Error:", err);
-            }
+                if (currentViewingTable) refreshModalData();
+            } catch (err) { console.error("Fetch Data Error:", err); }
         }
 
         function playAlertSound(type) {
             if (!audioContext) return;
             if (audioContext.state === 'suspended') audioContext.resume();
-
-            const osc = audioContext.createOscillator();
-            const gain = audioContext.createGain();
-            osc.connect(gain); gain.connect(audioContext.destination);
+            const osc = audioContext.createOscillator(); const gain = audioContext.createGain(); osc.connect(gain); gain.connect(audioContext.destination);
             
             if (type === 'call') {
-                // เสียงเรียกพนักงาน (แหลมและยาวกว่า)
-                osc.type = 'triangle'; osc.frequency.setValueAtTime(600, audioContext.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(800, audioContext.currentTime + 0.5);
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(600, audioContext.currentTime); osc.frequency.exponentialRampToValueAtTime(800, audioContext.currentTime + 0.5);
                 gain.gain.setValueAtTime(0.8, audioContext.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 1);
                 osc.start(); osc.stop(audioContext.currentTime + 1);
             } else {
-                // เสียงออเดอร์ใหม่ (นุ่มและสั้น)
                 osc.type = 'sine'; osc.frequency.setValueAtTime(880, audioContext.currentTime);
                 gain.gain.setValueAtTime(0.6, audioContext.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
                 osc.start(); osc.stop(audioContext.currentTime + 0.3);
             }
         }
 
-        // ==================== Render ผังโต๊ะ ====================
         function renderTableBoard() {
             const container = document.getElementById('tableGrid');
             if (tables.length === 0) { container.innerHTML = '<p>ไม่มีข้อมูลโต๊ะในระบบ</p>'; return; }
@@ -247,31 +252,20 @@
                 const session = activeSessions.find(s => s.table_id === table.id);
                 const req = serviceRequests.find(r => r.table_id === table.id);
                 
-                let cardClass = 'status-available';
-                let statusText = 'ว่าง';
-
+                let cardClass = 'status-available'; let statusText = 'ว่าง';
                 if (session) {
-                    if (req) {
-                        cardClass = 'status-calling'; statusText = '🛎️ เรียกพนักงาน';
-                    } else if (session.session_status === 'billing_requested') {
-                        cardClass = 'status-billing'; statusText = '🧾 ขอเช็คบิล';
-                    } else if (session.session_status === 'payment_pending') {
-                        cardClass = 'status-billing'; statusText = '⏳ รอชำระเงิน';
-                    } else {
-                        cardClass = 'status-dining'; statusText = '🍽️ กำลังทาน';
-                    }
+                    if (req) { cardClass = 'status-calling'; statusText = '🛎️ เรียกพนักงาน'; } 
+                    else if (session.session_status === 'billing_requested') { cardClass = 'status-billing'; statusText = '🧾 ขอเช็คบิล'; } 
+                    else if (session.payment_status === 'cash_requested') { cardClass = 'status-billing'; statusText = '💵 รอเก็บเงินสด'; } 
+                    else if (session.payment_status === 'waiting_transfer' || session.payment_status === 'pending_review') { cardClass = 'status-billing'; statusText = '⏳ รอตรวจสลิปโอน'; } 
+                    else if (session.session_status === 'payment_pending') { cardClass = 'status-billing'; statusText = 'กำลังชำระเงิน'; } 
+                    else { cardClass = 'status-dining'; statusText = '🍽️ กำลังทาน'; }
                 }
-
-                html += `
-                <div class="table-card ${cardClass}" onclick="openTableModal('${table.id}')">
-                    <h3>${table.table_name}</h3>
-                    <div class="table-status">${statusText}</div>
-                </div>`;
+                html += `<div class="table-card ${cardClass}" onclick="openTableModal('${table.id}')"><h3>${table.table_name}</h3><div class="table-status">${statusText}</div></div>`;
             });
             container.innerHTML = html;
         }
 
-        // ==================== Render คิวอาหารเข้าครัว ====================
         function renderOrderQueue() {
             const container = document.getElementById('orderTicketList');
             if (newOrders.length === 0) { container.innerHTML = '<p style="color: #888; text-align: center; margin-top: 50px;">ไม่มีออเดอร์ค้าง...</p>'; return; }
@@ -288,7 +282,6 @@
                     let noteStr = item.note ? `<br><small style="color:#ff4d4f;">* ${item.note}</small>` : '';
                     itemsHtml += `<div class="ticket-item"><b>${item.qty}x</b> <span>${item.name} ${optStr} ${noteStr}</span></div>`;
                 });
-
                 const safeOrderData = encodeURIComponent(JSON.stringify(order));
 
                 html += `
@@ -299,22 +292,30 @@
                     </div>
                     <div>${itemsHtml}</div>
                     <div class="ticket-actions">
-                        <button class="ticket-btn btn-print" onclick="printKitchenTicket('${safeOrderData}')">🖨 พิมพ์ใบเข้าครัว</button>
-                        <!-- เปลี่ยนปุ่มเป็นเสิร์ฟแล้ว เพื่อตัดยอดออกจากหน้าจอ -->
-                        <button class="ticket-btn btn-accept" onclick="markOrderServed('${order.id}')">✅ เสิร์ฟแล้ว / ปิดรายการ</button>
+                        <button class="ticket-btn btn-print" onclick="printKitchenTicket('${safeOrderData}', false)">🖨 พิมพ์</button>
+                        <button class="ticket-btn btn-cancel" onclick="cancelOrder('${order.id}', '${safeOrderData}')">❌ ยกเลิก</button>
+                        <button class="ticket-btn btn-accept" onclick="markOrderServed('${order.id}')">✅ เสิร์ฟแล้ว</button>
                     </div>
                 </div>`;
             });
             container.innerHTML = html;
         }
 
-        // เมื่อกดเสิร์ฟแล้ว อัปเดตสถานะเป็น served (รายการจะหายไปจากฝั่งขวาอัตโนมัติในการดึงข้อมูลรอบหน้า)
         async function markOrderServed(orderId) {
             await supabaseClient.from('table_orders').update({ order_status: 'served' }).eq('id', orderId);
             fetchData();
         }
 
-        function printKitchenTicket(encodedOrder) {
+        async function cancelOrder(orderId, encodedOrder) {
+            if(!confirm("ต้องการยกเลิกออเดอร์นี้ใช่หรือไม่? (ยอดเงินจะไม่ถูกนำไปรวมในบิล)")) return;
+            await supabaseClient.from('table_orders').update({ order_status: 'cancelled' }).eq('id', orderId);
+            
+            // สั่งพิมพ์ใบยกเลิกเข้าครัว
+            printKitchenTicket(encodedOrder, true);
+            fetchData();
+        }
+
+        function printKitchenTicket(encodedOrder, isCancel) {
             const order = JSON.parse(decodeURIComponent(encodedOrder));
             const tableName = order.restaurant_tables ? order.restaurant_tables.table_name : '-';
             const time = new Date(order.created_at).toLocaleTimeString('th-TH');
@@ -332,16 +333,16 @@
                 </div>`;
             });
 
+            const title = isCancel ? `<div style="font-size: 20px; font-weight: bold; color: #000; text-align: center; border: 3px solid #000; padding: 5px; margin-bottom: 10px;">❌ ยกเลิกออเดอร์ ❌</div>` : `<div style="font-size: 16px;">=== ใบสั่งอาหารเข้าครัว ===</div>`;
+
             printDiv.innerHTML = `
                 <div class="print-ticket">
                     <div class="print-header">
-                        <div style="font-size: 16px;">=== ใบสั่งอาหารเข้าครัว ===</div>
+                        ${title}
                         <div class="print-table-name">โต๊ะ ${tableName}</div>
                         <div>เวลาสั่ง: ${time}</div>
                     </div>
-                    <div style="margin-top: 10px;">
-                        ${itemsHtml}
-                    </div>
+                    <div style="margin-top: 10px;">${itemsHtml}</div>
                     <div style="text-align: center; margin-top: 20px; font-size: 12px;">---------- จบรายการ ----------</div>
                 </div>
             `;
@@ -350,16 +351,9 @@
 
         // ==================== Modal จัดการโต๊ะ ====================
         async function openTableModal(tableId) {
-            currentViewingTable = tables.find(t => t.id === tableId);
-            document.getElementById('tableModal').style.display = 'flex';
-            await refreshModalData();
+            currentViewingTable = tables.find(t => t.id === tableId); document.getElementById('tableModal').style.display = 'flex'; await refreshModalData();
         }
-
-        function closeTableModal() {
-            document.getElementById('tableModal').style.display = 'none';
-            currentViewingTable = null;
-            currentViewingSession = null;
-        }
+        function closeTableModal() { document.getElementById('tableModal').style.display = 'none'; currentViewingTable = null; currentViewingSession = null; }
 
         async function refreshModalData() {
             if (!currentViewingTable) return;
@@ -368,144 +362,94 @@
             currentViewingSession = activeSessions.find(s => s.table_id === currentViewingTable.id);
             const req = serviceRequests.find(r => r.table_id === currentViewingTable.id);
 
-            const reqArea = document.getElementById('modalServiceReqArea');
-            const billArea = document.getElementById('modalBillArea');
-            
-            if (req) {
-                reqArea.style.display = 'block';
-                document.getElementById('btnAcceptService').setAttribute('onclick', `acceptServiceRequest('${req.id}')`);
-            } else {
-                reqArea.style.display = 'none';
-            }
+            const reqArea = document.getElementById('modalServiceReqArea'); const billArea = document.getElementById('modalBillArea');
+            if (req) { reqArea.style.display = 'block'; document.getElementById('btnAcceptService').setAttribute('onclick', `acceptServiceRequest('${req.id}')`); } else { reqArea.style.display = 'none'; }
 
             if (!currentViewingSession) {
-                document.getElementById('modalTableStatus').innerText = "โต๊ะว่าง";
-                document.getElementById('modalTableStatus').style.color = "#888";
-                billArea.innerHTML = '<p style="text-align: center; color: #888;">ยังไม่มีการเปิดโต๊ะ</p>';
-                return;
+                document.getElementById('modalTableStatus').innerText = "โต๊ะว่าง"; document.getElementById('modalTableStatus').style.color = "#888";
+                billArea.innerHTML = '<p style="text-align: center; color: #888;">ยังไม่มีการเปิดโต๊ะ</p>'; return;
             }
 
-            // โหลด Order "ทั้งหมด" ของโต๊ะนี้ (รวมที่เสิร์ฟไปแล้ว) เพื่อมาคำนวณบิล
             const { data: orders } = await supabaseClient.from('table_orders').select('*').eq('table_session_id', currentViewingSession.id).neq('order_status', 'cancelled');
             
             let statusTxt = "กำลังทาน"; let statusColor = "#06C755";
             if (currentViewingSession.session_status === 'billing_requested') { statusTxt = "ขอเช็คบิล"; statusColor = "#E91E63"; }
-            else if (currentViewingSession.session_status === 'payment_pending') { statusTxt = "รอชำระเงิน"; statusColor = "#FF9800"; }
-            document.getElementById('modalTableStatus').innerText = statusTxt;
-            document.getElementById('modalTableStatus').style.color = statusColor;
+            else if (currentViewingSession.payment_status === 'cash_requested') { statusTxt = "รอเก็บเงินสด"; statusColor = "#FF9800"; }
+            else if (currentViewingSession.payment_status === 'waiting_transfer' || currentViewingSession.payment_status === 'pending_review') { statusTxt = "รอตรวจสลิป"; statusColor = "#2196F3"; }
+            else if (currentViewingSession.payment_status === 'verified') { statusTxt = "ชำระเงินเรียบร้อย"; statusColor = "#06C755"; }
+            else if (currentViewingSession.session_status === 'payment_pending') { statusTxt = "กำลังชำระเงิน"; statusColor = "#FF9800"; }
+            document.getElementById('modalTableStatus').innerText = statusTxt; document.getElementById('modalTableStatus').style.color = statusColor;
 
-            let totalAmt = 0;
-            let itemsHtml = '';
-            
+            let totalAmt = 0; let itemsHtml = '';
             if (orders && orders.length > 0) {
                 orders.forEach(order => {
                     const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
-                    items.forEach(item => {
-                        const rowTotal = item.price * item.qty;
-                        totalAmt += rowTotal;
-                        itemsHtml += `<div class="bill-row"><span>${item.qty}x ${item.name}</span><span>฿${rowTotal}</span></div>`;
-                    });
+                    items.forEach(item => { const rowTotal = item.price * item.qty; totalAmt += rowTotal; itemsHtml += `<div class="bill-row"><span>${item.qty}x ${item.name}</span><span>฿${rowTotal}</span></div>`; });
                 });
-            } else {
-                itemsHtml = '<p style="color: #888; font-size: 13px;">ยังไม่มีการสั่งอาหาร</p>';
-            }
+            } else { itemsHtml = '<p style="color: #888; font-size: 13px;">ยังไม่มีการสั่งอาหาร</p>'; }
 
-            billArea.innerHTML = `
-                <h4 style="margin: 0 0 10px 0; color: #555;">รายการอาหารที่สั่งทั้งหมด</h4>
-                <div style="max-height: 250px; overflow-y: auto; background: #fafafa; padding: 10px; border-radius: 8px; border: 1px solid #eee;">
-                    ${itemsHtml}
-                </div>
-                <div class="bill-total"><span>ยอดรวมสุทธิ:</span><span>฿${totalAmt}</span></div>
-                <div id="modalActionButtons" class="action-row"></div>
-            `;
-
+            billArea.innerHTML = `<h4 style="margin: 0 0 10px 0; color: #555;">รายการอาหารที่สั่งทั้งหมด</h4><div style="max-height: 250px; overflow-y: auto; background: #fafafa; padding: 10px; border-radius: 8px; border: 1px solid #eee;">${itemsHtml}</div><div class="bill-total"><span>ยอดรวมสุทธิ:</span><span>฿${totalAmt}</span></div><div id="modalActionButtons" class="action-row"></div>`;
             renderModalActionButtons(totalAmt);
         }
 
         function renderModalActionButtons(totalAmt) {
             const actionDiv = document.getElementById('modalActionButtons');
             if (!currentViewingSession) return;
-
-            const sStatus = currentViewingSession.session_status;
+            const sStat = currentViewingSession.session_status; const pStat = currentViewingSession.payment_status;
             
-            if (sStatus === 'open') {
+            // รอเช็คบิล: ลูกค้ายังไม่เลือกวิธีจ่าย
+            if (sStat === 'billing_requested' || pStat === 'unpaid') {
                 actionDiv.innerHTML = `<button onclick="printCustomerBill(${totalAmt})" class="btn-large" style="background: #2196F3; color: white;">🖨 พิมพ์บิลเช็คยอด</button>`;
-            } 
-            else if (sStatus === 'billing_requested') {
+            }
+            // ขอจ่ายเงินสด: แสดงปุ่มรับเงินสด
+            else if (pStat === 'cash_requested') {
                 actionDiv.innerHTML = `
-                    <button onclick="confirmBill(${totalAmt})" class="btn-large" style="background: #E91E63; color: white;">✅ ยืนยันยอดบิล (Freeze)</button>
+                    <button onclick="closeTableSession('paid_cash')" class="btn-large" style="background: #06C755; color: white;">💵 รับเงินสดแล้ว (ปิดโต๊ะ)</button>
                     <button onclick="printCustomerBill(${totalAmt})" class="btn-large" style="background: #2196F3; color: white;">🖨 พิมพ์บิลไปเก็บเงิน</button>
                 `;
             }
-            else if (sStatus === 'payment_pending') {
+            // โอนเงินสำเร็จแล้ว
+            else if (pStat === 'verified' || pStat === 'verified_manual') {
+                actionDiv.innerHTML = `<button onclick="closeTableSession('${pStat}')" class="btn-large" style="background: #06C755; color: white;">✅ โอนสำเร็จ (ปิดโต๊ะ)</button>`;
+            }
+            // ตรวจสลิป Manual
+            else if (pStat === 'pending_review' || pStat === 'waiting_transfer') {
                 actionDiv.innerHTML = `
-                    <button onclick="cancelBill()" class="btn-large" style="background: #eee; color: #333; flex: 0.5;">ยกเลิกบิล</button>
-                    <button onclick="closeTableSession()" class="btn-large" style="background: #06C755; color: white;">💵 ปิดโต๊ะ (รับเงินแล้ว)</button>
+                    <button onclick="confirmManualTransfer()" class="btn-large" style="background: #06C755; color: white;">✅ ตรวจสอบสลิปผ่าน (ปิดโต๊ะ)</button>
+                    <button onclick="cancelBill()" class="btn-large" style="background: #eee; color: #333;">❌ ยกเลิกบิล</button>
                 `;
+            }
+            // โต๊ะปกติที่กำลังกินอยู่
+            else {
+                actionDiv.innerHTML = `<button onclick="printCustomerBill(${totalAmt})" class="btn-large" style="background: #2196F3; color: white;">🖨 พิมพ์บิลสรุปยอด</button>`;
             }
         }
 
-        async function acceptServiceRequest(reqId) {
-            await supabaseClient.from('table_service_requests').update({ status: 'completed' }).eq('id', reqId);
-            fetchData();
-        }
-
-        async function confirmBill(amount) {
-            if(!confirm(`ยืนยันยอดบิลโต๊ะนี้ที่ ${amount} บาท ใช่หรือไม่?\n(ลูกค้าระบบจะไม่สามารถสั่งอาหารเพิ่มได้อีก)`)) return;
-            await supabaseClient.from('table_sessions').update({ 
-                session_status: 'payment_pending',
-                bill_amount: amount
-            }).eq('id', currentViewingSession.id);
-            fetchData();
-        }
-
+        async function acceptServiceRequest(reqId) { await supabaseClient.from('table_service_requests').update({ status: 'completed' }).eq('id', reqId); fetchData(); }
+        
         async function cancelBill() {
-            if(!confirm("ต้องการยกเลิกการเช็คบิล และเปิดให้ลูกค้าสั่งอาหารต่อใช่หรือไม่?")) return;
-            await supabaseClient.from('table_sessions').update({ 
-                session_status: 'open',
-                payment_status: 'unpaid'
-            }).eq('id', currentViewingSession.id);
-            fetchData();
+            if(!confirm("ต้องการยกเลิกบิล และเปิดให้ลูกค้าสั่งอาหาร/เลือกวิธีจ่ายใหม่ใช่หรือไม่?")) return;
+            await supabaseClient.from('table_sessions').update({ session_status: 'open', payment_status: 'unpaid' }).eq('id', currentViewingSession.id); fetchData();
         }
 
-        async function closeTableSession() {
-            if(!confirm("ยืนยันว่าได้รับเงินเรียบร้อยแล้ว และต้องการ [ปิดโต๊ะ] ใช่หรือไม่?\n(โต๊ะจะกลับมาเป็นสถานะ 'ว่าง')")) return;
+        async function confirmManualTransfer() {
+            if(!confirm("ยืนยันว่าได้รับยอดโอนเรียบร้อยแล้ว และต้องการ [ปิดโต๊ะ] ใช่หรือไม่?")) return;
+            await closeTableSession('verified_manual');
+        }
+
+        async function closeTableSession(paymentStatus) {
             await supabaseClient.from('table_sessions').update({ 
-                session_status: 'closed',
-                payment_status: 'paid_cash',
-                closed_at: new Date().toISOString()
+                session_status: 'closed', payment_status: paymentStatus, closed_at: new Date().toISOString()
             }).eq('id', currentViewingSession.id);
-            closeTableModal();
-            fetchData();
+            closeTableModal(); fetchData();
         }
 
         function printCustomerBill(totalAmt) {
-            const tableName = currentViewingTable.table_name;
-            const time = new Date().toLocaleTimeString('th-TH');
-            
-            const printDiv = document.getElementById('printArea');
-            const itemsContainer = document.querySelector('#modalBillArea > div:nth-child(2)').innerHTML;
-
-            printDiv.innerHTML = `
-                <div class="print-ticket">
-                    <div class="print-header">
-                        <h2 style="margin: 0; font-size: 20px;">ใบสรุปยอดอาหาร (Check Bill)</h2>
-                        <div class="print-table-name">โต๊ะ ${tableName}</div>
-                        <div>เวลา: ${time}</div>
-                    </div>
-                    <div style="margin-top: 10px; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px;">
-                        ${itemsContainer}
-                    </div>
-                    <div class="print-total">
-                        ยอดรวมสุทธิ: ฿${totalAmt}
-                    </div>
-                    <div style="text-align: center; margin-top: 20px; font-size: 12px;">ขอบคุณที่ใช้บริการ</div>
-                </div>
-            `;
+            const tableName = currentViewingTable.table_name; const time = new Date().toLocaleTimeString('th-TH');
+            const printDiv = document.getElementById('printArea'); const itemsContainer = document.querySelector('#modalBillArea > div:nth-child(2)').innerHTML;
+            printDiv.innerHTML = `<div class="print-ticket"><div class="print-header"><h2 style="margin: 0; font-size: 20px;">ใบสรุปยอดอาหาร</h2><div class="print-table-name">โต๊ะ ${tableName}</div><div>เวลา: ${time}</div></div><div style="margin-top: 10px; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px;">${itemsContainer}</div><div class="print-total">ยอดรวมสุทธิ: ฿${totalAmt}</div><div style="text-align: center; margin-top: 20px; font-size: 12px;">ขอบคุณที่ใช้บริการ</div></div>`;
             setTimeout(() => { window.print(); }, 200);
         }
-
-        // นำ window.onload เดิมออก เพราะเราเปลี่ยนไปใช้ปุ่ม "เปิดระบบ" แทน
     </script>
 </body>
 </html>
