@@ -328,7 +328,6 @@
             newOrders.forEach(order => {
                 const time = new Date(order.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
                 
-                // MAPPING STATUS (UI Layer)
                 let statusLabel = '';
                 let statusBadgeHtml = '';
                 let isDoneOrServed = false;
@@ -363,15 +362,19 @@
                     } else if (itemStatus === 'done' || itemStatus === 'served') {
                         itemStatusBadge = '<span style="background: #E8F5E9; color: #06C755; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: auto; border: 1px solid #C8E6C9;">✅ เสร็จ</span>';
                         itemStyle = 'text-decoration: line-through; color: #aaa;'; 
+                    } else if (itemStatus === 'rejected') {
+                        itemStatusBadge = '<span style="background: #ffebee; color: #c62828; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: auto; border: 1px solid #ffcdd2;">❌ ปฏิเสธ</span>';
+                        itemStyle = 'text-decoration: line-through; color: #aaa;'; 
                     } else {
                         allItemsDone = false;
                     }
 
                     let optStr = item.option ? `<br><small style="color:#00BCD4;">- ${item.option}</small>` : '';
                     let noteStr = item.note ? `<br><small style="color:#ff4d4f;">* ${item.note}</small>` : '';
+                    let rejectStr = (itemStatus === 'rejected' && item.reject_reason) ? `<br><small style="color:#c62828; font-weight: bold;">❌ เหตุผล: ${item.reject_reason}</small>` : '';
                     
                     itemsHtml += `<div class="ticket-item" style="display: flex; align-items: flex-start; justify-content: space-between;">
-                        <div style="${itemStyle}"><b>${item.qty}x</b> <span>${item.name} ${optStr} ${noteStr}</span></div>
+                        <div style="${itemStyle}"><b>${item.qty}x</b> <span>${item.name} ${optStr} ${noteStr} ${rejectStr}</span></div>
                         ${itemStatusBadge}
                     </div>`;
                 });
@@ -545,15 +548,17 @@
             const actionDiv = document.getElementById('modalActionButtons');
             if (!currentViewingSession) return;
 
-            const cancelBtn = `<button onclick="cancelBill()" class="btn-large" style="background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; flex: 0.5;">❌ ยกเลิกบิล</button>`;
-            const printBtn = `<button onclick="printCustomerBill(${totalAmt})" class="btn-large" style="background: #2196F3; color: white;">🖨 พิมพ์บิลเช็คยอด</button>`;
+            const cancelBtn = `<button onclick="cancelBill()" class="btn-large" style="background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; flex: 1; padding: 10px;">❌ ยกเลิกบิล</button>`;
+            const printQRBtn = `<button onclick="reprintTableQRCode()" class="btn-large" style="background: #F3E5F5; color: #8E24AA; border: 1px solid #E1BEE7; flex: 1; padding: 10px;">🖨 พิมพ์ QR สั่งอาหาร</button>`;
+            const printBtn = `<button onclick="printCustomerBill(${totalAmt})" class="btn-large" style="background: #2196F3; color: white; flex: 1; padding: 10px;">🖨 บิลเรียกเก็บ</button>`;
 
             let html = `<div style="display: flex; flex-direction: column; gap: 10px; width: 100%;">`;
             
-            html += `<div style="display: flex; gap: 10px;">`;
+            html += `<div style="display: flex; gap: 8px;">`;
             if (currentViewingSession.session_status !== 'open') {
                 html += cancelBtn;
             }
+            html += printQRBtn;
             html += printBtn;
             html += `</div>`;
 
@@ -564,6 +569,12 @@
             html += `</div>`;
 
             actionDiv.innerHTML = html;
+        }
+        
+        function reprintTableQRCode() {
+            if (currentViewingTable) {
+                printTableQRCode(currentViewingTable);
+            }
         }
 
         async function acceptServiceRequest(reqId) { 
@@ -701,10 +712,7 @@
 
         window.onload = async () => {
             const isAuth = await verifyStaffSession();
-            // หน้าแคชเชียร์ให้รอคลิกปุ่ม Start ถึงจะทำงานต่อ
-            // ถ้าไม่ผ่านสิทธิ์มันจะถูกเด้งออกไปก่อนแล้ว
         };
-        // ================================================================
 
     </script>
 </body>
