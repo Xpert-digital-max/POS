@@ -100,7 +100,11 @@
     <div class="container no-print">
         <!-- Table Board -->
         <div class="table-board">
-            <h3 style="margin-top: 0; color: #333; border-bottom: 2px solid #eee; padding-bottom: 10px;">ผังโต๊ะ (Table Board)</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px;">
+                <h3 style="margin: 0; color: #333;">ผังโต๊ะ (Table Board)</h3>
+                <button onclick="openManageTableModal()" style="background: #1a237e; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold;">➕ เพิ่มโต๊ะใหม่</button>
+            </div>
+            
             <div id="tableGrid" class="table-grid">
                 <p style="color: #888;">กำลังโหลดข้อมูลโต๊ะ...</p>
             </div>
@@ -127,7 +131,23 @@
         </div>
     </div>
 
-    <!-- Modal จัดการโต๊ะ -->
+    <!-- Modal เพิ่ม/แก้ไข โต๊ะ -->
+    <div id="manageTableModal" class="modal-overlay no-print">
+        <div class="modal-content" style="max-width: 350px;">
+            <h3 id="manageTableTitle" style="margin-top: 0; color: #1a237e;">➕ เพิ่มโต๊ะใหม่</h3>
+            <input type="hidden" id="manageTableId">
+            <div style="margin-bottom: 20px;">
+                <label style="display:block; margin-bottom:8px; font-weight: bold; color: #333;">ชื่อโต๊ะ / หมายเลขโต๊ะ</label>
+                <input type="text" id="manageTableName" placeholder="เช่น A01, B02" style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 16px;">
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="closeManageTableModal()" style="flex: 1; padding: 12px; background: #eee; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: #555;">ยกเลิก</button>
+                <button onclick="saveTable()" style="flex: 1; padding: 12px; background: #06C755; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">บันทึก</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal จัดการโต๊ะ (บิล/สถานะ) -->
     <div id="tableModal" class="modal-overlay no-print">
         <div class="modal-content">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 15px;">
@@ -169,11 +189,20 @@
         
         let currentViewingTable = null;
         let currentViewingSession = null;
+        let currentTableOrders = [];
         
         let pollingTimer = null;
         let audioContext = null;
         let staffBranchId = null;
         let isAutoPrint = localStorage.getItem('auto_print_kitchen') === 'true';
+
+        // สร้าง UUID สำหรับ table_token
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
 
         function startSystem() {
             document.getElementById('soundUnlockOverlay').style.display = 'none';
@@ -204,8 +233,10 @@
 
         async function fetchData() {
             try {
-                // ข้อมูลโต๊ะ
-                const { data: tbData } = await supabaseClient.from('restaurant_tables').select('*').eq('vendor_id', VENDOR_ID).eq('is_active', true).order('table_name');
+                // ข้อมูลโต๊ะ (ดึงเฉพาะที่ is_active = true)
+                let tableQuery = supabaseClient.from('restaurant_tables').select('*').eq('vendor_id', VENDOR_ID).eq('is_active', true).order('table_name');
+                if (staffBranchId) tableQuery = tableQuery.eq('branch_id', staffBranchId);
+                const { data: tbData } = await tableQuery;
                 tables = tbData || [];
 
                 const { data: sessData } = await supabaseClient.from('table_sessions').select('*').eq('vendor_id', VENDOR_ID).neq('session_status', 'closed').neq('session_status', 'cancelled');
@@ -296,7 +327,7 @@
 
         function renderTableBoard() {
             const container = document.getElementById('tableGrid');
-            if (tables.length === 0) { container.innerHTML = '<p>ไม่มีข้อมูลโต๊ะในระบบ</p>'; return; }
+            if (tables.length === 0) { container.innerHTML = '<p>ไม่มีข้อมูลโต๊ะในระบบ หรือยังไม่ได้สร้างโต๊ะ</p>'; return; }
 
             let html = '';
             tables.forEach(table => {
@@ -316,6 +347,77 @@
             });
             container.innerHTML = html;
         }
+
+        // ==================== ระบบสร้าง/แก้ไข/ลบโต๊ะ ====================
+        function openManageTableModal(tableId = null) {
+            document.getElementById('manageTableModal').style.display = 'flex';
+            if (tableId) {
+                // แก้ไข
+                document.getElementById('manageTableTitle').innerText = '✏️ แก้ไขชื่อโต๊ะ';
+                document.getElementById('manageTableId').value = tableId;
+                document.getElementById('manageTableName').value = currentViewingTable.table_name;
+            } else {
+                // สร้างใหม่
+                document.getElementById('manageTableTitle').innerText = '➕ เพิ่มโต๊ะใหม่';
+                document.getElementById('manageTableId').value = '';
+                document.getElementById('manageTableName').value = '';
+            }
+        }
+
+        function closeManageTableModal() {
+            document.getElementById('manageTableModal').style.display = 'none';
+        }
+
+        async function saveTable() {
+            const name = document.getElementById('manageTableName').value.trim();
+            const tId = document.getElementById('manageTableId').value;
+            
+            if (!name) { alert('กรุณากรอกชื่อโต๊ะ'); return; }
+            
+            try {
+                if (tId) {
+                    // Update
+                    await supabaseClient.from('restaurant_tables').update({ table_name: name }).eq('id', tId);
+                } else {
+                    // Insert
+                    const token = generateUUID();
+                    await supabaseClient.from('restaurant_tables').insert([{
+                        vendor_id: VENDOR_ID,
+                        branch_id: staffBranchId || null,
+                        table_name: name,
+                        table_token: token,
+                        is_active: true
+                    }]);
+                }
+                closeManageTableModal();
+                if (tId && currentViewingTable) {
+                    closeTableModal(); // ปิด modal โต๊ะเดิมไปก่อนเพื่อรีเฟรชข้อมูลใหม่
+                }
+                fetchData();
+            } catch (e) {
+                alert('เกิดข้อผิดพลาด: ' + e.message);
+            }
+        }
+
+        function editCurrentTable() {
+            if (!currentViewingTable) return;
+            openManageTableModal(currentViewingTable.id);
+        }
+
+        async function deleteCurrentTable() {
+            if (!currentViewingTable) return;
+            if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบ "โต๊ะ ${currentViewingTable.table_name}" ออกจากระบบ?\n(การลบจะไม่ส่งผลกระทบต่อบิลเก่าๆ)`)) return;
+            
+            try {
+                // ซ่อนโต๊ะด้วยการตั้งค่า is_active = false แทนการลบเพื่อป้องกันข้อมูลประวัติเสียหาย
+                await supabaseClient.from('restaurant_tables').update({ is_active: false }).eq('id', currentViewingTable.id);
+                closeTableModal();
+                fetchData();
+            } catch(e) {
+                alert('เกิดข้อผิดพลาด: ' + e.message);
+            }
+        }
+        // ==========================================================
 
         function renderOrderQueue() {
             const container = document.getElementById('orderTicketList');
@@ -500,17 +602,24 @@
                 document.getElementById('modalTableStatus').innerText = "โต๊ะว่าง"; 
                 document.getElementById('modalTableStatus').style.color = "#888";
                 
+                // กรณีโต๊ะว่าง: เพิ่มปุ่ม แก้ไข / ลบโต๊ะ เข้ามาที่นี่
                 billArea.innerHTML = `
-                    <div style="text-align: center; padding: 30px 10px;">
+                    <div style="text-align: center; padding: 20px 10px;">
                         <h3 style="color: #888; margin-top: 0;">โต๊ะนี้ยังว่างอยู่</h3>
                         <p style="color: #aaa; font-size: 14px; margin-bottom: 20px;">กดปุ่มด้านล่างเพื่อเปิดโต๊ะและพิมพ์ QR Code ให้ลูกค้าสแกนสั่งอาหาร</p>
-                        <button onclick="openNewTableAndPrintQR()" class="btn-large" style="background: #E91E63; color: white; width: 100%; box-shadow: 0 4px 6px rgba(233,30,99,0.3);">🆕 เปิดโต๊ะรอบใหม่ พร้อมพิมพ์ QR</button>
+                        <button onclick="openNewTableAndPrintQR()" class="btn-large" style="background: #E91E63; color: white; width: 100%; box-shadow: 0 4px 6px rgba(233,30,99,0.3); margin-bottom: 15px;">🆕 เปิดโต๊ะรอบใหม่ พร้อมพิมพ์ QR</button>
+                        
+                        <div style="display: flex; gap: 10px; justify-content: center; border-top: 1px dashed #ddd; padding-top: 15px;">
+                            <button onclick="editCurrentTable()" style="flex: 1; padding: 8px; background: #fff; border: 1px solid #2196F3; color: #2196F3; border-radius: 6px; cursor: pointer; font-weight:bold;">✏️ แก้ไขชื่อโต๊ะ</button>
+                            <button onclick="deleteCurrentTable()" style="flex: 1; padding: 8px; background: #fff; border: 1px solid #f44336; color: #f44336; border-radius: 6px; cursor: pointer; font-weight:bold;">🗑️ ลบโต๊ะ</button>
+                        </div>
                     </div>
                 `; 
                 return;
             }
 
             const { data: orders } = await supabaseClient.from('table_orders').select('*').eq('table_session_id', currentViewingSession.id).neq('order_status', 'cancelled');
+            currentTableOrders = orders || []; 
             
             let statusTxt = "กำลังทาน"; let statusColor = "#06C755";
             if (currentViewingSession.session_status === 'billing_requested') { statusTxt = "ขอเช็คบิล"; statusColor = "#E91E63"; }
@@ -523,8 +632,8 @@
             document.getElementById('modalTableStatus').style.color = statusColor;
 
             let totalAmt = 0; let itemsHtml = '';
-            if (orders && orders.length > 0) {
-                orders.forEach(order => {
+            if (currentTableOrders.length > 0) {
+                currentTableOrders.forEach(order => {
                     const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
                     items.forEach(item => { const rowTotal = item.price * item.qty; totalAmt += rowTotal; itemsHtml += `<div class="bill-row"><span>${item.qty}x ${item.name}</span><span>฿${rowTotal}</span></div>`; });
                 });
