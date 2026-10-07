@@ -657,18 +657,26 @@
         }
 
         async function initDashboard() {
+            console.log("1. กำลังเริ่มต้นเชื่อมต่อ LIFF...");
             try {
                 await liff.init({ liffId: CONFIG.liffIdDashboard });
+                console.log("2. LIFF เชื่อมต่อสำเร็จ, สถานะล็อกอิน:", liff.isLoggedIn());
+                
                 if (liff.isLoggedIn()) {
+                    console.log("3. กำลังดึงข้อมูล Profile ของ LINE...");
                     const profile = await liff.getProfile();
+                    console.log("4. ดึง Profile สำเร็จ UID:", profile.userId);
                     loadVendorData(profile.userId);
                 } else {
-                    liff.login();
+                    console.log("3. ยังไม่ได้ล็อกอิน กำลังส่งไปหน้า LINE Login...");
+                    // บังคับระบุ Redirect URI ป้องกันปัญหาลิงก์ไม่ตรง
+                    liff.login({ redirectUri: window.location.href });
                 }
             } catch (err) {
                 console.error("LIFF Init Error: ", err);
                 const storeNameEl = document.getElementById('storeName');
-                if (storeNameEl) storeNameEl.innerText = "โหลดข้อมูลล้มเหลว";
+                if (storeNameEl) storeNameEl.innerText = "เชื่อมต่อระบบ LINE ล้มเหลว";
+                alert("เกิดข้อผิดพลาดการเชื่อมต่อ LINE: " + err.message);
             }
         }
 
