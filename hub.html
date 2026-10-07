@@ -37,17 +37,27 @@
                 <div class="hub-title" style="font-size: 20px; color: #3f51b5;">เข้าสู่ระบบพนักงาน (Login)</div>
                 <div class="hub-desc">สำหรับแคชเชียร์และห้องครัว (ต้องใช้ PIN)</div>
             </a>
+
+            <!-- ปุ่มรายงานยอดขาย -->
+            <a href="#" id="salesReportBtn" class="hub-card" style="border-bottom: 4px solid #00BCD4; background: #e0f7fa;" onclick="checkSalesAccess(event)">
+                <div class="hub-icon">📊</div>
+                <div class="hub-title" style="font-size: 20px; color: #00838F;">รายงานยอดขาย</div>
+                <div class="hub-desc">ดูยอดขาย เงินสด เงินโอน และเมนูขายดี</div>
+            </a>
             
             <p style="text-align: center; font-size: 12px; color: #888; margin-top: 20px;">* ทุกตำแหน่งต้องเข้าสู่ระบบผ่านรหัส PIN</p>
         </div>
     </div>
 
     <script>
+        let VENDOR_ID = null;
+        let BASE_PATH = '';
+
         window.onload = function() {
             const params = new URLSearchParams(window.location.search);
-            const vendorId = params.get('vid');
+            VENDOR_ID = params.get('vid');
             
-            if (!vendorId) {
+            if (!VENDOR_ID) {
                 document.getElementById('errorBox').style.display = 'block';
                 return;
             }
@@ -55,14 +65,63 @@
             // ถ้ามี vid ให้แสดงเมนูและผูกลิงก์
             document.getElementById('hubMenu').style.display = 'flex';
             
-            const basePath = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
-            const staffLoginUrl = `${basePath}/staff-login.html?vid=${vendorId}`;
+            BASE_PATH = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+            const staffLoginUrl = `${BASE_PATH}/staff-login.html?vid=${VENDOR_ID}`;
             
             document.getElementById('staffLoginBtn').href = staffLoginUrl;
             
-            // แจ้งเตือนเรื่องความปลอดภัย (ไม่มี Owner Bypass อีกต่อไป)
+            // แจ้งเตือนเรื่องความปลอดภัย
             console.log("Security Mode: Strict Authorization Enforced. All roles must login via staff-login.");
         };
+
+        function checkSalesAccess(event) {
+            event.preventDefault();
+            
+            if (!VENDOR_ID) {
+                alert("ไม่พบข้อมูลร้านค้า");
+                return;
+            }
+
+            const sessionRaw = localStorage.getItem('staff_session');
+            
+            // 1. ถ้ายังไม่ได้ล็อกอิน ให้พุ่งไปหน้า Login พร้อมตัวแปร next=sales
+            if (!sessionRaw) {
+                window.location.href = `${BASE_PATH}/staff-login.html?vid=${VENDOR_ID}&next=sales`;
+                return;
+            }
+            
+            try {
+                const session = JSON.parse(sessionRaw);
+                
+                // 2. เช็คว่าล็อกอินร้านเดียวกันหรือไม่
+                if (session.vid !== VENDOR_ID) {
+                    alert("เซสชันไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่");
+                    window.location.href = `${BASE_PATH}/staff-login.html?vid=${VENDOR_ID}&next=sales`;
+                    return;
+                }
+                
+                // 3. เช็ค Role ครัวห้ามเข้า
+                if (session.role === 'kitchen') {
+                    alert("คุณไม่มีสิทธิ์เข้าถึงหน้ารายงานยอดขาย (เฉพาะแคชเชียร์)");
+                    return;
+                }
+                
+                // 4. ถ้าเป็นแคชเชียร์ ให้พาไปหน้า Sales Dashboard พร้อมแนบ bid (ถ้ามี)
+                if (session.role === 'cashier') {
+                    let salesUrl = `${BASE_PATH}/sales-dashboard.html?vid=${VENDOR_ID}`;
+                    if (session.bid && session.bid !== 'null') {
+                        salesUrl += `&bid=${session.bid}`;
+                    }
+                    window.location.href = salesUrl;
+                } else {
+                     alert("สิทธิ์ไม่ถูกต้อง");
+                }
+                
+            } catch (e) {
+                console.error("Session parse error", e);
+                window.location.href = `${BASE_PATH}/staff-login.html?vid=${VENDOR_ID}&next=sales`;
+            }
+        }
     </script>
 </body>
 </html>
