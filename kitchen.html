@@ -30,7 +30,8 @@
         .item-option { display: block; color: #8bc34a; font-size: 15px; margin-left: 30px; margin-top: 4px; }
         .item-note { display: block; color: #ff5252; font-size: 15px; font-weight: bold; margin-left: 30px; margin-top: 4px; }
         
-        .item-action-btn { padding: 6px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; }
+        .item-action-btn { padding: 6px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; transition: 0.2s;}
+        .item-action-btn:active { transform: scale(0.95); }
         .btn-item-start { background: #FF9800; color: #000; }
         .btn-item-done { background: #06C755; color: white; }
 
@@ -53,6 +54,29 @@
         <button onclick="startSystem()" class="start-btn">🔊 เริ่มทำงาน (เข้ากะ)</button>
     </div>
 
+    <!-- Modal ปฏิเสธรายการ -->
+    <div id="rejectModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center;">
+        <div style="background: #1e1e1e; padding: 25px; border-radius: 12px; width: 90%; max-width: 400px; border-top: 5px solid #ff5252; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+            <h3 style="color: #ff5252; margin-top: 0; display: flex; align-items: center; gap: 8px;">❌ ปฏิเสธรายการ</h3>
+            <p id="rejectItemName" style="color: #fff; font-size: 18px; margin-bottom: 20px; font-weight: bold;"></p>
+            
+            <label style="color: #ccc; display: block; margin-bottom: 8px; font-size: 14px;">โปรดระบุเหตุผล:</label>
+            <select id="rejectReasonSelect" style="width: 100%; padding: 12px; border-radius: 8px; background: #333; color: white; border: 1px solid #555; font-size: 16px; margin-bottom: 10px;" onchange="checkCustomReason()">
+                <option value="วัตถุดิบหมด">วัตถุดิบหมด</option>
+                <option value="ไม่มีจำหน่ายแล้ว">ไม่มีจำหน่ายแล้ว</option>
+                <option value="คิวเยอะทำไม่ทัน">คิวเยอะทำไม่ทัน</option>
+                <option value="custom">พิมพ์เหตุผลเอง...</option>
+            </select>
+            
+            <input type="text" id="rejectReasonCustom" placeholder="พิมพ์เหตุผลที่นี่..." style="width: 100%; padding: 12px; border-radius: 8px; background: #333; color: white; border: 1px solid #555; font-size: 16px; margin-bottom: 20px; display: none; box-sizing: border-box;">
+            
+            <div style="display: flex; gap: 15px; margin-top: 20px;">
+                <button onclick="closeRejectModal()" style="flex: 1; padding: 12px; border-radius: 8px; border: none; background: #444; color: white; font-weight: bold; cursor: pointer; font-size: 16px;">ยกเลิก</button>
+                <button onclick="confirmRejectItem()" style="flex: 1; padding: 12px; border-radius: 8px; border: none; background: #ff5252; color: white; font-weight: bold; cursor: pointer; font-size: 16px;">ยืนยันปฏิเสธ</button>
+            </div>
+        </div>
+    </div>
+
     <div class="header">
         <h2>🍳 KDS - ครัวกลาง</h2>
         <div id="clockDisplay" class="clock">00:00:00</div>
@@ -65,10 +89,8 @@
     </div>
 
     <script>
-        // ดึง vid จาก URL
         const urlParams = new URLSearchParams(window.location.search);
         let urlVid = urlParams.get('vid');
-
         let VENDOR_ID = urlVid || localStorage.getItem('test_vendor_id');
         if (urlVid) { localStorage.setItem('test_vendor_id', urlVid); }
 
@@ -78,6 +100,7 @@
         let pollingTimer = null;
         let audioContext = null;
         let staffBranchId = null;
+        let pendingReject = { orderId: null, itemIndex: null };
 
         setInterval(() => {
             document.getElementById('clockDisplay').innerText = new Date().toLocaleTimeString('th-TH');
@@ -89,7 +112,6 @@
             if (audioContext.state === 'suspended') { audioContext.resume(); }
             const osc = audioContext.createOscillator(); osc.connect(audioContext.destination); osc.start(); osc.stop(audioContext.currentTime + 0.01);
             
-            // อ่านค่า Branch ID ของพนักงาน
             const sessionRaw = localStorage.getItem('staff_session');
             if (sessionRaw) {
                 try {
@@ -104,27 +126,21 @@
 
         async function fetchOrders() {
             try {
-                // 1. ดึงข้อมูล Dine-in (table_orders)
                 const { data: dineInData, error: errDineIn } = await supabaseClient.from('table_orders')
                     .select('*, restaurant_tables(table_name)')
                     .eq('vendor_id', VENDOR_ID)
                     .in('order_status', ['new', 'preparing']);
                 if (errDineIn) console.error(errDineIn);
 
-                // 2. ดึงข้อมูล Prepaid / Takeaway (orders)
                 let prepaidQuery = supabaseClient.from('orders')
                     .select('*')
                     .eq('vendor_id', VENDOR_ID)
-                    .in('status', ['pending', 'processing']); // Mapping: pending=รอครัวรับ, processing=กำลังทำ
-                if (staffBranchId) {
-                    prepaidQuery = prepaidQuery.eq('branch_id', staffBranchId);
-                } else {
-                    prepaidQuery = prepaidQuery.is('branch_id', null);
-                }
+                    .in('status', ['pending', 'processing']); 
+                if (staffBranchId) { prepaidQuery = prepaidQuery.eq('branch_id', staffBranchId); } 
+                else { prepaidQuery = prepaidQuery.is('branch_id', null); }
                 const { data: prepaidData, error: errPrepaid } = await prepaidQuery;
                 if (errPrepaid) console.error(errPrepaid);
 
-                // 3. Mapping Layer รวมศูนย์ข้อมูล
                 let normalizedOrders = [];
 
                 if (dineInData) {
@@ -133,6 +149,9 @@
                         o.displayTitle = 'โต๊ะ ' + (o.restaurant_tables ? o.restaurant_tables.table_name : '-');
                         o.badgeHtml = '<span class="source-badge" style="color:#b388ff; border: 1px solid #b388ff;">🟣 Dine-in</span>';
                         o.unified_status = o.order_status;
+                        
+                        let items = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
+                        o.items = Array.isArray(items) ? items : Object.values(items);
                         normalizedOrders.push(o);
                     });
                 }
@@ -147,22 +166,13 @@
                         o.unified_status = o.status === 'pending' ? 'new' : 'preparing';
                         
                         let items = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
-                        let itemsArray = Array.isArray(items) ? items : Object.values(items);
-                        // เติม status ระดับเมนูให้ Prepaid เพื่อให้ KDS ทำงานได้
-                        itemsArray.forEach(i => {
-                            if (!i.status) {
-                                i.status = o.status === 'processing' ? 'cooking' : 'new';
-                            }
-                        });
-                        o.items = itemsArray;
+                        o.items = Array.isArray(items) ? items : Object.values(items);
                         normalizedOrders.push(o);
                     });
                 }
 
-                // เรียงตามเวลาเก่าสุดขึ้นก่อน
                 normalizedOrders.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
-                // เช็คออเดอร์ใหม่เพื่อเล่นเสียง
                 let hasNewOrder = false;
                 normalizedOrders.forEach(order => {
                     const existingOrder = activeOrders.find(o => o.id === order.id);
@@ -210,37 +220,46 @@
 
                 let itemsHtml = '';
                 let items = order.items;
-                let allServed = true;
+                let allFinished = true; // เสร็จ, เสิร์ฟแล้ว หรือ ถูกปฏิเสธ
                 let hasNew = false;
 
                 items.forEach((item, index) => {
-                    if (item.status !== 'served' && item.status !== 'done') allServed = false;
-                    if (item.status === 'new') hasNew = true;
+                    let iStatus = item.status || 'new';
+                    
+                    if (iStatus !== 'served' && iStatus !== 'done' && iStatus !== 'rejected') allFinished = false;
+                    if (iStatus === 'new' || iStatus === 'pending') hasNew = true;
 
                     let optStr = item.option ? `<span class="item-option">👉 ${item.option}</span>` : '';
                     let noteStr = item.note ? `<span class="item-note">📝 ** ${item.note}</span>` : '';
+                    let rejectStr = (iStatus === 'rejected' && item.reject_reason) ? `<span class="item-note" style="margin-top: 8px;">❌ ปฏิเสธ: ${item.reject_reason}</span>` : '';
                     
                     let itemBtn = '';
-                    if (item.status === 'new') {
-                        itemBtn = `<button onclick="updateItemStatus('${order.id}', ${index}, 'cooking')" class="item-action-btn btn-item-start">🔥 ทำ</button>`;
-                    } else if (item.status === 'cooking' || item.status === 'preparing') {
-                        itemBtn = `<button onclick="updateItemStatus('${order.id}', ${index}, 'done')" class="item-action-btn btn-item-done">✅ เสร็จ</button>`;
+                    if (iStatus === 'new' || iStatus === 'pending') {
+                        itemBtn = `
+                            <div style="display: flex; gap: 8px; flex-direction: column;">
+                                <button onclick="updateItemStatus('${order.id}', ${index}, 'cooking')" class="item-action-btn btn-item-start">🔥 รับทำ</button>
+                                <button onclick="openRejectModal('${order.id}', ${index}, '${item.name.replace(/'/g, "\\'")}')" class="item-action-btn" style="background: #333; color: #ff5252; border: 1px solid #ff5252;">❌ ปฏิเสธ</button>
+                            </div>
+                        `;
+                    } else if (iStatus === 'cooking' || iStatus === 'preparing') {
+                        itemBtn = `<button onclick="updateItemStatus('${order.id}', ${index}, 'done')" class="item-action-btn btn-item-done" style="height: 100%; padding: 10px 20px;">✅ เสร็จ</button>`;
                     }
 
-                    const opacity = item.status === 'done' || item.status === 'served' ? '0.5' : '1';
+                    const opacity = (iStatus === 'done' || iStatus === 'served' || iStatus === 'rejected') ? '0.4' : '1';
+                    const strike = iStatus === 'rejected' ? 'text-decoration: line-through; color: #888;' : '';
 
                     itemsHtml += `
                     <div class="item-row" style="opacity: ${opacity};">
                         <div>
-                            <div><span class="item-qty">${item.qty}x</span> <span class="item-name">${item.name}</span></div>
-                            ${optStr} ${noteStr}
+                            <div style="${strike}"><span class="item-qty">${item.qty}x</span> <span class="item-name">${item.name}</span></div>
+                            ${optStr} ${noteStr} ${rejectStr}
                         </div>
                         <div>${itemBtn}</div>
                     </div>`;
                 });
 
-                // ถ้ารายการในใบนี้เสร็จทั้งหมด
-                if (allServed) {
+                // ถ้ารายการในใบนี้เสร็จหรือถูกปฏิเสธครบหมดแล้ว
+                if (allFinished) {
                     updateOrderToServed(order.id, order.source);
                     return; 
                 }
@@ -281,35 +300,89 @@
             container.innerHTML = html;
         }
 
+        // ==================== REJECT MODAL LOGIC ====================
+        function openRejectModal(orderId, itemIndex, itemName) {
+            pendingReject = { orderId, itemIndex };
+            document.getElementById('rejectItemName').innerText = itemName;
+            document.getElementById('rejectReasonSelect').value = "วัตถุดิบหมด";
+            document.getElementById('rejectReasonCustom').value = "";
+            document.getElementById('rejectReasonCustom').style.display = 'none';
+            document.getElementById('rejectModal').style.display = 'flex';
+        }
+
+        function closeRejectModal() {
+            document.getElementById('rejectModal').style.display = 'none';
+            pendingReject = { orderId: null, itemIndex: null };
+        }
+
+        function checkCustomReason() {
+            const sel = document.getElementById('rejectReasonSelect').value;
+            if (sel === 'custom') {
+                document.getElementById('rejectReasonCustom').style.display = 'block';
+                document.getElementById('rejectReasonCustom').focus();
+            } else {
+                document.getElementById('rejectReasonCustom').style.display = 'none';
+            }
+        }
+
+        async function confirmRejectItem() {
+            let reason = document.getElementById('rejectReasonSelect').value;
+            if (reason === 'custom') {
+                reason = document.getElementById('rejectReasonCustom').value.trim();
+                if (!reason) { alert("กรุณาพิมพ์เหตุผลที่ปฏิเสธ"); return; }
+            }
+
+            const { orderId, itemIndex } = pendingReject;
+            closeRejectModal();
+
+            try {
+                const order = activeOrders.find(o => o.id === orderId);
+                let items = order.items;
+                items[itemIndex].status = 'rejected';
+                items[itemIndex].reject_reason = reason;
+
+                await saveItemUpdate(order, items);
+            } catch(e) {
+                alert("เกิดข้อผิดพลาด: " + e.message);
+                fetchOrders();
+            }
+        }
+
+        // ==================== STATUS UPDATE LOGIC ====================
         async function updateItemStatus(orderId, itemIndex, newStatus) {
             try {
                 const order = activeOrders.find(o => o.id === orderId);
                 let items = order.items;
                 items[itemIndex].status = newStatus;
-
-                let allServed = true;
-                let hasNew = false;
-                items.forEach(i => {
-                    if (i.status !== 'done' && i.status !== 'served') allServed = false;
-                    if (i.status === 'new') hasNew = true;
-                });
-
-                let nextDbStatus = 'preparing';
-                if (allServed) nextDbStatus = 'served'; 
-                else if (hasNew && order.unified_status === 'new') nextDbStatus = 'new';
                 
-                order.unified_status = nextDbStatus;
-                renderOrders(); // Optimistic Update
-
-                if (order.source === 'dine_in') {
-                    await supabaseClient.from('table_orders').update({ items: items, order_status: nextDbStatus }).eq('id', orderId);
-                } else {
-                    // Prepaid mapping
-                    let preStatus = nextDbStatus === 'served' ? 'completed' : (nextDbStatus === 'preparing' ? 'processing' : 'pending');
-                    await supabaseClient.from('orders').update({ items: items, status: preStatus }).eq('id', orderId);
-                }
-
+                await saveItemUpdate(order, items);
             } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); fetchOrders(); }
+        }
+
+        async function saveItemUpdate(order, items) {
+            let allFinished = true;
+            let hasNew = false;
+            items.forEach(i => {
+                let st = i.status || 'new';
+                if (st !== 'done' && st !== 'served' && st !== 'rejected') allFinished = false;
+                if (st === 'new' || st === 'pending') hasNew = true;
+            });
+
+            let nextDbStatus = 'preparing';
+            if (allFinished) nextDbStatus = 'served'; 
+            else if (hasNew && order.unified_status === 'new') nextDbStatus = 'new';
+            
+            order.items = items;
+            order.unified_status = nextDbStatus;
+            renderOrders(); // Optimistic Update
+
+            if (order.source === 'dine_in') {
+                await supabaseClient.from('table_orders').update({ items: items, order_status: nextDbStatus }).eq('id', order.id);
+            } else {
+                // Prepaid mapping
+                let preStatus = nextDbStatus === 'served' ? 'completed' : (nextDbStatus === 'preparing' ? 'processing' : 'pending');
+                await supabaseClient.from('orders').update({ items: items, status: preStatus }).eq('id', order.id);
+            }
         }
 
         async function updateAllItemsStatus(orderId, newStatus, btnElement) {
@@ -322,19 +395,16 @@
 
                 const order = activeOrders.find(o => o.id === orderId);
                 let items = order.items;
-                items.forEach(i => i.status = newStatus);
-
-                let nextDbStatus = newStatus === 'done' ? 'served' : 'preparing';
-
-                if (order.source === 'dine_in') {
-                    await supabaseClient.from('table_orders').update({ items: items, order_status: nextDbStatus }).eq('id', orderId);
-                } else {
-                    let preStatus = nextDbStatus === 'served' ? 'completed' : (nextDbStatus === 'preparing' ? 'processing' : 'pending');
-                    await supabaseClient.from('orders').update({ items: items, status: preStatus }).eq('id', orderId);
-                }
                 
-                fetchOrders();
+                // อัปเดตเฉพาะรายการที่ยังไม่ได้ถูกปฏิเสธ
+                items.forEach(i => {
+                    if (i.status !== 'rejected') {
+                        i.status = newStatus;
+                    }
+                });
 
+                await saveItemUpdate(order, items);
+                fetchOrders();
             } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); fetchOrders(); }
         }
 
