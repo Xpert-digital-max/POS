@@ -35,13 +35,14 @@
         .order-queue { flex: 1; min-width: 320px; background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); height: calc(100vh - 100px); overflow-y: auto; position: sticky; top: 80px; }
         .ticket { border: 1px solid #ddd; border-left: 5px solid #E91E63; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: #fafafa; }
         .ticket-header { display: flex; justify-content: space-between; border-bottom: 1px dashed #ccc; padding-bottom: 10px; margin-bottom: 10px; }
-        .ticket-table { font-size: 18px; font-weight: bold; color: #E91E63; margin: 0;}
+        .ticket-table { font-size: 18px; font-weight: bold; color: #E91E63; margin: 0; line-height: 1.4;}
         .ticket-time { font-size: 12px; color: #888; }
         .ticket-item { display: flex; gap: 10px; margin-bottom: 8px; font-size: 15px; }
         .ticket-actions { display: flex; gap: 8px; margin-top: 15px; }
-        .ticket-btn { flex: 1; padding: 8px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
+        .ticket-btn { flex: 1; padding: 8px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; transition: 0.2s;}
         .btn-print { background: #eee; color: #333; }
         .btn-accept { background: #06C755; color: white; }
+        .btn-accept:disabled { background: #ccc; cursor: not-allowed; }
         .btn-cancel { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
 
         /* Toggle Button */
@@ -171,6 +172,7 @@
         
         let pollingTimer = null;
         let audioContext = null;
+        let staffBranchId = null;
         let isAutoPrint = localStorage.getItem('auto_print_kitchen') === 'true';
 
         function startSystem() {
@@ -181,6 +183,15 @@
             if (!audioContext) { audioContext = new (window.AudioContext || window.webkitAudioContext)(); }
             if (audioContext.state === 'suspended') { audioContext.resume(); }
             const osc = audioContext.createOscillator(); osc.connect(audioContext.destination); osc.start(); osc.stop(audioContext.currentTime + 0.01);
+            
+            // ดึง Branch ID จาก Session
+            const sessionRaw = localStorage.getItem('staff_session');
+            if (sessionRaw) {
+                try {
+                    const session = JSON.parse(sessionRaw);
+                    if (session.bid && session.bid !== 'null') staffBranchId = session.bid;
+                } catch(e) {}
+            }
             
             fetchData();
             pollingTimer = setInterval(fetchData, 3000);
@@ -193,17 +204,55 @@
 
         async function fetchData() {
             try {
+                // ข้อมูลโต๊ะ
                 const { data: tbData } = await supabaseClient.from('restaurant_tables').select('*').eq('vendor_id', VENDOR_ID).eq('is_active', true).order('table_name');
                 tables = tbData || [];
 
                 const { data: sessData } = await supabaseClient.from('table_sessions').select('*').eq('vendor_id', VENDOR_ID).neq('session_status', 'closed').neq('session_status', 'cancelled');
                 activeSessions = sessData || [];
 
-                const { data: ordData } = await supabaseClient.from('table_orders').select('*, restaurant_tables(table_name)').eq('vendor_id', VENDOR_ID).in('order_status', ['new', 'preparing']).order('created_at');
+                // ข้อมูลออเดอร์ Dine-in และการเชื่อม Status ครัว
+                const { data: ordData } = await supabaseClient.from('table_orders').select('*, restaurant_tables(table_name)').eq('vendor_id', VENDOR_ID).in('order_status', ['new', 'preparing', 'ready']).order('created_at');
                 
+                // ข้อมูลออเดอร์ Prepaid กลับบ้าน
+                let prepaidQuery = supabaseClient.from('orders').select('*').eq('vendor_id', VENDOR_ID).in('status', ['pending', 'processing', 'ready']);
+                if (staffBranchId) prepaidQuery = prepaidQuery.eq('branch_id', staffBranchId);
+                else prepaidQuery = prepaidQuery.is('branch_id', null);
+                const { data: preData } = await prepaidQuery;
+
+                // Mapping Layer
+                let combinedOrders = [];
                 if (ordData) {
+                    ordData.forEach(o => {
+                        o.source = 'dine_in';
+                        o.displayTitle = 'โต๊ะ ' + (o.restaurant_tables ? o.restaurant_tables.table_name : '-');
+                        o.badgeHtml = '<span style="background: #f3e5f5; color: #7b1fa2; padding: 3px 8px; border-radius: 12px; font-size: 11px; margin-left: 5px; border: 1px solid #ce93d8;">🟣 Dine-in</span>';
+                        o.unified_status = o.order_status;
+                        combinedOrders.push(o);
+                    });
+                }
+                
+                if (preData) {
+                    preData.forEach(o => {
+                        o.source = 'prepaid';
+                        let q = o.queue_no ? `(คิว ${o.queue_no})` : '';
+                        let ref = o.reference_no ? o.reference_no : o.id.substring(0,6).toUpperCase();
+                        o.displayTitle = `กลับบ้าน ${q}`;
+                        o.badgeHtml = `<span style="background: #e8f5e9; color: #2e7d32; padding: 3px 8px; border-radius: 12px; font-size: 11px; margin-left: 5px; border: 1px solid #a5d6a7;">🟢 Prepaid [${ref}]</span>`;
+                        o.unified_status = o.status;
+                        
+                        let items = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
+                        o.items = Array.isArray(items) ? items : Object.values(items);
+                        combinedOrders.push(o);
+                    });
+                }
+                
+                // เรียงตามเวลาเก่าขึ้นก่อน
+                combinedOrders.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+                if (combinedOrders.length > 0) {
                     let hasNewAlert = false;
-                    ordData.forEach(order => {
+                    combinedOrders.forEach(order => {
                         if (!newOrders.find(o => o.id === order.id)) {
                             hasNewAlert = true;
                             if (isAutoPrint && !printedOrderIds.includes(order.id)) {
@@ -216,7 +265,7 @@
                     });
                     if (hasNewAlert) playAlertSound('order');
                 }
-                newOrders = ordData || [];
+                newOrders = combinedOrders;
 
                 const { data: reqData } = await supabaseClient.from('table_service_requests').select('*, restaurant_tables(table_name)').eq('vendor_id', VENDOR_ID).eq('status', 'pending');
                 if (reqData && serviceRequests.length < reqData.length) { playAlertSound('call'); }
@@ -277,23 +326,42 @@
 
             let html = '';
             newOrders.forEach(order => {
-                const tableName = order.restaurant_tables ? order.restaurant_tables.table_name : 'ไม่ระบุโต๊ะ';
                 const time = new Date(order.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
                 
+                // MAPPING STATUS (UI Layer)
+                let statusLabel = '';
+                let statusBadgeHtml = '';
+                let isDoneOrServed = false;
+                
+                if (order.unified_status === 'new' || order.unified_status === 'pending') {
+                    statusLabel = 'รอครัวรับ';
+                    statusBadgeHtml = `<span style="background: #fff3e0; color: #FF9800; padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; border: 1px solid #ffe0b2;">🟠 ${statusLabel}</span>`;
+                } else if (order.unified_status === 'preparing' || order.unified_status === 'processing' || order.unified_status === 'accepted') {
+                    statusLabel = 'กำลังทำ';
+                    statusBadgeHtml = `<span style="background: #e3f2fd; color: #2196F3; padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; border: 1px solid #bbdefb;">🔵 ${statusLabel}</span>`;
+                } else if (order.unified_status === 'ready') {
+                    statusLabel = 'พร้อมส่ง';
+                    statusBadgeHtml = `<span style="background: #fff8e1; color: #ffa000; padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; border: 1px solid #ffecb3;">🟡 ${statusLabel}</span>`;
+                } else {
+                    statusLabel = 'เสร็จแล้ว';
+                    isDoneOrServed = true;
+                    statusBadgeHtml = `<span style="background: #e8f5e9; color: #06C755; padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; border: 1px solid #c8e6c9;">🟢 ${statusLabel}</span>`;
+                }
+
                 let itemsHtml = '';
                 const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
                 let allItemsDone = true;
 
                 items.forEach(item => {
-                    const itemStatus = item.status || 'pending'; 
-                    let statusBadge = '';
+                    const itemStatus = item.status || 'new'; 
+                    let itemStatusBadge = '';
                     let itemStyle = '';
 
                     if (itemStatus === 'cooking') {
-                        statusBadge = '<span style="background: #FFF3E0; color: #FF9800; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: auto; border: 1px solid #FFE0B2;">🔥 กำลังทำ</span>';
+                        itemStatusBadge = '<span style="background: #FFF3E0; color: #FF9800; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: auto; border: 1px solid #FFE0B2;">🔥 ทำ</span>';
                         allItemsDone = false;
-                    } else if (itemStatus === 'done') {
-                        statusBadge = '<span style="background: #E8F5E9; color: #06C755; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: auto; border: 1px solid #C8E6C9;">✅ เสร็จ</span>';
+                    } else if (itemStatus === 'done' || itemStatus === 'served') {
+                        itemStatusBadge = '<span style="background: #E8F5E9; color: #06C755; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: auto; border: 1px solid #C8E6C9;">✅ เสร็จ</span>';
                         itemStyle = 'text-decoration: line-through; color: #aaa;'; 
                     } else {
                         allItemsDone = false;
@@ -304,43 +372,67 @@
                     
                     itemsHtml += `<div class="ticket-item" style="display: flex; align-items: flex-start; justify-content: space-between;">
                         <div style="${itemStyle}"><b>${item.qty}x</b> <span>${item.name} ${optStr} ${noteStr}</span></div>
-                        ${statusBadge}
+                        ${itemStatusBadge}
                     </div>`;
                 });
 
+                if (isDoneOrServed) allItemsDone = true;
+
                 let ticketHeaderStyle = allItemsDone ? 'background: #e8f5e9; border-bottom: 1px dashed #06C755;' : 'border-bottom: 1px dashed #ccc;';
                 const safeOrderData = encodeURIComponent(JSON.stringify(order));
+                
+                let btnText = order.source === 'dine_in' ? '✅ เสิร์ฟแล้ว' : '✅ ส่งมอบแล้ว';
 
                 html += `
                 <div class="ticket" style="${allItemsDone ? 'border-left: 5px solid #06C755; background: #fafffa;' : ''}">
                     <div class="ticket-header" style="${ticketHeaderStyle}">
-                        <h4 class="ticket-table" style="${allItemsDone ? 'color: #06C755;' : ''}">โต๊ะ ${tableName} ${allItemsDone ? '(ครบแล้ว)' : ''}</h4>
-                        <span class="ticket-time">เวลา ${time}</span>
+                        <div>
+                            <h4 class="ticket-table" style="${allItemsDone ? 'color: #06C755;' : ''}">${order.displayTitle}</h4>
+                            ${order.badgeHtml}
+                        </div>
+                        <div style="text-align: right;">
+                            <span class="ticket-time">เวลา ${time}</span>
+                            <div style="margin-top: 5px;">${statusBadgeHtml}</div>
+                        </div>
                     </div>
                     <div>${itemsHtml}</div>
                     <div class="ticket-actions">
                         <button class="ticket-btn btn-print" onclick="printKitchenTicket('${safeOrderData}', false)">🖨 พิมพ์</button>
-                        <button class="ticket-btn btn-cancel" onclick="cancelOrder('${order.id}', '${safeOrderData}')">❌ ยกเลิก</button>
-                        <button class="ticket-btn btn-accept" onclick="markOrderServed('${order.id}')" style="${allItemsDone ? 'box-shadow: 0 0 10px rgba(6,199,85,0.5);' : ''}">✅ เสิร์ฟแล้ว</button>
+                        <button class="ticket-btn btn-cancel" onclick="cancelOrder('${order.id}', '${safeOrderData}', '${order.source}')">❌ ยกเลิก</button>
+                        <button class="ticket-btn btn-accept" onclick="markOrderServed('${order.id}', '${order.source}')" style="${allItemsDone ? 'box-shadow: 0 0 10px rgba(6,199,85,0.5);' : ''}">${btnText}</button>
                     </div>
                 </div>`;
             });
             container.innerHTML = html;
         }
 
-        async function markOrderServed(orderId) {
-            await supabaseClient.from('table_orders').update({ order_status: 'served' }).eq('id', orderId); fetchData();
+        async function markOrderServed(orderId, source) {
+            try {
+                if (source === 'dine_in') {
+                    await supabaseClient.from('table_orders').update({ order_status: 'served' }).eq('id', orderId);
+                } else {
+                    await supabaseClient.from('orders').update({ status: 'completed' }).eq('id', orderId);
+                }
+                fetchData();
+            } catch (err) { alert("อัปเดตไม่สำเร็จ กรุณาลองใหม่"); console.error(err); }
         }
 
-        async function cancelOrder(orderId, encodedOrder) {
+        async function cancelOrder(orderId, encodedOrder, source) {
             if(!confirm("ต้องการยกเลิกออเดอร์นี้ใช่หรือไม่? (ยอดเงินจะไม่ถูกนำไปรวมในบิล)")) return;
-            await supabaseClient.from('table_orders').update({ order_status: 'cancelled' }).eq('id', orderId);
-            printKitchenTicket(encodedOrder, true); fetchData();
+            try {
+                if (source === 'dine_in') {
+                    await supabaseClient.from('table_orders').update({ order_status: 'cancelled' }).eq('id', orderId);
+                } else {
+                    await supabaseClient.from('orders').update({ status: 'cancelled' }).eq('id', orderId);
+                }
+                printKitchenTicket(encodedOrder, true); 
+                fetchData();
+            } catch (err) { alert("อัปเดตไม่สำเร็จ กรุณาลองใหม่"); console.error(err); }
         }
 
         function printKitchenTicket(encodedOrder, isCancel) {
             const order = JSON.parse(decodeURIComponent(encodedOrder));
-            const tableName = order.restaurant_tables ? order.restaurant_tables.table_name : '-';
+            const tableName = order.displayTitle || (order.restaurant_tables ? order.restaurant_tables.table_name : '-');
             const time = new Date(order.created_at).toLocaleTimeString('th-TH');
             
             const printDiv = document.getElementById('printArea');
@@ -362,7 +454,7 @@
                 <div class="print-ticket">
                     <div class="print-header">
                         ${title}
-                        <div class="print-table-name">โต๊ะ ${tableName}</div>
+                        <div class="print-table-name">${tableName}</div>
                         <div>เวลาสั่ง: ${time}</div>
                     </div>
                     <div style="margin-top: 10px;">${itemsHtml}</div>
@@ -401,7 +493,6 @@
                 reqArea.style.display = 'none'; 
             }
 
-            // --- กรณีที่ 1: โต๊ะว่าง ---
             if (!currentViewingSession) {
                 document.getElementById('modalTableStatus').innerText = "โต๊ะว่าง"; 
                 document.getElementById('modalTableStatus').style.color = "#888";
@@ -416,7 +507,6 @@
                 return;
             }
 
-            // --- กรณีที่ 2: โต๊ะเปิดอยู่ ---
             const { data: orders } = await supabaseClient.from('table_orders').select('*').eq('table_session_id', currentViewingSession.id).neq('order_status', 'cancelled');
             
             let statusTxt = "กำลังทาน"; let statusColor = "#06C755";
