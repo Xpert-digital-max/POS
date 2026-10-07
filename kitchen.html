@@ -18,8 +18,9 @@
         .ticket.status-new { border-top-color: #E91E63; } 
         .ticket.status-preparing { border-top-color: #FF9800; } 
         
-        .ticket-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #444; padding-bottom: 15px; margin-bottom: 15px; }
-        .table-name { font-size: 26px; font-weight: bold; color: #fff; margin: 0; }
+        .ticket-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px dashed #444; padding-bottom: 15px; margin-bottom: 15px; }
+        .table-name { font-size: 22px; font-weight: bold; color: #fff; margin: 0; display: flex; flex-direction: column; gap: 5px; }
+        .source-badge { font-size: 12px; padding: 4px 8px; border-radius: 12px; background: #333; display: inline-block; width: fit-content; }
         .order-time { font-size: 14px; color: #aaa; background: #333; padding: 4px 8px; border-radius: 4px; }
         
         .items-container { flex-grow: 1; margin-bottom: 10px; }
@@ -36,6 +37,7 @@
         .btn-large { width: 100%; padding: 15px; font-size: 16px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.2); margin-top: 10px;}
         .btn-start { background: #ffcc80; color: #e65100; border: 1px solid #e65100;}
         .btn-done { background: #a5d6a7; color: #1b5e20; border: 1px solid #1b5e20;}
+        .btn-loading { background: #555 !important; color: #aaa !important; cursor: not-allowed; border: 1px solid #555 !important; }
 
         #soundUnlockOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; text-align: center; padding: 20px; box-sizing: border-box; }
         .start-btn { padding: 20px 50px; font-size: 24px; font-weight: bold; background: #E91E63; color: white; border: none; border-radius: 12px; cursor: pointer; margin-top: 30px; box-shadow: 0 4px 15px rgba(233, 30, 99, 0.4); }
@@ -68,16 +70,14 @@
         let urlVid = urlParams.get('vid');
 
         let VENDOR_ID = urlVid || localStorage.getItem('test_vendor_id');
-
-        if (urlVid) {
-            localStorage.setItem('test_vendor_id', urlVid);
-        }
+        if (urlVid) { localStorage.setItem('test_vendor_id', urlVid); }
 
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
         
         let activeOrders = [];
         let pollingTimer = null;
         let audioContext = null;
+        let staffBranchId = null;
 
         setInterval(() => {
             document.getElementById('clockDisplay').innerText = new Date().toLocaleTimeString('th-TH');
@@ -88,31 +88,91 @@
             if (!audioContext) { audioContext = new (window.AudioContext || window.webkitAudioContext)(); }
             if (audioContext.state === 'suspended') { audioContext.resume(); }
             const osc = audioContext.createOscillator(); osc.connect(audioContext.destination); osc.start(); osc.stop(audioContext.currentTime + 0.01);
+            
+            // อ่านค่า Branch ID ของพนักงาน
+            const sessionRaw = localStorage.getItem('staff_session');
+            if (sessionRaw) {
+                try {
+                    const session = JSON.parse(sessionRaw);
+                    if (session.bid && session.bid !== 'null') staffBranchId = session.bid;
+                } catch(e) {}
+            }
+
             fetchOrders();
             pollingTimer = setInterval(fetchOrders, 3000); 
         }
 
         async function fetchOrders() {
             try {
-                const { data: ordData, error } = await supabaseClient.from('table_orders')
+                // 1. ดึงข้อมูล Dine-in (table_orders)
+                const { data: dineInData, error: errDineIn } = await supabaseClient.from('table_orders')
                     .select('*, restaurant_tables(table_name)')
                     .eq('vendor_id', VENDOR_ID)
-                    .in('order_status', ['new', 'preparing'])
-                    .order('created_at', { ascending: true }); 
-                if (error) throw error;
+                    .in('order_status', ['new', 'preparing']);
+                if (errDineIn) console.error(errDineIn);
 
-                if (ordData) {
-                    let hasNewOrder = false;
-                    ordData.forEach(order => {
-                        const existingOrder = activeOrders.find(o => o.id === order.id);
-                        if (!existingOrder && order.order_status === 'new') {
-                            hasNewOrder = true;
-                        }
-                    });
-                    if (hasNewOrder) playAlertSound();
+                // 2. ดึงข้อมูล Prepaid / Takeaway (orders)
+                let prepaidQuery = supabaseClient.from('orders')
+                    .select('*')
+                    .eq('vendor_id', VENDOR_ID)
+                    .in('status', ['pending', 'processing']); // Mapping: pending=รอครัวรับ, processing=กำลังทำ
+                if (staffBranchId) {
+                    prepaidQuery = prepaidQuery.eq('branch_id', staffBranchId);
+                } else {
+                    prepaidQuery = prepaidQuery.is('branch_id', null);
                 }
+                const { data: prepaidData, error: errPrepaid } = await prepaidQuery;
+                if (errPrepaid) console.error(errPrepaid);
+
+                // 3. Mapping Layer รวมศูนย์ข้อมูล
+                let normalizedOrders = [];
+
+                if (dineInData) {
+                    dineInData.forEach(o => {
+                        o.source = 'dine_in';
+                        o.displayTitle = 'โต๊ะ ' + (o.restaurant_tables ? o.restaurant_tables.table_name : '-');
+                        o.badgeHtml = '<span class="source-badge" style="color:#b388ff; border: 1px solid #b388ff;">🟣 Dine-in</span>';
+                        o.unified_status = o.order_status;
+                        normalizedOrders.push(o);
+                    });
+                }
+
+                if (prepaidData) {
+                    prepaidData.forEach(o => {
+                        o.source = 'prepaid';
+                        let q = o.queue_no ? `(คิว ${o.queue_no})` : '';
+                        let ref = o.reference_no ? o.reference_no : o.id.substring(0,6).toUpperCase();
+                        o.displayTitle = `กลับบ้าน ${q}`;
+                        o.badgeHtml = `<span class="source-badge" style="color:#69f0ae; border: 1px solid #69f0ae;">🟢 Prepaid [${ref}]</span>`;
+                        o.unified_status = o.status === 'pending' ? 'new' : 'preparing';
+                        
+                        let items = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
+                        let itemsArray = Array.isArray(items) ? items : Object.values(items);
+                        // เติม status ระดับเมนูให้ Prepaid เพื่อให้ KDS ทำงานได้
+                        itemsArray.forEach(i => {
+                            if (!i.status) {
+                                i.status = o.status === 'processing' ? 'cooking' : 'new';
+                            }
+                        });
+                        o.items = itemsArray;
+                        normalizedOrders.push(o);
+                    });
+                }
+
+                // เรียงตามเวลาเก่าสุดขึ้นก่อน
+                normalizedOrders.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+                // เช็คออเดอร์ใหม่เพื่อเล่นเสียง
+                let hasNewOrder = false;
+                normalizedOrders.forEach(order => {
+                    const existingOrder = activeOrders.find(o => o.id === order.id);
+                    if (!existingOrder && order.unified_status === 'new') {
+                        hasNewOrder = true;
+                    }
+                });
+                if (hasNewOrder) playAlertSound();
                 
-                activeOrders = ordData || [];
+                activeOrders = normalizedOrders;
                 renderOrders();
 
             } catch (err) { console.error("Fetch Error:", err); }
@@ -142,7 +202,6 @@
 
             let html = '';
             activeOrders.forEach(order => {
-                const tableName = order.restaurant_tables ? order.restaurant_tables.table_name : '-';
                 const timeStr = new Date(order.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
                 
                 const waitTimeMin = Math.floor((new Date() - new Date(order.created_at)) / 60000);
@@ -150,13 +209,12 @@
                 const timeColor = waitTimeMin > 15 ? 'color: #ff5252;' : ''; 
 
                 let itemsHtml = '';
-                let items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+                let items = order.items;
                 let allServed = true;
                 let hasNew = false;
 
                 items.forEach((item, index) => {
-                    if (!item.status) item.status = 'new';
-                    if (item.status !== 'served') allServed = false;
+                    if (item.status !== 'served' && item.status !== 'done') allServed = false;
                     if (item.status === 'new') hasNew = true;
 
                     let optStr = item.option ? `<span class="item-option">👉 ${item.option}</span>` : '';
@@ -164,14 +222,11 @@
                     
                     let itemBtn = '';
                     if (item.status === 'new') {
-                        // เปลี่ยนเป็นส่งสถานะ 'cooking' เพื่อให้สอดคล้องกับฝั่งแคชเชียร์
                         itemBtn = `<button onclick="updateItemStatus('${order.id}', ${index}, 'cooking')" class="item-action-btn btn-item-start">🔥 ทำ</button>`;
                     } else if (item.status === 'cooking' || item.status === 'preparing') {
-                        // เปลี่ยนเป็นส่งสถานะ 'done' เพื่อให้สอดคล้องกับฝั่งแคชเชียร์
                         itemBtn = `<button onclick="updateItemStatus('${order.id}', ${index}, 'done')" class="item-action-btn btn-item-done">✅ เสร็จ</button>`;
                     }
 
-                    // ปรับ opacity ถ้าไอเทมนี้ทำเสร็จแล้ว
                     const opacity = item.status === 'done' || item.status === 'served' ? '0.5' : '1';
 
                     itemsHtml += `
@@ -184,26 +239,30 @@
                     </div>`;
                 });
 
+                // ถ้ารายการในใบนี้เสร็จทั้งหมด
                 if (allServed) {
-                    updateOrderToServed(order.id);
+                    updateOrderToServed(order.id, order.source);
                     return; 
                 }
 
-                const isNew = hasNew && order.order_status === 'new';
+                const isNew = hasNew && order.unified_status === 'new';
                 const cardClass = isNew ? 'status-new' : 'status-preparing';
                 
                 let orderActionBtn = '';
                 if (hasNew) {
-                    orderActionBtn = `<button onclick="updateAllItemsStatus('${order.id}', 'cooking')" class="btn-large btn-start">รับทำทั้งหมด</button>`;
+                    orderActionBtn = `<button id="btn_${order.id}" onclick="updateAllItemsStatus('${order.id}', 'cooking', this)" class="btn-large btn-start">รับทำทั้งหมด</button>`;
                 } else {
-                    orderActionBtn = `<button onclick="updateAllItemsStatus('${order.id}', 'done')" class="btn-large btn-done">เสร็จทั้งหมด</button>`;
+                    orderActionBtn = `<button id="btn_${order.id}" onclick="updateAllItemsStatus('${order.id}', 'done', this)" class="btn-large btn-done">เสร็จทั้งหมด</button>`;
                 }
 
                 html += `
                 <div class="ticket ${cardClass}">
                     <div>
                         <div class="ticket-header">
-                            <h3 class="table-name">โต๊ะ ${tableName}</h3>
+                            <div>
+                                <h3 class="table-name">${order.displayTitle}</h3>
+                                ${order.badgeHtml}
+                            </div>
                             <div style="text-align: right;">
                                 <span class="order-time">⏰ ${timeStr}</span>
                                 <div style="font-size: 12px; margin-top: 4px; ${timeColor}">${waitTimeDisplay}</div>
@@ -214,7 +273,7 @@
                         </div>
                     </div>
                     <div>
-                        ${items.length > 1 ? orderActionBtn : ''}
+                        ${items.length > 0 ? orderActionBtn : ''}
                     </div>
                 </div>`;
             });
@@ -225,7 +284,7 @@
         async function updateItemStatus(orderId, itemIndex, newStatus) {
             try {
                 const order = activeOrders.find(o => o.id === orderId);
-                let items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+                let items = order.items;
                 items[itemIndex].status = newStatus;
 
                 let allServed = true;
@@ -235,50 +294,60 @@
                     if (i.status === 'new') hasNew = true;
                 });
 
-                let orderStatus = 'preparing';
-                if (allServed) orderStatus = 'served'; // ถ้ารายการเสร็จหมด ให้ครัวมองว่าออเดอร์นี้หลุดจากหน้าไปเลย
-                else if (hasNew && order.order_status === 'new') orderStatus = 'new';
+                let nextDbStatus = 'preparing';
+                if (allServed) nextDbStatus = 'served'; 
+                else if (hasNew && order.unified_status === 'new') nextDbStatus = 'new';
                 
-                order.items = items;
-                order.order_status = orderStatus;
-                renderOrders();
+                order.unified_status = nextDbStatus;
+                renderOrders(); // Optimistic Update
 
-                await supabaseClient.from('table_orders').update({ 
-                    items: items,
-                    order_status: orderStatus 
-                }).eq('id', orderId);
+                if (order.source === 'dine_in') {
+                    await supabaseClient.from('table_orders').update({ items: items, order_status: nextDbStatus }).eq('id', orderId);
+                } else {
+                    // Prepaid mapping
+                    let preStatus = nextDbStatus === 'served' ? 'completed' : (nextDbStatus === 'preparing' ? 'processing' : 'pending');
+                    await supabaseClient.from('orders').update({ items: items, status: preStatus }).eq('id', orderId);
+                }
 
-            } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); }
+            } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); fetchOrders(); }
         }
 
-        async function updateAllItemsStatus(orderId, newStatus) {
+        async function updateAllItemsStatus(orderId, newStatus, btnElement) {
             try {
+                if (btnElement) {
+                    btnElement.innerText = "กำลังอัปเดต...";
+                    btnElement.className = "btn-large btn-loading";
+                    btnElement.disabled = true;
+                }
+
                 const order = activeOrders.find(o => o.id === orderId);
-                let items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+                let items = order.items;
                 items.forEach(i => i.status = newStatus);
 
-                let orderStatus = newStatus === 'done' ? 'served' : 'preparing';
+                let nextDbStatus = newStatus === 'done' ? 'served' : 'preparing';
 
-                order.items = items;
-                order.order_status = orderStatus;
-                renderOrders();
-
-                await supabaseClient.from('table_orders').update({ 
-                    items: items,
-                    order_status: orderStatus 
-                }).eq('id', orderId);
+                if (order.source === 'dine_in') {
+                    await supabaseClient.from('table_orders').update({ items: items, order_status: nextDbStatus }).eq('id', orderId);
+                } else {
+                    let preStatus = nextDbStatus === 'served' ? 'completed' : (nextDbStatus === 'preparing' ? 'processing' : 'pending');
+                    await supabaseClient.from('orders').update({ items: items, status: preStatus }).eq('id', orderId);
+                }
                 
-                if(orderStatus === 'served') fetchOrders();
+                fetchOrders();
 
-            } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); }
+            } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); fetchOrders(); }
         }
 
-        async function updateOrderToServed(orderId) {
-            await supabaseClient.from('table_orders').update({ order_status: 'served' }).eq('id', orderId);
+        async function updateOrderToServed(orderId, source) {
+            if (source === 'dine_in') {
+                await supabaseClient.from('table_orders').update({ order_status: 'served' }).eq('id', orderId);
+            } else {
+                await supabaseClient.from('orders').update({ status: 'completed' }).eq('id', orderId);
+            }
             fetchOrders();
         }
 
-        // ==================== AUTH GUARD (KITCHEN & CASHIER ROLE) ====================
+        // ==================== AUTH GUARD ====================
         let authCheckTimer = null;
         
         async function verifyStaffSession() {
@@ -288,7 +357,7 @@
             }
 
             const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('bypass_auth') === 'true') return true; // ข้ามการเช็คถ้ามาจากเจ้าของร้าน
+            if (urlParams.get('bypass_auth') === 'true') return true; 
 
             const sessionRaw = localStorage.getItem('staff_session');
             if (!sessionRaw) {
@@ -298,7 +367,6 @@
 
             try {
                 const session = JSON.parse(sessionRaw);
-                // อนุญาตให้เข้าได้ทั้งแคชเชียร์และห้องครัว
                 if (session.role !== 'kitchen' && session.role !== 'cashier') {
                     forceLogout("คุณไม่มีสิทธิ์เข้าถึงหน้านี้");
                     return false;
@@ -342,11 +410,8 @@
         }
 
         window.onload = async () => {
-            const isAuth = await verifyStaffSession();
-            // หน้าครัวให้รอคลิกปุ่ม Start ถึงจะทำงานต่อ
+            await verifyStaffSession();
         };
-        // ================================================================
-
     </script>
 </body>
 </html>
