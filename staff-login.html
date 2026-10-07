@@ -40,6 +40,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const urlVid = urlParams.get('vid');
         const urlBid = urlParams.get('bid'); // รับ bid เพื่อระบุสาขา (อาจจะเป็น null สำหรับสาขาหลัก)
+        const nextAction = urlParams.get('next'); // เพิ่มการรับค่า next parameter
 
         if (!urlVid) {
             alert("ไม่พบข้อมูลร้านค้า กรุณาเข้าผ่านลิงก์ที่เจ้าของร้านส่งให้");
@@ -91,7 +92,7 @@
                 }
 
                 if (pin === data.cashier_pin) {
-                    // ล็อกอินสำเร็จ - แคชเชียร์ (บันทึกเซสชันและส่งไปหน้าแคชเชียร์)
+                    // ล็อกอินสำเร็จ - แคชเชียร์ (บันทึกเซสชันและส่งไปหน้าแคชเชียร์ หรือหน้าที่กำหนด)
                     saveSessionAndRedirect('cashier', data.cashier_pin);
                 } else if (pin === data.kitchen_pin) {
                     // ล็อกอินสำเร็จ - ห้องครัว (บันทึกเซสชันและส่งไปหน้า KDS)
@@ -120,7 +121,18 @@
             };
             localStorage.setItem('staff_session', JSON.stringify(sessionData));
 
-            // เปลี่ยนหน้าจอตามสิทธิ์ (Role)
+            // เช็คว่ามีการระบุ next action ให้ไปที่หน้ารายงานยอดขายหรือไม่ และต้องเป็นแคชเชียร์เท่านั้น
+            if (nextAction === 'sales' && role === 'cashier') {
+                let url = `sales-dashboard.html?vid=${urlVid}`;
+                if (urlBid) url += `&bid=${urlBid}`;
+                window.location.href = url;
+                return;
+            } else if (nextAction === 'sales' && role !== 'cashier') {
+                // ถ้า role อื่นพยายามเข้า sales (เช่น ครัว) ให้แจ้งเตือนและส่งกลับไปหน้าปกติ
+                alert("คุณไม่มีสิทธิ์เข้าถึงหน้ารายงานยอดขาย (เฉพาะแคชเชียร์)");
+            }
+
+            // เปลี่ยนหน้าจอตามสิทธิ์ (Role) ปกติ
             let targetPage = '';
             if (role === 'cashier') {
                 targetPage = 'restaurant-orders.html';
