@@ -636,14 +636,14 @@
         }
 
         function openStaffLogin() { 
-            if (!vendorData || !vendorData.id) return alert("กรุณารอระบบโหลดข้อมูลร้านค้าให้เสร็จสิ้นก่อน");
-            window.open(`staff-login.html?vid=${vendorData.id}`, '_blank'); 
-        }
-        
-        function openDirectPage(page) { 
-            if (!vendorData || !vendorData.id) return alert("กรุณารอระบบโหลดข้อมูลร้านค้าให้เสร็จสิ้นก่อน");
-            window.open(`${page}?vid=${vendorData.id}&bypass_auth=true`, '_blank'); 
-        }
+    if (!vendorData || !vendorData.id) return alert("กรุณารอระบบโหลดข้อมูลร้านค้าให้เสร็จสิ้นก่อน");
+    window.location.href = `staff-login.html?vid=${vendorData.id}`; 
+}
+
+function openDirectPage(page) { 
+    if (!vendorData || !vendorData.id) return alert("กรุณารอระบบโหลดข้อมูลร้านค้าให้เสร็จสิ้นก่อน");
+    window.location.href = `${page}?vid=${vendorData.id}&bypass_auth=true`; 
+}
 
         async function safeLoad(label, fn) {
             try {
