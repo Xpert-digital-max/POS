@@ -128,6 +128,75 @@
             return decodeURIComponent(results[2].replace(/\+/g, ' '));
         }
 
+
+        function recoverCustomerContext() {
+
+            let vid = getUrlParameter('vid');
+            let bid = getUrlParameter('bid');
+
+            // 1) พยายามกู้จาก liff.state
+            if (!vid) {
+                try {
+                    const liffState = getUrlParameter('liff.state');
+
+                    if (liffState) {
+                        const decodedState = decodeURIComponent(liffState);
+
+                        const stateParams = new URLSearchParams(
+                            decodedState.startsWith('?')
+                                ? decodedState
+                                : '?' + decodedState
+                        );
+
+                        vid = stateParams.get('vid') || vid;
+                        bid = stateParams.get('bid') || bid;
+                    }
+                } catch (e) {
+                    console.warn("[LIFF STATE PARSE]", e);
+                }
+            }
+
+            // 2) พยายามกู้จาก liffRedirectUri ตอน LINE Login callback
+            if (!vid) {
+                try {
+                    const redirectUri = getUrlParameter('liffRedirectUri');
+
+                    if (redirectUri) {
+                        const decodedRedirect = decodeURIComponent(redirectUri);
+                        const redirectUrl = new URL(decodedRedirect);
+
+                        vid = redirectUrl.searchParams.get('vid') || vid;
+                        bid = redirectUrl.searchParams.get('bid') || bid;
+                    }
+                } catch (e) {
+                    console.warn("[LIFF REDIRECT URI PARSE]", e);
+                }
+            }
+
+            // 3) สำรองจาก sessionStorage
+            if (!vid) {
+                vid = sessionStorage.getItem('NPX_CUSTOMER_VENDOR_ID');
+            }
+
+            if (!bid) {
+                bid = sessionStorage.getItem('NPX_CUSTOMER_BRANCH_ID');
+            }
+
+            // 4) จำค่าไว้ก่อน LIFF Login redirect
+            if (vid) {
+                sessionStorage.setItem('NPX_CUSTOMER_VENDOR_ID', vid);
+            }
+
+            if (bid) {
+                sessionStorage.setItem('NPX_CUSTOMER_BRANCH_ID', bid);
+            }
+
+            return {
+                vendorId: vid || null,
+                branchId: bid || null
+            };
+        }
+
         function saveCart() {
             if (vendorId) {
                 localStorage.setItem(`cart_${vendorId}`, JSON.stringify(cart));
@@ -153,22 +222,46 @@
             }
         }
 
-        async function initCustomerApp() { 
-            try { 
-                vendorId = getUrlParameter('vid');
-                branchId = getUrlParameter('bid');
+        async function initCustomerApp() {
+            try {
+
+                const customerContext = recoverCustomerContext();
+
+                vendorId = customerContext.vendorId;
+                branchId = customerContext.branchId;
+
+                console.log(
+                    "[CUSTOMER CONTEXT]",
+                    {
+                        vendorId,
+                        branchId,
+                        href: window.location.href
+                    }
+                );
 
                 if (!vendorId) {
-                    const liffState = getUrlParameter('liff.state');
-                    if (liffState) {
-                        const stateParams = new URLSearchParams(liffState.startsWith('?') ? liffState : '?' + liffState);
-                        vendorId = stateParams.get('vid');
-                        if (!branchId) branchId = stateParams.get('bid');
+                    const menuContainer = document.getElementById('menuContainer');
+
+                    if (menuContainer) {
+                        menuContainer.innerHTML = `
+                            <div style="
+                                text-align:center;
+                                padding:30px 15px;
+                                color:#f44336;
+                            ">
+                                ❌ ไม่พบรหัสร้านค้า<br>
+                                <small>
+                                    กรุณาเปิดลิงก์สั่งอาหารจาก LINE ของร้านอีกครั้ง
+                                </small>
+                            </div>
+                        `;
                     }
-                }
-                
-                if (!vendorId) {
-                    alert("ไม่พบรหัสร้านค้า กรุณาตรวจสอบลิงก์อีกครั้ง"); return; 
+
+                    alert(
+                        "ไม่พบรหัสร้านค้า กรุณาเปิดลิงก์สั่งอาหารจากร้านอีกครั้ง"
+                    );
+
+                    return;
                 }
 
                 const { data } = await supabaseClient.from('vendors').select('*').eq('id', vendorId).single(); 
@@ -202,7 +295,13 @@
                 await liff.init({ liffId: liffToUse }); 
                 
                 if (liff.isLoggedIn()) { 
-                    customerUid = liff.getDecodedIDToken().sub; 
+                    const decodedToken = liff.getDecodedIDToken();
+                    if (decodedToken && decodedToken.sub) {
+                        customerUid = decodedToken.sub;
+                    } else {
+                        const profile = await liff.getProfile();
+                        customerUid = profile.userId;
+                    } 
                     
                     document.getElementById('storeName').innerText = vendorData.name; 
                     if (vendorData.line_picture_url) document.getElementById('storeLogo').src = vendorData.line_picture_url; 
