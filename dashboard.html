@@ -761,7 +761,14 @@ function normalizeOptions(rawOptions) {
 
 // ระบบวาด UI
 function renderOptionGroups() {
-    const container = document.getElementById('optionGroupsContainer');
+    const container =
+        document.getElementById('optionGroupsContainer');
+
+    if (!container) {
+        console.warn("ไม่พบ optionGroupsContainer");
+        return;
+    }
+
     container.innerHTML = '';
     currentOptionGroups.forEach((group, gIndex) => {
         let choicesHtml = '';
@@ -821,39 +828,66 @@ function updateChoice(gIndex, cIndex, val) { currentOptionGroups[gIndex].choices
 
 function getValidatedMenuOptions() {
     let isValid = true;
+
     currentOptionGroups.forEach(g => {
-        g.choices = g.choices.map(c => c.trim()).filter(c => c !== '');
-        if (g.type === 'multiple') {
-            if (g.max < g.min) { alert(`กลุ่ม "${g.name}": ขั้นต่ำต้องไม่เกินสูงสุด`); isValid = false; }
-            if (g.max > g.choices.length) { alert(`กลุ่ม "${g.name}": จำนวนสูงสุด (${g.max}) เกินตัวเลือกที่มี (${g.choices.length})`); isValid = false; }
+
+        g.name = String(g.name || '').trim();
+
+        g.choices = Array.isArray(g.choices)
+            ? g.choices.map(c => String(c).trim()).filter(c => c !== '')
+            : [];
+
+        if (!g.name) {
+            alert("กรุณาระบุชื่อกลุ่มตัวเลือก");
+            isValid = false;
+            return;
         }
-    });
-    return isValid ? JSON.stringify(currentOptionGroups) : null;
-}
 
-        async function initDashboard() {
-            console.log("[INIT] เริ่มต้น Dashboard...");
-            try {
-                await liff.init({ liffId: CONFIG.liffIdDashboard });
+        if (g.choices.length === 0) {
+            alert(`กลุ่ม "${g.name}": กรุณาเพิ่มตัวเลือกอย่างน้อย 1 รายการ`);
+            isValid = false;
+            return;
+        }
 
-                if (!liff.isLoggedIn()) {
-                    liff.login({ redirectUri: window.location.href });
-                    return;
-                }
+        if (g.type === 'single') {
+            g.min = 1;
+            g.max = 1;
+        }
 
-                const profile = await liff.getProfile();
-                console.log("[INIT] LINE profile พร้อมแล้ว");
+        if (g.type === 'multiple') {
 
-                await loadVendorData(profile.userId);
-                console.log("[INIT] Dashboard พร้อมใช้งาน");
+            g.min = Number(g.min) || 0;
+            g.max = Number(g.max) || 1;
 
-            } catch (err) {
-                console.error("[INIT] Error:", err);
-                const storeNameEl = document.getElementById('storeName');
-                if (storeNameEl) storeNameEl.innerText = "โหลดข้อมูลล้มเหลว";
-                alert("เกิดข้อผิดพลาดในการเปิด Dashboard: " + (err?.message || err));
+            if (g.min < 0) {
+                alert(`กลุ่ม "${g.name}": จำนวนขั้นต่ำต้องไม่ต่ำกว่า 0`);
+                isValid = false;
+            }
+
+            if (g.max < 1) {
+                alert(`กลุ่ม "${g.name}": จำนวนสูงสุดต้องอย่างน้อย 1`);
+                isValid = false;
+            }
+
+            if (g.max < g.min) {
+                alert(`กลุ่ม "${g.name}": ขั้นต่ำต้องไม่เกินสูงสุด`);
+                isValid = false;
+            }
+
+            if (g.max > g.choices.length) {
+                alert(
+                    `กลุ่ม "${g.name}": จำนวนสูงสุด (${g.max}) ` +
+                    `เกินตัวเลือกที่มี (${g.choices.length})`
+                );
+                isValid = false;
             }
         }
+    });
+
+    return isValid
+        ? JSON.stringify(currentOptionGroups)
+        : null;
+}
 
         async function loadVendorData(uid) {
             try {
@@ -1894,14 +1928,19 @@ function formatMenuOptionsForDisplay(rawOptions) {
                 ? `<br><small style="color:#00BCD4;">[ตัวเลือก: ${formattedOptions}]</small>`
                 : '';
 
-        const safeCatId =
-            item.category_id || '';
+        const safeCatId = item.category_id || '';
 
-        const safeOpts =
-            item.options || '';
+const safeName = encodeURIComponent(item.name || '')
+    .replace(/'/g, '%27');
 
-        const safeImgUrl =
-            item.image_url || '';
+const safeOpts = encodeURIComponent(
+    typeof item.options === 'string'
+        ? item.options
+        : JSON.stringify(item.options || '')
+).replace(/'/g, '%27');
+
+const safeImgUrl = encodeURIComponent(item.image_url || '')
+    .replace(/'/g, '%27');
 
         html += `
             <div class="card" style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
@@ -1933,13 +1972,25 @@ function formatMenuOptionsForDisplay(rawOptions) {
                 <div style="display: flex; flex-direction: column; gap: 5px;">
 
                     <button
-                        onclick="copyMenu('${item.name}', ${item.price}, '${safeCatId}', '${safeOpts}', '${safeImgUrl}')"
+                        onclick="copyMenu(
+    decodeURIComponent('${safeName}'),
+    ${item.price},
+    '${safeCatId}',
+    decodeURIComponent('${safeOpts}'),
+    decodeURIComponent('${safeImgUrl}')
+)"
                         style="background: #9C27B0; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
                         📑 คัดลอก
                     </button>
 
                     <button
-                        onclick="editMenu('${item.id}', '${item.name}', ${item.price}, '${safeCatId}', '${safeOpts}')"
+                        onclick="editMenu(
+    '${item.id}',
+    decodeURIComponent('${safeName}'),
+    ${item.price},
+    '${safeCatId}',
+    decodeURIComponent('${safeOpts}')
+)"
                         style="background: #2196F3; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
                         ✏️ แก้ไข
                     </button>
