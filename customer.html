@@ -245,293 +245,85 @@
                 calculateTotal();
             }
         }
-        async function initCustomerApp() {
-            try {
-                // ======================================================
-                // STEP 1: กู้ Vendor / Branch context ก่อน
-                // ======================================================
-                let customerContext = recoverCustomerContext();
-
-                vendorId = customerContext.vendorId;
-                branchId = customerContext.branchId;
-
-                console.log("[CUSTOMER CONTEXT BEFORE LIFF]", {
-                    vendorId,
-                    branchId,
-                    href: window.location.href
-                });
-
-                // ======================================================
-                // STEP 2:
-                // ถ้า Mobile LIFF callback ทำ vid หาย
-                // ให้ init LIFF ก่อน 1 รอบ เพื่อให้ SDK restore liff.state
-                // แล้วค่อยอ่าน context ซ้ำ
-                // ======================================================
-                if (!vendorId) {
-
-    const recoveryLiffId =
-        String(CONFIG.liffIdCustomer || '').trim();
-
-    if (recoveryLiffId) {
-
-        console.log(
-            "[LIFF RECOVERY INIT]",
-            recoveryLiffId
-        );
-
-        await liff.init({
-            liffId: recoveryLiffId
-        });
-
-        customerContext =
-            recoverCustomerContext();
-
-        vendorId =
-            customerContext.vendorId;
-
-        branchId =
-            customerContext.branchId;
-
-        console.log(
-            "[CUSTOMER CONTEXT AFTER LIFF]",
-            {
-                vendorId,
-                branchId,
-                href: window.location.href
-            }
-        );
-    }
-}
+        async function initCustomerApp() { 
+            try { 
+                vendorId = getUrlParameter('vid');
+                branchId = getUrlParameter('bid');
 
                 if (!vendorId) {
-                    const menuContainer = document.getElementById('menuContainer');
-
-                    if (menuContainer) {
-                        menuContainer.innerHTML = `
-                            <div style="
-                                text-align:center;
-                                padding:30px 15px;
-                                color:#f44336;
-                                line-height:1.7;
-                            ">
-                                ❌ ไม่พบรหัสร้านค้า<br>
-                                <small>
-                                    กรุณาปิดหน้านี้ แล้วเปิดเมนูสั่งอาหารจาก LINE ของร้านใหม่อีกครั้ง
-                                </small>
-                            </div>
-                        `;
+                    const liffState = getUrlParameter('liff.state');
+                    if (liffState) {
+                        const stateParams = new URLSearchParams(liffState.startsWith('?') ? liffState : '?' + liffState);
+                        vendorId = stateParams.get('vid');
+                        if (!branchId) branchId = stateParams.get('bid');
                     }
-
-                    alert(
-                        "ไม่พบรหัสร้านค้า กรุณาปิดหน้านี้ แล้วเปิดเมนูสั่งอาหารจาก LINE ของร้านใหม่อีกครั้ง"
-                    );
-                    return;
+                }
+                
+                if (!vendorId) {
+                    alert("ไม่พบรหัสร้านค้า กรุณาตรวจสอบลิงก์อีกครั้ง"); return; 
                 }
 
-                // ======================================================
-                // STEP 3: โหลดข้อมูลร้าน
-                // ======================================================
-                const { data, error: vendorError } =
-                    await supabaseClient
-                        .from('vendors')
-                        .select('*')
-                        .eq('id', vendorId)
-                        .single();
-
-                if (vendorError || !data) {
-                    console.error("[VENDOR LOAD ERROR]", vendorError);
-                    alert("ไม่มีข้อมูลร้านค้านี้ในระบบ");
-                    return;
+                const { data } = await supabaseClient.from('vendors').select('*').eq('id', vendorId).single(); 
+                if (!data) {
+                    alert("ไม่มีข้อมูลร้านค้านี้ในระบบ"); return;
                 }
-
                 vendorData = data;
 
-                // ======================================================
-                // STEP 4: โหลดสาขา (ถ้ามี)
-                // ======================================================
                 if (branchId) {
-                    const { data: bData, error: branchError } =
-                        await supabaseClient
-                            .from('branches')
-                            .select('*')
-                            .eq('id', branchId)
-                            .single();
-
-                    if (!branchError && bData) {
-                        branchData = bData;
-                        vendorData.name =
-                            `${vendorData.name} (${bData.branch_name})`;
-
+                    const { data: bData } = await supabaseClient.from('branches').select('*').eq('id', branchId).single();
+                    if (bData) {
+                        branchData = bData; 
+                        vendorData.name = `${vendorData.name} (${bData.branch_name})`;
+                        
                         if (!branchData.payment_type && branchData.promptpay) {
-                            if (branchData.promptpay.match(/[ก-๙a-zA-Z]/)) {
-                                branchData.payment_type = 'bank';
-                                branchData.bank_info = branchData.promptpay;
-                            } else {
-                                branchData.payment_type = 'promptpay';
-                                branchData.promptpay_number = branchData.promptpay;
-                            }
+                             if (branchData.promptpay.match(/[ก-๙a-zA-Z]/)) {
+                                 branchData.payment_type = 'bank';
+                                 branchData.bank_info = branchData.promptpay;
+                             } else {
+                                 branchData.payment_type = 'promptpay';
+                                 branchData.promptpay_number = branchData.promptpay;
+                             }
                         }
                     } else {
-                        console.warn("[BRANCH LOAD]", branchError);
-                        branchId = null;
-                        branchData = null;
+                        branchId = null; 
                     }
                 }
 
-                // ======================================================
-                // STEP 5: Init LIFF ด้วย LIFF ของร้าน
-                // ถ้ารอบ recovery init ไปแล้วด้วย ID เดียวกัน ก็ init ซ้ำได้อย่างปลอดภัย
-                // ======================================================
-                const liffToUse =
-                    vendorData.liff_customer_id
-                        ? vendorData.liff_customer_id.trim()
-                        : CONFIG.liffIdCustomer;
+                const liffToUse = vendorData.liff_customer_id ? vendorData.liff_customer_id.trim() : CONFIG.liffIdCustomer;
 
-                await liff.init({
-                    liffId: liffToUse
-                });
+                await liff.init({ liffId: liffToUse }); 
+                
+                if (liff.isLoggedIn()) { 
+                    customerUid = liff.getDecodedIDToken().sub; 
+                    
+                    document.getElementById('storeName').innerText = vendorData.name; 
+                    if (vendorData.line_picture_url) document.getElementById('storeLogo').src = vendorData.line_picture_url; 
+                    const statusBadge = document.getElementById('storeStatus'); 
+                    if (vendorData.is_open) { 
+                        statusBadge.innerText = "🟢 เปิดรับออเดอร์"; statusBadge.className = "status-badge status-open"; 
+                    } else { 
+                        statusBadge.innerText = "🔴 ปิดรับออเดอร์"; statusBadge.className = "status-badge status-closed"; 
+                        document.getElementById('closedOverlay').style.display = "flex"; 
+                    } 
+                    
+                    await loadCategories(); 
+                    await loadMenu(); 
+                    
+                    loadSavedCart();
 
-                // ======================================================
-                // STEP 6: External browser ที่ยังไม่ login
-                // ให้กลับมาพร้อม vid / bid เสมอ
-                // ======================================================
-                if (!liff.isLoggedIn()) {
-
-                    const redirectUrl = new URL(
-                        window.location.origin + '/POS/customer.html'
-                    );
-
-                    redirectUrl.searchParams.set(
-                        'vid',
-                        vendorId
-                    );
-
-                    if (branchId) {
-                        redirectUrl.searchParams.set(
-                            'bid',
-                            branchId
-                        );
+                    const isCheckoutOpen = localStorage.getItem(`checkoutState_${vendorId}`);
+                    if (isCheckoutOpen === 'open' && cart.length > 0) {
+                        goToCheckout();
                     }
 
-                    sessionStorage.setItem(
-                        'NPX_CUSTOMER_VENDOR_ID',
-                        vendorId
-                    );
-
-                    localStorage.setItem(
-                        'NPX_CUSTOMER_VENDOR_ID',
-                        vendorId
-                    );
-
-                    if (branchId) {
-                        sessionStorage.setItem(
-                            'NPX_CUSTOMER_BRANCH_ID',
-                            branchId
-                        );
-
-                        localStorage.setItem(
-                            'NPX_CUSTOMER_BRANCH_ID',
-                            branchId
-                        );
-                    }
-
-                    console.log(
-                        "[LIFF LOGIN REDIRECT]",
-                        redirectUrl.toString()
-                    );
-
-                    liff.login({
-                        redirectUri: redirectUrl.toString()
-                    });
-
-                    return;
-                }
-
-                // ======================================================
-                // STEP 7: อ่าน LINE User ID
-                // ======================================================
-                const decodedToken = liff.getDecodedIDToken();
-
-                if (decodedToken && decodedToken.sub) {
-                    customerUid = decodedToken.sub;
-                } else {
-                    const profile = await liff.getProfile();
-                    customerUid = profile.userId;
-                }
-
-                // ======================================================
-                // STEP 8: แสดงข้อมูลร้าน + โหลดเมนู
-                // ======================================================
-                document.getElementById('storeName').innerText =
-                    vendorData.name;
-
-                if (vendorData.line_picture_url) {
-                    document.getElementById('storeLogo').src =
-                        vendorData.line_picture_url;
-                }
-
-                const statusBadge =
-                    document.getElementById('storeStatus');
-
-                if (vendorData.is_open) {
-                    statusBadge.innerText = "🟢 เปิดรับออเดอร์";
-                    statusBadge.className =
-                        "status-badge status-open";
-                } else {
-                    statusBadge.innerText = "🔴 ปิดรับออเดอร์";
-                    statusBadge.className =
-                        "status-badge status-closed";
-
-                    document.getElementById(
-                        'closedOverlay'
-                    ).style.display = "flex";
-                }
-
-                await loadCategories();
-                await loadMenu();
-
-                loadSavedCart();
-
-                const isCheckoutOpen =
-                    localStorage.getItem(
-                        `checkoutState_${vendorId}`
-                    );
-
-                if (
-                    isCheckoutOpen === 'open' &&
-                    cart.length > 0
-                ) {
-                    goToCheckout();
-                }
-
-            } catch (err) {
-                console.error("[CUSTOMER INIT ERROR]", err);
-
-                const menuContainer =
-                    document.getElementById('menuContainer');
-
-                if (menuContainer) {
-                    menuContainer.innerHTML = `
-                        <div style="
-                            text-align:center;
-                            padding:30px 15px;
-                            color:#f44336;
-                            line-height:1.7;
-                        ">
-                            ❌ เปิดหน้าสั่งอาหารไม่สำเร็จ<br>
-                            <small>
-                                ${String(err?.message || err)}
-                            </small>
-                        </div>
-                    `;
-                }
-
-                alert(
-                    "เปิดหน้าสั่งอาหารไม่สำเร็จ:\n" +
-                    (err?.message || err)
-                );
-            }
+                } else { 
+                    liff.login(); 
+                } 
+            } catch (err) { 
+                console.error("LIFF Init Error: ", err);
+            } 
         }
+        
 
         async function loadCategories() { const { data } = await supabaseClient.from('categories').select('*').eq('vendor_id', vendorId).order('created_at', { ascending: true }); if (!data) return; const catBar = document.getElementById('categoryBar'); let html = '<button class="cat-btn active" onclick="filterCategory(\'all\', this)">ทั้งหมด</button>'; data.forEach(cat => { html += `<button class="cat-btn" onclick="filterCategory('${cat.id}', this)">${cat.name}</button>`; }); catBar.innerHTML = html; }
         
