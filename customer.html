@@ -244,13 +244,64 @@
             if (filtered.length === 0) { container.innerHTML = '<p style="text-align: center; color: #888; padding: 20px 0;">ไม่มีเมนูในหมวดหมู่นี้</p>'; return; }
             let html = '';
             filtered.forEach(item => {
-                // [PATCH] ดักจับกรณีเว้นวรรคเปล่าๆ ให้แสดงภาพ Placeholder
-                const imgSrc = (item.image_url && item.image_url.trim() !== '') ? item.image_url : 'https://via.placeholder.com/80?text=Food';
-                const currentQty = cart.filter(c => c.id === item.id).reduce((sum, c) => sum + c.qty, 0);
-                html += `<div class="menu-card"><img src="${imgSrc}" class="menu-img"><div class="menu-info"><div><h4>${item.name}</h4><p>฿${item.price}</p></div><div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;"><span style="font-size: 12px; color: #888;">ในตะกร้า: <strong style="color:#06C755;">${currentQty}</strong></span><button class="add-btn" onclick="openItemModal('${item.id}')">+ เลือก</button></div></div></div>`;
-            });
-            contain        // ==================== MENU OPTIONS: SINGLE / MULTIPLE ====================
+    // [PATCH] ดักจับกรณีเว้นวรรคเปล่าๆ ให้แสดงภาพ Placeholder
+    const imgSrc =
+        (item.image_url && item.image_url.trim() !== '')
+            ? item.image_url
+            : 'https://via.placeholder.com/80?text=Food';
 
+    const currentQty =
+        cart
+            .filter(c => c.id === item.id)
+            .reduce((sum, c) => sum + c.qty, 0);
+
+    html += `
+        <div class="menu-card">
+
+            <img
+                src="${imgSrc}"
+                class="menu-img"
+            >
+
+            <div class="menu-info">
+
+                <div>
+                    <h4>${item.name}</h4>
+                    <p>฿${item.price}</p>
+                </div>
+
+                <div style="
+                    display:flex;
+                    justify-content:space-between;
+                    align-items:center;
+                    margin-top:5px;
+                ">
+
+                    <span style="font-size:12px; color:#888;">
+                        ในตะกร้า:
+                        <strong style="color:#06C755;">
+                            ${currentQty}
+                        </strong>
+                    </span>
+
+                    <button
+                        class="add-btn"
+                        onclick="openItemModal('${item.id}')">
+                        + เลือก
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+    `;
+});
+
+container.innerHTML = html;
+}
+        
+// ==================== MENU OPTIONS: SINGLE / MULTIPLE ====================
         function normalizeOptions(rawOptions) {
             if (!rawOptions) return [];
 
