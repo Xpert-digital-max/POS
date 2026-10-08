@@ -186,9 +186,7 @@ if (!bid) {
         localStorage.getItem('NPX_CUSTOMER_BRANCH_ID');
 }
 
-            // 4) จำค่าไว้ก่อน LIFF Login redirect
-            if (vid) {
-
+if (vid) {
     sessionStorage.setItem(
         'NPX_CUSTOMER_VENDOR_ID',
         vid
@@ -201,7 +199,6 @@ if (!bid) {
 }
 
 if (bid) {
-
     sessionStorage.setItem(
         'NPX_CUSTOMER_BRANCH_ID',
         bid
