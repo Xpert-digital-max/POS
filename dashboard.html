@@ -485,6 +485,7 @@
         let categories = [];
         let editingMenuId = null;
         let editingCategoryId = null;
+        let currentOptionGroups = [];
         let copiedImageUrl = null;
         let branchCount = 1;
 
@@ -694,6 +695,141 @@
                 console.error(`[ERROR] Failed to load module: ${label}`, err);
             }
         }
+
+        // ระบบแปลงข้อมูลเมนูเก่า (Backward Compatibility)
+function normalizeOptions(rawOptions) {
+    if (!rawOptions) return [];
+
+    if (Array.isArray(rawOptions)) {
+        return rawOptions;
+    }
+
+    try {
+        const parsed = JSON.parse(rawOptions);
+
+        if (Array.isArray(parsed)) {
+            return parsed.map(group => ({
+                name: group.name || 'ตัวเลือกเพิ่มเติม',
+                type: group.type === 'multiple' ? 'multiple' : 'single',
+                min: Number.isFinite(Number(group.min))
+                    ? Number(group.min)
+                    : (group.type === 'multiple' ? 0 : 1),
+                max: Number.isFinite(Number(group.max))
+                    ? Number(group.max)
+                    : 1,
+                choices: Array.isArray(group.choices)
+                    ? group.choices
+                    : []
+            }));
+        }
+    } catch (e) {
+        // ข้อมูลเก่าเป็น String ให้ parse ต่อด้านล่าง
+    }
+
+    const oldGroups = String(rawOptions)
+        .split(';')
+        .map(x => x.trim())
+        .filter(Boolean);
+
+    return oldGroups.map(groupText => {
+        const colonIndex = groupText.indexOf(':');
+
+        let groupName = 'ตัวเลือกเพิ่มเติม';
+        let choicesText = groupText;
+
+        if (colonIndex !== -1) {
+            groupName = groupText.substring(0, colonIndex).trim()
+                || 'ตัวเลือกเพิ่มเติม';
+
+            choicesText = groupText.substring(colonIndex + 1).trim();
+        }
+
+        const choices = choicesText
+            .split(',')
+            .map(c => c.trim())
+            .filter(Boolean);
+
+        return {
+            name: groupName,
+            type: 'single',
+            min: 1,
+            max: 1,
+            choices: choices
+        };
+    });
+}
+
+// ระบบวาด UI
+function renderOptionGroups() {
+    const container = document.getElementById('optionGroupsContainer');
+    container.innerHTML = '';
+    currentOptionGroups.forEach((group, gIndex) => {
+        let choicesHtml = '';
+        group.choices.forEach((choice, cIndex) => {
+            choicesHtml += `
+            <div style="display: flex; gap: 5px; margin-bottom: 5px; align-items: center;">
+                <input type="text" value="${choice}" onchange="updateChoice(${gIndex}, ${cIndex}, this.value)" placeholder="ชื่อตัวเลือก" style="flex:1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                <button type="button" onclick="removeChoice(${gIndex}, ${cIndex})" style="background: #ffebee; color: #c62828; border: none; border-radius: 4px; padding: 8px; cursor: pointer;">ลบ</button>
+            </div>`;
+        });
+
+        const isMultiple = group.type === 'multiple';
+        
+        container.innerHTML += `
+        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: #fafafa;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                <input type="text" value="${group.name}" onchange="updateGroupName(${gIndex}, this.value)" placeholder="ชื่อกลุ่ม เช่น ท็อปปิ้ง, ระดับความหวาน" style="font-weight: bold; width: 60%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                <button type="button" onclick="removeOptionGroup(${gIndex})" style="background: #ff5252; color: white; border: none; border-radius: 4px; padding: 8px 12px; cursor: pointer;">🗑️ ลบกลุ่มนี้</button>
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-bottom: 15px; align-items: center;">
+                <select onchange="updateGroupType(${gIndex}, this.value)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    <option value="single" ${!isMultiple ? 'selected' : ''}>เลือกได้ 1 รายการ (Single)</option>
+                    <option value="multiple" ${isMultiple ? 'selected' : ''}>เลือกได้หลายรายการ (Multiple)</option>
+                </select>
+                
+                <div style="display: ${isMultiple ? 'flex' : 'none'}; gap: 10px; align-items: center;">
+                    <label style="font-size: 13px;">ขั้นต่ำ:</label>
+                    <input type="number" value="${group.min}" onchange="updateGroupMin(${gIndex}, this.value)" min="0" style="width: 60px; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+                    <label style="font-size: 13px;">สูงสุด:</label>
+                    <input type="number" value="${group.max}" onchange="updateGroupMax(${gIndex}, this.value)" min="1" style="width: 60px; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+                </div>
+            </div>
+            
+            <div>
+                <div style="font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #555;">ตัวเลือกย่อย:</div>
+                ${choicesHtml}
+                <button type="button" onclick="addChoice(${gIndex})" style="margin-top: 5px; background: #e8f5e9; color: #2e7d32; border: 1px dashed #2e7d32; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px;">+ เพิ่มตัวเลือก</button>
+            </div>
+        </div>`;
+    });
+}
+
+function addOptionGroup() { currentOptionGroups.push({ name: '', type: 'single', min: 1, max: 1, choices: [''] }); renderOptionGroups(); }
+function removeOptionGroup(gIndex) { currentOptionGroups.splice(gIndex, 1); renderOptionGroups(); }
+function updateGroupName(gIndex, val) { currentOptionGroups[gIndex].name = val; }
+function updateGroupType(gIndex, val) { 
+    currentOptionGroups[gIndex].type = val; 
+    if(val === 'single') { currentOptionGroups[gIndex].min = 1; currentOptionGroups[gIndex].max = 1; }
+    renderOptionGroups(); 
+}
+function updateGroupMin(gIndex, val) { currentOptionGroups[gIndex].min = parseInt(val) || 0; }
+function updateGroupMax(gIndex, val) { currentOptionGroups[gIndex].max = parseInt(val) || 1; }
+function addChoice(gIndex) { currentOptionGroups[gIndex].choices.push(''); renderOptionGroups(); }
+function removeChoice(gIndex, cIndex) { currentOptionGroups[gIndex].choices.splice(cIndex, 1); renderOptionGroups(); }
+function updateChoice(gIndex, cIndex, val) { currentOptionGroups[gIndex].choices[cIndex] = val; }
+
+function getValidatedMenuOptions() {
+    let isValid = true;
+    currentOptionGroups.forEach(g => {
+        g.choices = g.choices.map(c => c.trim()).filter(c => c !== '');
+        if (g.type === 'multiple') {
+            if (g.max < g.min) { alert(`กลุ่ม "${g.name}": ขั้นต่ำต้องไม่เกินสูงสุด`); isValid = false; }
+            if (g.max > g.choices.length) { alert(`กลุ่ม "${g.name}": จำนวนสูงสุด (${g.max}) เกินตัวเลือกที่มี (${g.choices.length})`); isValid = false; }
+        }
+    });
+    return isValid ? JSON.stringify(currentOptionGroups) : null;
+}
 
         async function initDashboard() {
             console.log("[INIT] เริ่มต้น Dashboard...");
@@ -1572,58 +1708,303 @@
         function editCategory(id, currentName) { editingCategoryId = id; document.getElementById('newCategoryName').value = currentName; document.getElementById('saveCatBtn').innerText = "💾 แก้ไข"; }
         async function deleteCategory(id, name) { if (!confirm(`ยืนยันการลบหมวดหมู่ "${name}"?`)) return; await supabaseClient.from('categories').delete().eq('id', id); await loadCategories(); loadMenuItems(); }
 
-        async function addNewMenu() {
-            const name = document.getElementById('menuName').value.trim(); const price = document.getElementById('menuPrice').value;
-            const categoryId = document.getElementById('menuCategorySelect').value || null; const options = document.getElementById('menuOptions').value.trim(); 
-            const fileInput = document.getElementById('menuImage'); const btn = document.getElementById('saveMenuBtn');
-            if (!name || !price) { alert("กรุณากรอกชื่อเมนูและราคา"); return; }
-            btn.innerText = "กำลังบันทึก..."; btn.disabled = true;
+ async function addNewMenu() {
 
-            let imageUrl = copiedImageUrl; 
-            if (fileInput && fileInput.files && fileInput.files.length > 0) {
-                const file = fileInput.files[0]; const fileName = `${vendorData.id}-${Date.now()}.${file.name.split('.').pop()}`; 
-                const { error: uploadError } = await supabaseClient.storage.from('menu-images').upload(fileName, file);
-                if (!uploadError) { const { data: publicUrlData } = supabaseClient.storage.from('menu-images').getPublicUrl(fileName); imageUrl = publicUrlData.publicUrl; }
-            }
+    const name = document.getElementById('menuName').value.trim();
+    const price = document.getElementById('menuPrice').value;
+    const categoryId = document.getElementById('menuCategorySelect').value || null;
 
-            const updateData = { name: name, price: price, category_id: categoryId, options: options }; if (imageUrl) updateData.image_url = imageUrl;
-            if (editingMenuId) { await supabaseClient.from('menu_items').update(updateData).eq('id', editingMenuId);
-            } else { updateData.vendor_id = vendorData.id; updateData.is_available = true; await supabaseClient.from('menu_items').insert([updateData]); }
-            resetFormState(); loadMenuItems(); 
+    const finalOptions = getValidatedMenuOptions();
+    if (finalOptions === null) return;
+
+    const fileInput = document.getElementById('menuImage');
+    const btn = document.getElementById('saveMenuBtn');
+
+    if (!name || !price) {
+        alert("กรุณากรอกชื่อเมนูและราคา");
+        return;
+    }
+
+    btn.innerText = "กำลังบันทึก...";
+    btn.disabled = true;
+
+    let imageUrl = copiedImageUrl;
+
+    if (fileInput && fileInput.files && fileInput.files.length > 0) {
+
+        const file = fileInput.files[0];
+
+        const fileName =
+            `${vendorData.id}-${Date.now()}.${file.name.split('.').pop()}`;
+
+        const { error: uploadError } =
+            await supabaseClient
+                .storage
+                .from('menu-images')
+                .upload(fileName, file);
+
+        if (!uploadError) {
+
+            const { data: publicUrlData } =
+                supabaseClient
+                    .storage
+                    .from('menu-images')
+                    .getPublicUrl(fileName);
+
+            imageUrl = publicUrlData.publicUrl;
         }
+    }
+
+    const updateData = {
+        name: name,
+        price: price,
+        category_id: categoryId,
+        options: finalOptions
+    };
+
+    if (imageUrl) {
+        updateData.image_url = imageUrl;
+    }
+
+    if (editingMenuId) {
+
+        await supabaseClient
+            .from('menu_items')
+            .update(updateData)
+            .eq('id', editingMenuId);
+
+    } else {
+
+        updateData.vendor_id = vendorData.id;
+        updateData.is_available = true;
+
+        await supabaseClient
+            .from('menu_items')
+            .insert([updateData]);
+    }
+
+    resetFormState();
+    loadMenuItems();
+}
 
         function resetFormState() {
-            document.getElementById('menuName').value = ''; document.getElementById('menuPrice').value = ''; document.getElementById('menuImage').value = ''; document.getElementById('menuCategorySelect').value = '';
-            document.getElementById('menuOptions').value = ''; editingMenuId = null; copiedImageUrl = null;
-            document.getElementById('formTitle').innerText = "🍔 เพิ่มเมนูใหม่";
-            const btn = document.getElementById('saveMenuBtn'); btn.innerText = "💾 บันทึกเมนูใหม่"; btn.disabled = false; document.getElementById('cancelEditBtn').style.display = 'none';
-        }
+    document.getElementById('menuName').value = '';
+    document.getElementById('menuPrice').value = '';
+    document.getElementById('menuImage').value = '';
+    document.getElementById('menuCategorySelect').value = '';
+
+    currentOptionGroups = [];
+    renderOptionGroups();
+
+    editingMenuId = null;
+    copiedImageUrl = null;
+
+    document.getElementById('formTitle').innerText = "🍔 เพิ่มเมนูใหม่";
+
+    const btn = document.getElementById('saveMenuBtn');
+    btn.innerText = "💾 บันทึกเมนูใหม่";
+    btn.disabled = false;
+
+    document.getElementById('cancelEditBtn').style.display = 'none';
+}
+        
+// ========================================================
+// แปลง Menu Options สำหรับแสดงในหน้ารายการเมนู
+// ========================================================
+
+function formatMenuOptionsForDisplay(rawOptions) {
+
+    const groups = normalizeOptions(rawOptions);
+
+    if (!groups.length) return '';
+
+    return groups.map(group => {
+
+        const choices =
+            Array.isArray(group.choices)
+                ? group.choices.join(', ')
+                : '';
+
+        const typeText =
+            group.type === 'multiple'
+                ? `เลือกได้ ${group.min || 0}-${group.max || group.choices.length}`
+                : 'เลือก 1';
+
+        return `${group.name}: ${choices} (${typeText})`;
+
+    }).join(' | ');
+}
 
         async function loadMenuItems() {
-            if (!vendorData) return;
-            const { data, error } = await supabaseClient.from('menu_items').select('*, categories(name)').eq('vendor_id', vendorData.id).order('created_at', { ascending: false });
-            const menuListDiv = document.getElementById('menuList');
-            if (error || data.length === 0) { menuListDiv.innerHTML = '<p style="text-align: center; color: #888;">ยังไม่มีเมนูอาหาร</p>'; return; }
-            let html = '';
-            data.forEach(item => {
-                const imgSrc = (item.image_url && item.image_url.trim() !== '') ? item.image_url : 'https://via.placeholder.com/60?text=No+Image'; const statusColor = item.is_available ? 'green' : 'red'; const statusText = item.is_available ? '✅ พร้อมขาย' : '❌ ของหมด'; const toggleBtnText = item.is_available ? '⏸️ พักการขาย' : '▶️ เปิดขาย'; const toggleBtnColor = item.is_available ? '#ff9800' : '#06C755'; const catBadge = item.categories?.name ? `<span style="background: #eef2ff; color: #4338ca; padding: 2px 7px; border-radius: 10px; font-size: 11px; margin-left: 6px;">🏷️ ${item.categories.name}</span>` : ''; const optBadge = item.options ? `<br><small style="color:#00BCD4;">[ตัวเลือก: ${item.options}]</small>` : ''; 
-                const safeCatId = item.category_id || ''; const safeOpts = item.options || ''; const safeImgUrl = item.image_url || '';
+    if (!vendorData) return;
 
-                html += `<div class="card" style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
-                        <img src="${imgSrc}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;">
-                        <div style="flex: 1;"><h4 style="margin: 0;">${item.name} ${catBadge}</h4><p style="margin: 5px 0 0 0; color: #06C755; font-weight: bold;">฿${item.price}</p>${optBadge}<span style="font-size: 12px; color: ${statusColor}; display:block; margin-top:3px;">${statusText}</span></div>
-                        <div style="display: flex; flex-direction: column; gap: 5px;">
-                            <button onclick="copyMenu('${item.name}', ${item.price}, '${safeCatId}', '${safeOpts}', '${safeImgUrl}')" style="background: #9C27B0; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">📑 คัดลอก</button>
-                            <button onclick="editMenu('${item.id}', '${item.name}', ${item.price}, '${safeCatId}', '${safeOpts}')" style="background: #2196F3; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">✏️ แก้ไข</button>
-                            <button onclick="toggleMenuStatus('${item.id}', ${item.is_available})" style="background: ${toggleBtnColor}; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">${toggleBtnText}</button>
-                            <button onclick="deleteMenu('${item.id}', '${item.name}')" style="background: #ff4d4f; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🗑️ ลบ</button>
-                        </div></div>`;
-            });
-            menuListDiv.innerHTML = html;
-        }
+    const { data, error } = await supabaseClient
+        .from('menu_items')
+        .select('*, categories(name)')
+        .eq('vendor_id', vendorData.id)
+        .order('created_at', { ascending: false });
 
-        function editMenu(id, name, price, categoryId, options) { editingMenuId = id; copiedImageUrl = null; document.getElementById('menuName').value = name; document.getElementById('menuPrice').value = price; document.getElementById('menuCategorySelect').value = categoryId || ''; document.getElementById('menuOptions').value = options || ''; document.getElementById('formTitle').innerText = "✏️ แก้ไขเมนู"; document.getElementById('saveMenuBtn').innerText = "💾 อัปเดตเมนู"; document.getElementById('cancelEditBtn').style.display = 'block'; window.scrollTo({ top: 0, behavior: 'smooth' }); }
-        function copyMenu(name, price, categoryId, options, imageUrl) { editingMenuId = null; copiedImageUrl = imageUrl; document.getElementById('menuName').value = name + " (สำเนา)"; document.getElementById('menuPrice').value = price; document.getElementById('menuCategorySelect').value = categoryId || ''; document.getElementById('menuOptions').value = options || ''; document.getElementById('menuImage').value = ''; document.getElementById('formTitle').innerText = "📑 สร้างสำเนาเมนู"; document.getElementById('saveMenuBtn').innerText = "💾 บันทึกเมนูใหม่ (จากสำเนา)"; document.getElementById('cancelEditBtn').style.display = 'block'; window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    const menuListDiv = document.getElementById('menuList');
+
+    if (error || !data || data.length === 0) {
+        menuListDiv.innerHTML =
+            '<p style="text-align: center; color: #888;">ยังไม่มีเมนูอาหาร</p>';
+        return;
+    }
+
+    let html = '';
+
+    data.forEach(item => {
+
+        const imgSrc =
+            (item.image_url && item.image_url.trim() !== '')
+                ? item.image_url
+                : 'https://via.placeholder.com/60?text=No+Image';
+
+        const statusColor =
+            item.is_available ? 'green' : 'red';
+
+        const statusText =
+            item.is_available
+                ? '✅ พร้อมขาย'
+                : '❌ ของหมด';
+
+        const toggleBtnText =
+            item.is_available
+                ? '⏸️ พักการขาย'
+                : '▶️ เปิดขาย';
+
+        const toggleBtnColor =
+            item.is_available
+                ? '#ff9800'
+                : '#06C755';
+
+        const catBadge =
+            item.categories?.name
+                ? `<span style="background: #eef2ff; color: #4338ca; padding: 2px 7px; border-radius: 10px; font-size: 11px; margin-left: 6px;">
+                    🏷️ ${item.categories.name}
+                   </span>`
+                : '';
+
+        const formattedOptions =
+            formatMenuOptionsForDisplay(item.options);
+
+        const optBadge =
+            formattedOptions
+                ? `<br><small style="color:#00BCD4;">[ตัวเลือก: ${formattedOptions}]</small>`
+                : '';
+
+        const safeCatId =
+            item.category_id || '';
+
+        const safeOpts =
+            item.options || '';
+
+        const safeImgUrl =
+            item.image_url || '';
+
+        html += `
+            <div class="card" style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
+
+                <img
+                    src="${imgSrc}"
+                    style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;"
+                >
+
+                <div style="flex: 1;">
+
+                    <h4 style="margin: 0;">
+                        ${item.name}
+                        ${catBadge}
+                    </h4>
+
+                    <p style="margin: 5px 0 0 0; color: #06C755; font-weight: bold;">
+                        ฿${item.price}
+                    </p>
+
+                    ${optBadge}
+
+                    <span style="font-size: 12px; color: ${statusColor}; display:block; margin-top:3px;">
+                        ${statusText}
+                    </span>
+
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 5px;">
+
+                    <button
+                        onclick="copyMenu('${item.name}', ${item.price}, '${safeCatId}', '${safeOpts}', '${safeImgUrl}')"
+                        style="background: #9C27B0; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                        📑 คัดลอก
+                    </button>
+
+                    <button
+                        onclick="editMenu('${item.id}', '${item.name}', ${item.price}, '${safeCatId}', '${safeOpts}')"
+                        style="background: #2196F3; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                        ✏️ แก้ไข
+                    </button>
+
+                    <button
+                        onclick="toggleMenuStatus('${item.id}', ${item.is_available})"
+                        style="background: ${toggleBtnColor}; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                        ${toggleBtnText}
+                    </button>
+
+                    <button
+                        onclick="deleteMenu('${item.id}', '${item.name}')"
+                        style="background: #ff4d4f; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                        🗑️ ลบ
+                    </button>
+
+                </div>
+            </div>
+        `;
+    });
+
+    menuListDiv.innerHTML = html;
+}
+
+        function editMenu(id, name, price, categoryId, options) {
+    editingMenuId = id;
+    copiedImageUrl = null;
+
+    document.getElementById('menuName').value = name;
+    document.getElementById('menuPrice').value = price;
+    document.getElementById('menuCategorySelect').value = categoryId || '';
+
+    currentOptionGroups = normalizeOptions(options);
+    renderOptionGroups();
+
+    document.getElementById('formTitle').innerText = "✏️ แก้ไขเมนู";
+    document.getElementById('saveMenuBtn').innerText = "💾 อัปเดตเมนู";
+    document.getElementById('cancelEditBtn').style.display = 'block';
+
+    window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+    });
+}
+        function copyMenu(name, price, categoryId, options, imageUrl) {
+    editingMenuId = null;
+    copiedImageUrl = imageUrl;
+
+    document.getElementById('menuName').value = name + " (สำเนา)";
+    document.getElementById('menuPrice').value = price;
+    document.getElementById('menuCategorySelect').value = categoryId || '';
+
+    currentOptionGroups = normalizeOptions(options);
+    renderOptionGroups();
+
+    document.getElementById('menuImage').value = '';
+    document.getElementById('formTitle').innerText = "📑 สร้างสำเนาเมนู";
+    document.getElementById('saveMenuBtn').innerText = "💾 บันทึกเมนูใหม่ (จากสำเนา)";
+    document.getElementById('cancelEditBtn').style.display = 'block';
+
+    window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+    });
+}
         async function deleteMenu(menuId, menuName) { if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบ "${menuName}"?`)) return; await supabaseClient.from('menu_items').delete().eq('id', menuId); loadMenuItems(); }
         async function toggleMenuStatus(menuId, currentStatus) { await supabaseClient.from('menu_items').update({ is_available: !currentStatus }).eq('id', menuId); loadMenuItems(); }
 
