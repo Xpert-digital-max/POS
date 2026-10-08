@@ -384,34 +384,25 @@
                 // STEP 6: External browser ที่ยังไม่ login
                 // ให้กลับมาพร้อม vid / bid เสมอ
                 // ======================================================
-                if (!liff.isLoggedIn()) {
-                    const redirectUrl = new URL(
-                        window.location.origin + window.location.pathname
-                    );
+                const redirectUrl = new URL(
+    window.location.origin + '/POS/customer.html'
+);
 
-                    redirectUrl.searchParams.set('vid', vendorId);
+redirectUrl.searchParams.set(
+    'vid',
+    vendorId
+);
 
-                    if (branchId) {
-                        redirectUrl.searchParams.set('bid', branchId);
-                    }
+if (branchId) {
+    redirectUrl.searchParams.set(
+        'bid',
+        branchId
+    );
+}
 
-                    // จำ context ซ้ำก่อนออกไป Login
-                    sessionStorage.setItem('NPX_CUSTOMER_VENDOR_ID', vendorId);
-                    localStorage.setItem('NPX_CUSTOMER_VENDOR_ID', vendorId);
-
-                    if (branchId) {
-                        sessionStorage.setItem('NPX_CUSTOMER_BRANCH_ID', branchId);
-                        localStorage.setItem('NPX_CUSTOMER_BRANCH_ID', branchId);
-                    }
-
-                    console.log(
-                        "[LIFF LOGIN REDIRECT]",
-                        redirectUrl.toString()
-                    );
-
-                    liff.login({
-                        redirectUri: redirectUrl.toString()
-                    });
+liff.login({
+    redirectUri: redirectUrl.toString()
+});
 
                     return;
                 }
