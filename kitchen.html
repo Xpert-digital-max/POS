@@ -359,30 +359,151 @@
             } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); fetchOrders(); }
         }
 
+        async function notifyTakeawayCustomer(order, newStatus) {
+            if (!order || order.source !== 'prepaid') return;
+            if (!order.customer_uid) return;
+            if (!['processing', 'completed'].includes(newStatus)) return;
+            if (!CONFIG.gasWebhookUrl) {
+                console.warn('[CUSTOMER NOTIFY] ไม่พบ CONFIG.gasWebhookUrl');
+                return;
+            }
+
+            try {
+                const response = await fetch(CONFIG.gasWebhookUrl, {
+                    method: 'POST',
+                    redirect: 'follow',
+                    headers: {
+                        "Content-Type": "text/plain;charset=utf-8"
+                    },
+                    body: JSON.stringify({
+                        action: 'notify_customer',
+                        vendor_id: VENDOR_ID,
+                        uid: order.customer_uid,
+                        order_status: newStatus,
+                        store_name: order.store_name || "ร้านอาหาร",
+                        order_ref: order.reference_no || order.id || '-',
+                        queue_num: order.queue_no || '-'
+                    })
+                });
+
+                const responseText = await response.text();
+                console.log(
+                    `[CUSTOMER NOTIFY] ${newStatus}:`,
+                    responseText
+                );
+            } catch (err) {
+                // การแจ้ง LINE ล้มเหลวต้องไม่ทำให้สถานะออเดอร์ย้อนกลับ
+                console.error(
+                    '[CUSTOMER NOTIFY ERROR]',
+                    err
+                );
+            }
+        }
+
         async function saveItemUpdate(order, items) {
             let allFinished = true;
             let hasNew = false;
+
             items.forEach(i => {
-                let st = i.status || 'new';
-                if (st !== 'done' && st !== 'served' && st !== 'rejected') allFinished = false;
-                if (st === 'new' || st === 'pending') hasNew = true;
+                const st = i.status || 'new';
+
+                if (
+                    st !== 'done' &&
+                    st !== 'served' &&
+                    st !== 'rejected'
+                ) {
+                    allFinished = false;
+                }
+
+                if (
+                    st === 'new' ||
+                    st === 'pending'
+                ) {
+                    hasNew = true;
+                }
             });
 
+            const previousUnifiedStatus =
+                order.unified_status;
+
             let nextDbStatus = 'preparing';
-            if (allFinished) nextDbStatus = 'served'; 
-            else if (hasNew && order.unified_status === 'new') nextDbStatus = 'new';
-            
-            order.items = items;
-            order.unified_status = nextDbStatus;
-            renderOrders(); // Optimistic Update
+
+            if (allFinished) {
+                nextDbStatus = 'served';
+            } else if (
+                hasNew &&
+                order.unified_status === 'new'
+            ) {
+                nextDbStatus = 'new';
+            }
 
             if (order.source === 'dine_in') {
-                await supabaseClient.from('table_orders').update({ items: items, order_status: nextDbStatus }).eq('id', order.id);
+                const { error } =
+                    await supabaseClient
+                        .from('table_orders')
+                        .update({
+                            items: items,
+                            order_status: nextDbStatus
+                        })
+                        .eq('id', order.id);
+
+                if (error) throw error;
+
             } else {
-                // Prepaid mapping
-                let preStatus = nextDbStatus === 'served' ? 'completed' : (nextDbStatus === 'preparing' ? 'processing' : 'pending');
-                await supabaseClient.from('orders').update({ items: items, status: preStatus }).eq('id', order.id);
+                // Takeaway / Prepaid เท่านั้น
+                const preStatus =
+                    nextDbStatus === 'served'
+                        ? 'completed'
+                        : (
+                            nextDbStatus === 'preparing'
+                                ? 'processing'
+                                : 'pending'
+                        );
+
+                const previousPreStatus =
+                    previousUnifiedStatus === 'new'
+                        ? 'pending'
+                        : (
+                            previousUnifiedStatus === 'preparing'
+                                ? 'processing'
+                                : (
+                                    previousUnifiedStatus === 'served'
+                                        ? 'completed'
+                                        : previousUnifiedStatus
+                                )
+                        );
+
+                const { error } =
+                    await supabaseClient
+                        .from('orders')
+                        .update({
+                            items: items,
+                            status: preStatus
+                        })
+                        .eq('id', order.id);
+
+                if (error) throw error;
+
+                // ส่ง LINE เฉพาะตอนสถานะเปลี่ยนจริง
+                if (
+                    preStatus !== previousPreStatus &&
+                    (
+                        preStatus === 'processing' ||
+                        preStatus === 'completed'
+                    )
+                ) {
+                    await notifyTakeawayCustomer(
+                        order,
+                        preStatus
+                    );
+                }
             }
+
+            // อัปเดต local state หลัง DB สำเร็จ
+            order.items = items;
+            order.unified_status = nextDbStatus;
+
+            renderOrders();
         }
 
         async function updateAllItemsStatus(orderId, newStatus, btnElement) {
@@ -393,9 +514,19 @@
                     btnElement.disabled = true;
                 }
 
-                const order = activeOrders.find(o => o.id === orderId);
-                let items = order.items;
-                
+                const order =
+                    activeOrders.find(
+                        o => o.id === orderId
+                    );
+
+                if (!order) {
+                    throw new Error(
+                        "ไม่พบออเดอร์นี้ในหน้าครัว"
+                    );
+                }
+
+                const items = order.items;
+
                 // อัปเดตเฉพาะรายการที่ยังไม่ได้ถูกปฏิเสธ
                 items.forEach(i => {
                     if (i.status !== 'rejected') {
@@ -403,19 +534,76 @@
                     }
                 });
 
-                await saveItemUpdate(order, items);
+                await saveItemUpdate(
+                    order,
+                    items
+                );
+
+                await fetchOrders();
+
+            } catch (err) {
+                alert(
+                    "เกิดข้อผิดพลาด: " +
+                    err.message
+                );
+
                 fetchOrders();
-            } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); fetchOrders(); }
+            }
         }
 
         async function updateOrderToServed(orderId, source) {
-            if (source === 'dine_in') {
-                await supabaseClient.from('table_orders').update({ order_status: 'served' }).eq('id', orderId);
-            } else {
-                await supabaseClient.from('orders').update({ status: 'completed' }).eq('id', orderId);
+            try {
+                if (source === 'dine_in') {
+                    await supabaseClient
+                        .from('table_orders')
+                        .update({
+                            order_status: 'served'
+                        })
+                        .eq('id', orderId);
+
+                } else {
+                    // เผื่อกรณี UI พบว่าอาหารเสร็จครบ
+                    // แต่ status ใน orders ยังไม่ completed
+                    const { data, error } =
+                        await supabaseClient
+                            .from('orders')
+                            .update({
+                                status: 'completed'
+                            })
+                            .eq('id', orderId)
+                            .neq('status', 'completed')
+                            .select(
+                                'id, customer_uid, reference_no, queue_no, status'
+                            );
+
+                    if (error) throw error;
+
+                    if (
+                        data &&
+                        data.length > 0
+                    ) {
+                        await notifyTakeawayCustomer(
+                            {
+                                ...data[0],
+                                source: 'prepaid'
+                            },
+                            'completed'
+                        );
+                    }
+                }
+
+                await fetchOrders();
+
+            } catch (err) {
+                console.error(
+                    '[ORDER SERVED ERROR]',
+                    err
+                );
+
+                fetchOrders();
             }
-            fetchOrders();
         }
+
 
         // ==================== AUTH GUARD ====================
         let authCheckTimer = null;
