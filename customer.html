@@ -268,29 +268,40 @@
                 // แล้วค่อยอ่าน context ซ้ำ
                 // ======================================================
                 if (!vendorId) {
-                    const callbackLiffId =
-                        getUrlParameter('liffClientId') ||
-                        CONFIG.liffIdCustomer;
 
-                    if (callbackLiffId) {
-                        console.log("[LIFF RECOVERY INIT]", callbackLiffId);
+    const recoveryLiffId =
+        String(CONFIG.liffIdCustomer || '').trim();
 
-                        await liff.init({
-                            liffId: callbackLiffId
-                        });
+    if (recoveryLiffId) {
 
-                        customerContext = recoverCustomerContext();
+        console.log(
+            "[LIFF RECOVERY INIT]",
+            recoveryLiffId
+        );
 
-                        vendorId = customerContext.vendorId;
-                        branchId = customerContext.branchId;
+        await liff.init({
+            liffId: recoveryLiffId
+        });
 
-                        console.log("[CUSTOMER CONTEXT AFTER LIFF]", {
-                            vendorId,
-                            branchId,
-                            href: window.location.href
-                        });
-                    }
-                }
+        customerContext =
+            recoverCustomerContext();
+
+        vendorId =
+            customerContext.vendorId;
+
+        branchId =
+            customerContext.branchId;
+
+        console.log(
+            "[CUSTOMER CONTEXT AFTER LIFF]",
+            {
+                vendorId,
+                branchId,
+                href: window.location.href
+            }
+        );
+    }
+}
 
                 if (!vendorId) {
                     const menuContainer = document.getElementById('menuContainer');
