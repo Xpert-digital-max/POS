@@ -21,7 +21,8 @@
             <h3 id="modalItemName" style="margin: 0 0 5px 0;">ชื่อเมนู</h3>
             <p id="modalItemPrice" style="color: #06C755; font-weight: bold; font-size: 18px; margin: 0 0 15px 0;">฿0</p>
             
-            <div id="modalOptionsContainer" style="display: none; margin-bottom: 15px;"><div id="modalOptionsList"></div></div>
+            <!-- รองรับ Single / Multiple Menu Options -->
+            <div id="menuItemOptionsContainer" style="margin-top: 15px; margin-bottom: 15px;"></div>
 
             <label style="font-weight: bold; font-size: 14px; color: #333;">หมายเหตุ (ถ้ามี)</label>
             <textarea id="modalItemNote" placeholder="พิมพ์รายละเอียดเพิ่มเติม เช่น ไม่ใส่ผัก, เผ็ดน้อย..." style="width: 100%; padding: 10px; margin-top: 8px; margin-bottom: 20px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; resize: none;" rows="2"></textarea>
@@ -248,50 +249,382 @@
                 const currentQty = cart.filter(c => c.id === item.id).reduce((sum, c) => sum + c.qty, 0);
                 html += `<div class="menu-card"><img src="${imgSrc}" class="menu-img"><div class="menu-info"><div><h4>${item.name}</h4><p>฿${item.price}</p></div><div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;"><span style="font-size: 12px; color: #888;">ในตะกร้า: <strong style="color:#06C755;">${currentQty}</strong></span><button class="add-btn" onclick="openItemModal('${item.id}')">+ เลือก</button></div></div></div>`;
             });
+            contain        // ==================== MENU OPTIONS: SINGLE / MULTIPLE ====================
+
+        function normalizeOptions(rawOptions) {
+            if (!rawOptions) return [];
+
+            if (Array.isArray(rawOptions)) {
+                return rawOptions.map(group => ({
+                    name: group?.name || 'ตัวเลือกเพิ่มเติม',
+                    type: group?.type === 'multiple' ? 'multiple' : 'single',
+                    min: Number.isFinite(Number(group?.min))
+                        ? Number(group.min)
+                        : (group?.type === 'multiple' ? 0 : 1),
+                    max: Number.isFinite(Number(group?.max))
+                        ? Number(group.max)
+                        : 1,
+                    choices: Array.isArray(group?.choices)
+                        ? group.choices.map(c => String(c).trim()).filter(Boolean)
+                        : []
+                }));
+            }
+
+            try {
+                const parsed = JSON.parse(rawOptions);
+
+                if (Array.isArray(parsed)) {
+                    return normalizeOptions(parsed);
+                }
+            } catch (e) {}
+
+            // Backward Compatibility:
+            // "ไข่:ไข่ดาว,ไข่เจียว"
+            // "ขนาด:S,M,L; ความหวาน:ปกติ,หวานน้อย,ไม่หวาน"
+            return String(rawOptions)
+                .split(';')
+                .map(x => x.trim())
+                .filter(Boolean)
+                .map(groupText => {
+                    const colonIndex = groupText.indexOf(':');
+
+                    let groupName = 'ตัวเลือกเพิ่มเติม';
+                    let choicesText = groupText;
+
+                    if (colonIndex !== -1) {
+                        groupName =
+                            groupText.substring(0, colonIndex).trim()
+                            || 'ตัวเลือกเพิ่มเติม';
+
+                        choicesText =
+                            groupText.substring(colonIndex + 1).trim();
+                    }
+
+                    return {
+                        name: groupName,
+                        type: 'single',
+                        min: 1,
+                        max: 1,
+                        choices: choicesText
+                            .split(',')
+                            .map(c => c.trim())
+                            .filter(Boolean)
+                    };
+                });
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function renderCustomerOptions(rawOptions) {
+            const container =
+                document.getElementById('menuItemOptionsContainer');
+
+            if (!container) return;
+
+            const groups = normalizeOptions(rawOptions);
+
+            if (!groups.length) {
+                container.innerHTML = '';
+                container.style.display = 'none';
+                return;
+            }
+
+            container.style.display = 'block';
+
+            let html = '';
+
+            groups.forEach((group, gIndex) => {
+                const isMultiple = group.type === 'multiple';
+
+                const min = isMultiple
+                    ? Math.max(0, Number(group.min) || 0)
+                    : 1;
+
+                const max = isMultiple
+                    ? Math.max(min, Number(group.max) || group.choices.length || 1)
+                    : 1;
+
+                const inputType =
+                    isMultiple ? 'checkbox' : 'radio';
+
+                const inputName =
+                    `optGroup_${gIndex}`;
+
+                const reqLabel = min > 0
+                    ? `<span style="color:#E91E63; font-size:12px; margin-left:5px;">* ต้องเลือกอย่างน้อย ${min}</span>`
+                    : `<span style="color:#888; font-size:12px; margin-left:5px;">ไม่บังคับเลือก</span>`;
+
+                const limitLabel = isMultiple
+                    ? `<span style="color:#888; font-size:12px;">เลือกได้สูงสุด ${max}</span>`
+                    : `<span style="color:#888; font-size:12px;">เลือกได้ 1 รายการ</span>`;
+
+                let choicesHtml = '';
+
+                group.choices.forEach(choice => {
+                    const safeChoice = escapeHtml(choice);
+
+                    choicesHtml += `
+                        <label style="display:flex; align-items:center; margin-bottom:8px; cursor:pointer; padding:10px; border:1px solid #eee; border-radius:6px; background:#fff;">
+                            <input
+                                type="${inputType}"
+                                name="${inputName}"
+                                value="${safeChoice}"
+                                onchange="handleOptionSelect(this)"
+                                style="margin-right:10px; transform:scale(1.2);"
+                            >
+                            <span>${safeChoice}</span>
+                        </label>
+                    `;
+                });
+
+                html += `
+                    <div
+                        class="option-group-wrapper"
+                        data-name="${escapeHtml(group.name)}"
+                        data-type="${isMultiple ? 'multiple' : 'single'}"
+                        data-min="${min}"
+                        data-max="${max}"
+                        style="margin-bottom:15px; background:#fafafa; padding:15px; border-radius:8px; border:1px solid #e0e0e0;"
+                    >
+                        <div style="font-weight:bold; margin-bottom:12px;">
+                            <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
+                                <span>${escapeHtml(group.name)}</span>
+                                ${limitLabel}
+                            </div>
+                            <div style="margin-top:4px;">
+                                ${reqLabel}
+                            </div>
+                        </div>
+
+                        ${choicesHtml}
+                    </div>
+                `;
+            });
+
             container.innerHTML = html;
         }
 
-        function openItemModal(id) {
-            const item = menuData.find(m => m.id === id); if (!item) return; currentModalItem = item; currentModalQty = 1;
-            // [PATCH] ดักจับกรณีเว้นวรรคเปล่าๆ ไม่ให้รูปภาพใน Modal แตก
-            const imgSrc = (item.image_url && item.image_url.trim() !== '') ? item.image_url : 'https://via.placeholder.com/200?text=Food';
-            document.getElementById('modalItemImg').src = imgSrc; 
-            document.getElementById('modalItemName').innerText = item.name; 
-            document.getElementById('modalItemPrice').innerText = '฿' + item.price; document.getElementById('modalItemNote').value = ''; document.getElementById('modalItemQty').innerText = currentModalQty; updateModalTotal();
+        function handleOptionSelect(el) {
+            const group =
+                el.closest('.option-group-wrapper');
 
-            const optContainer = document.getElementById('modalOptionsContainer'); const optList = document.getElementById('modalOptionsList');
-            if (item.options && item.options.trim() !== '') {
-                const groups = item.options.split(';'); let optHtml = '';
-                groups.forEach((group, gIdx) => {
-                    const parts = group.split(':'); const groupName = parts.length > 1 ? parts[0].trim() : `ตัวเลือกเพิ่มเติม ${gIdx + 1}`; const opts = (parts.length > 1 ? parts[1] : parts[0]).split(',').map(o => o.trim());
-                    optHtml += `<div style="margin-bottom: 15px;"><label style="font-weight: bold; font-size: 14px; color: #333;">${groupName} <span style="color:red;">*</span></label><div style="margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">`;
-                    opts.forEach((o, oIdx) => { optHtml += `<label style="display: flex; align-items: center; gap: 10px; background: #f9f9f9; padding: 12px; border-radius: 8px; border: 1px solid #eee;"><input type="radio" name="itemOptionRadio_${gIdx}" value="${o}" ${oIdx === 0 ? 'checked' : ''}> ${o}</label>`; });
-                    optHtml += `</div></div>`;
+            if (!group) return;
+
+            if (group.dataset.type !== 'multiple') {
+                return;
+            }
+
+            const max =
+                parseInt(group.dataset.max, 10) || 0;
+
+            if (max <= 0) return;
+
+            const checkedCount =
+                group.querySelectorAll(
+                    'input[type="checkbox"]:checked'
+                ).length;
+
+            group
+                .querySelectorAll(
+                    'input[type="checkbox"]:not(:checked)'
+                )
+                .forEach(cb => {
+                    cb.disabled = checkedCount >= max;
                 });
-                optList.innerHTML = optHtml; optContainer.style.display = 'block';
-            } else { optList.innerHTML = ''; optContainer.style.display = 'none'; }
-            document.getElementById('itemModal').style.display = 'flex';
+
+            if (checkedCount < max) {
+                group
+                    .querySelectorAll(
+                        'input[type="checkbox"]'
+                    )
+                    .forEach(cb => {
+                        cb.disabled = false;
+                    });
+            }
         }
-        function closeItemModal() { document.getElementById('itemModal').style.display = 'none'; }
-        function changeModalQty(change) { currentModalQty += change; if (currentModalQty < 1) currentModalQty = 1; document.getElementById('modalItemQty').innerText = currentModalQty; updateModalTotal(); }
-        function updateModalTotal() { document.getElementById('modalTotalPrice').innerText = currentModalItem.price * currentModalQty; }
+
+        function getSelectedOptionsForCart() {
+            const resultText = [];
+
+            const groups =
+                document.querySelectorAll(
+                    '#menuItemOptionsContainer .option-group-wrapper'
+                );
+
+            for (const group of groups) {
+                const type =
+                    group.dataset.type || 'single';
+
+                const name =
+                    group.dataset.name || 'ตัวเลือกเพิ่มเติม';
+
+                const min =
+                    parseInt(group.dataset.min, 10) || 0;
+
+                const max =
+                    parseInt(group.dataset.max, 10) || 0;
+
+                const selected = [];
+
+                if (type === 'single') {
+                    const checked =
+                        group.querySelector(
+                            'input[type="radio"]:checked'
+                        );
+
+                    if (checked) {
+                        selected.push(checked.value);
+                    }
+                } else {
+                    group
+                        .querySelectorAll(
+                            'input[type="checkbox"]:checked'
+                        )
+                        .forEach(cb => {
+                            selected.push(cb.value);
+                        });
+                }
+
+                if (selected.length < min) {
+                    alert(
+                        `กรุณาเลือก "${name}" อย่างน้อย ${min} รายการ`
+                    );
+                    return null;
+                }
+
+                if (
+                    type === 'multiple' &&
+                    max > 0 &&
+                    selected.length > max
+                ) {
+                    alert(
+                        `"${name}" เลือกได้สูงสุด ${max} รายการ`
+                    );
+                    return null;
+                }
+
+                if (selected.length > 0) {
+                    resultText.push(
+                        `${name}: ${selected.join(', ')}`
+                    );
+                }
+            }
+
+            return resultText.join(' | ');
+        }
+
+        function openItemModal(id) {
+            const item =
+                menuData.find(m => m.id === id);
+
+            if (!item) return;
+
+            currentModalItem = item;
+            currentModalQty = 1;
+
+            const imgSrc =
+                (item.image_url && item.image_url.trim() !== '')
+                    ? item.image_url
+                    : 'https://via.placeholder.com/200?text=Food';
+
+            document.getElementById('modalItemImg').src =
+                imgSrc;
+
+            document.getElementById('modalItemName').innerText =
+                item.name;
+
+            document.getElementById('modalItemPrice').innerText =
+                '฿' + item.price;
+
+            document.getElementById('modalItemNote').value =
+                '';
+
+            document.getElementById('modalItemQty').innerText =
+                currentModalQty;
+
+            updateModalTotal();
+
+            renderCustomerOptions(item.options);
+
+            document.getElementById('itemModal').style.display =
+                'flex';
+        }
+
+        function closeItemModal() {
+            document.getElementById('itemModal').style.display =
+                'none';
+        }
+
+        function changeModalQty(change) {
+            currentModalQty += change;
+
+            if (currentModalQty < 1) {
+                currentModalQty = 1;
+            }
+
+            document.getElementById('modalItemQty').innerText =
+                currentModalQty;
+
+            updateModalTotal();
+        }
+
+        function updateModalTotal() {
+            document.getElementById('modalTotalPrice').innerText =
+                currentModalItem.price * currentModalQty;
+        }
 
         function confirmAddToCart() {
-            let selectedOpts = [];
-            if (currentModalItem.options && currentModalItem.options.trim() !== '') {
-                const groups = currentModalItem.options.split(';');
-                groups.forEach((group, gIdx) => {
-                    const radios = document.getElementsByName(`itemOptionRadio_${gIdx}`);
-                    for (let r of radios) { if (r.checked) { const parts = group.split(':'); const groupName = parts.length > 1 ? parts[0].trim() : ''; selectedOpts.push(groupName ? `${groupName}: ${r.value}` : r.value); } }
+            if (!currentModalItem) return;
+
+            const finalOptionString =
+                getSelectedOptionsForCart();
+
+            if (finalOptionString === null) {
+                return;
+            }
+
+            const note =
+                document
+                    .getElementById('modalItemNote')
+                    .value
+                    .trim();
+
+            const existingIdx =
+                cart.findIndex(c =>
+                    c.id === currentModalItem.id &&
+                    c.option === finalOptionString &&
+                    c.note === note
+                );
+
+            if (existingIdx >= 0) {
+                cart[existingIdx].qty +=
+                    currentModalQty;
+            } else {
+                cart.push({
+                    id: currentModalItem.id,
+                    name: currentModalItem.name,
+                    price: currentModalItem.price,
+                    qty: currentModalQty,
+                    option: finalOptionString,
+                    note: note
                 });
             }
-            const finalOptionString = selectedOpts.join(' | '); const note = document.getElementById('modalItemNote').value.trim();
-            const existingIdx = cart.findIndex(c => c.id === currentModalItem.id && c.option === finalOptionString && c.note === note);
-            if (existingIdx >= 0) { cart[existingIdx].qty += currentModalQty; } 
-            else { cart.push({ id: currentModalItem.id, name: currentModalItem.name, price: currentModalItem.price, qty: currentModalQty, option: finalOptionString, note: note }); }
-            
-            saveCart(); 
-            closeItemModal(); calculateTotal(); renderMenuList(); 
+
+            saveCart();
+
+            closeItemModal();
+            calculateTotal();
+            renderMenuList();
+        }
+
+; renderMenuList(); 
         }
 
         function calculateTotal() { let totalQty = 0; let totalPrice = 0; cart.forEach(c => { totalQty += c.qty; totalPrice += (c.qty * c.price); }); document.getElementById('totalItems').innerText = totalQty; document.getElementById('totalPrice').innerText = totalPrice; const footer = document.getElementById('cartFooter'); if (totalQty > 0) { footer.classList.add('show'); } else { footer.classList.remove('show'); } }
