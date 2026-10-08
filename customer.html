@@ -175,22 +175,43 @@
 
             // 3) สำรองจาก sessionStorage
             if (!vid) {
-                vid = sessionStorage.getItem('NPX_CUSTOMER_VENDOR_ID');
-            }
+    vid =
+        sessionStorage.getItem('NPX_CUSTOMER_VENDOR_ID') ||
+        localStorage.getItem('NPX_CUSTOMER_VENDOR_ID');
+}
 
-            if (!bid) {
-                bid = sessionStorage.getItem('NPX_CUSTOMER_BRANCH_ID');
-            }
+if (!bid) {
+    bid =
+        sessionStorage.getItem('NPX_CUSTOMER_BRANCH_ID') ||
+        localStorage.getItem('NPX_CUSTOMER_BRANCH_ID');
+}
 
             // 4) จำค่าไว้ก่อน LIFF Login redirect
             if (vid) {
-                sessionStorage.setItem('NPX_CUSTOMER_VENDOR_ID', vid);
-            }
 
-            if (bid) {
-                sessionStorage.setItem('NPX_CUSTOMER_BRANCH_ID', bid);
-            }
+    sessionStorage.setItem(
+        'NPX_CUSTOMER_VENDOR_ID',
+        vid
+    );
 
+    localStorage.setItem(
+        'NPX_CUSTOMER_VENDOR_ID',
+        vid
+    );
+}
+
+if (bid) {
+
+    sessionStorage.setItem(
+        'NPX_CUSTOMER_BRANCH_ID',
+        bid
+    );
+
+    localStorage.setItem(
+        'NPX_CUSTOMER_BRANCH_ID',
+        bid
+    );
+}
             return {
                 vendorId: vid || null,
                 branchId: bid || null
@@ -323,9 +344,35 @@
                         goToCheckout();
                     }
 
-                } else { 
-                    liff.login(); 
-                } 
+                } else {
+
+    const redirectUrl = new URL(
+        window.location.origin + window.location.pathname
+    );
+
+    redirectUrl.searchParams.set(
+        'vid',
+        vendorId
+    );
+
+    if (branchId) {
+        redirectUrl.searchParams.set(
+            'bid',
+            branchId
+        );
+    }
+
+    console.log(
+        "[LIFF LOGIN REDIRECT]",
+        redirectUrl.toString()
+    );
+
+    liff.login({
+        redirectUri: redirectUrl.toString()
+    });
+
+    return;
+}
             } catch (err) { 
                 console.error("LIFF Init Error: ", err);
             } 
