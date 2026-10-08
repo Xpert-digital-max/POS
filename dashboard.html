@@ -575,13 +575,53 @@
 
 
             <!-- ====== ส่งลิงก์เข้าสู่ระบบให้พนักงาน ====== -->
-            <div class="card" style="border-left: 4px solid #3f51b5; background: #e8eaf6; margin-bottom: 15px;">
-                <h3 style="margin-top: 0; color: #1a237e;">📲 ส่งลิงก์เข้าสู่ระบบให้พนักงาน</h3>
-                <p style="font-size: 13px; color: #666; margin-bottom: 10px;">ระบบจะพ่วงรหัสร้าน (Vendor ID) ให้อัตโนมัติ พนักงานยังต้องใส่ PIN ตามระบบเดิม</p>
-                <button onclick="shareStaffLink()" style="background: #3f51b5; color: white; border: none; padding: 11px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; width: 100%;">
-                    📲 ส่งลิงก์ใน LINE ให้พนักงาน
-                </button>
-            </div>
+<div class="card"
+     style="border-left: 4px solid #3f51b5;
+            background: #e8eaf6;
+            margin-bottom: 15px;">
+
+    <h3 style="margin-top: 0; color: #1a237e;">
+        📲 ส่งลิงก์เข้าสู่ระบบให้พนักงาน
+    </h3>
+
+    <p style="font-size: 13px; color: #666; margin-bottom: 12px;">
+        ระบบจะพ่วงรหัสร้าน (Vendor ID) ให้อัตโนมัติ
+        พนักงานยังต้องใส่ PIN ตามสิทธิ์ที่ร้านกำหนด
+    </p>
+
+    <div style="display: flex; gap: 8px;">
+
+        <button
+            onclick="copyStaffLoginLink()"
+            style="flex: 1;
+                   background: white;
+                   color: #3f51b5;
+                   border: 1px solid #3f51b5;
+                   padding: 11px;
+                   border-radius: 6px;
+                   cursor: pointer;
+                   font-weight: bold;
+                   font-size: 13px;">
+            🔗 คัดลอกลิงก์
+        </button>
+
+        <button
+            onclick="shareStaffFlex()"
+            style="flex: 1;
+                   background: #3f51b5;
+                   color: white;
+                   border: none;
+                   padding: 11px;
+                   border-radius: 6px;
+                   cursor: pointer;
+                   font-weight: bold;
+                   font-size: 13px;">
+            📲 ส่งใน LINE
+        </button>
+
+    </div>
+
+</div>
 
             <!-- ====== การตั้งค่า PIN ของพนักงาน (Main Branch) ====== -->
             <div class="card" style="border-left: 4px solid #1a237e; background: #e8eaf6;">
@@ -810,58 +850,182 @@
             window.location.href = hubUrl;
         }
 
-        function shareStaffLink() {
-            if (!vendorData || !vendorData.id) {
-                return alert("กรุณารอระบบโหลดข้อมูลร้านค้าให้เสร็จก่อน");
-            }
+        function getStaffLoginUrl() {
 
-            const staffUrl = `${getBasePath()}/staff-login.html?vid=${encodeURIComponent(vendorData.id)}`;
-            const storeName = vendorData.name || "ร้านของเรา";
-            const message = `👨‍💼 เข้าสู่ระบบพนักงาน\n\nร้าน: ${storeName}\n\nกดลิงก์ด้านล่าง แล้วใส่ PIN ที่ร้านกำหนด\n${staffUrl}`;
+    if (!vendorData || !vendorData.id) {
+        return null;
+    }
 
-            try {
-                if (typeof liff !== 'undefined' &&
-                    liff.isLoggedIn() &&
-                    liff.isApiAvailable('shareTargetPicker')) {
+    return `${getBasePath()}/staff-login.html?vid=${encodeURIComponent(vendorData.id)}`;
+}
 
-                    liff.shareTargetPicker([{
+
+async function copyStaffLoginLink() {
+
+    const staffUrl = getStaffLoginUrl();
+
+    if (!staffUrl) {
+        return alert("กรุณารอระบบโหลดข้อมูลร้านค้าให้เสร็จก่อน");
+    }
+
+    try {
+
+        if (navigator.clipboard && window.isSecureContext) {
+
+            await navigator.clipboard.writeText(staffUrl);
+
+        } else {
+
+            const textArea = document.createElement('textarea');
+
+            textArea.value = staffUrl;
+            textArea.style.position = 'fixed';
+            textArea.style.opacity = '0';
+
+            document.body.appendChild(textArea);
+
+            textArea.select();
+
+            document.execCommand('copy');
+
+            document.body.removeChild(textArea);
+        }
+
+        alert("✅ คัดลอกลิงก์เข้าสู่ระบบพนักงานแล้ว");
+
+    } catch (err) {
+
+        console.error("[STAFF LINK COPY ERROR]", err);
+
+        alert("คัดลอกลิงก์ไม่สำเร็จ กรุณาลองใหม่");
+    }
+}
+
+
+async function shareStaffFlex() {
+
+    const staffUrl = getStaffLoginUrl();
+
+    if (!staffUrl) {
+        return alert("กรุณารอระบบโหลดข้อมูลร้านค้าให้เสร็จก่อน");
+    }
+
+    const storeName = vendorData?.name || "ร้านของเรา";
+
+    const flexMessage = {
+        type: "flex",
+        altText: `เข้าสู่ระบบพนักงาน - ${storeName}`,
+
+        contents: {
+            type: "bubble",
+
+            body: {
+                type: "box",
+                layout: "vertical",
+                spacing: "md",
+
+                contents: [
+
+                    {
                         type: "text",
-                        text: message
-                    }]).then(res => {
-                        if (res) alert("ส่งลิงก์พนักงานเรียบร้อยแล้ว");
-                    }).catch(err => {
-                        console.error("[STAFF SHARE] shareTargetPicker error:", err);
-                        fallbackCopyStaffLink(message);
-                    });
-                    return;
-                }
-            } catch (err) {
-                console.error("[STAFF SHARE] LIFF error:", err);
+                        text: "👨‍💼 เข้าสู่ระบบพนักงาน",
+                        weight: "bold",
+                        size: "xl",
+                        color: "#1A237E"
+                    },
+
+                    {
+                        type: "text",
+                        text: storeName,
+                        weight: "bold",
+                        size: "md",
+                        wrap: true,
+                        color: "#333333"
+                    },
+
+                    {
+                        type: "separator"
+                    },
+
+                    {
+                        type: "text",
+                        text: "สำหรับพนักงาน Cashier / Kitchen",
+                        size: "sm",
+                        color: "#666666",
+                        wrap: true
+                    },
+
+                    {
+                        type: "text",
+                        text: "กดปุ่มด้านล่าง แล้วใส่ PIN ที่ร้านกำหนด",
+                        size: "sm",
+                        color: "#666666",
+                        wrap: true
+                    }
+
+                ]
+            },
+
+            footer: {
+                type: "box",
+                layout: "vertical",
+
+                contents: [
+
+                    {
+                        type: "button",
+                        style: "primary",
+                        color: "#3F51B5",
+
+                        action: {
+                            type: "uri",
+                            label: "🔐 เข้าสู่ระบบพนักงาน",
+                            uri: staffUrl
+                        }
+                    }
+
+                ]
+            }
+        }
+    };
+
+    try {
+
+        if (
+            typeof liff !== "undefined" &&
+            liff.isLoggedIn() &&
+            liff.isApiAvailable("shareTargetPicker")
+        ) {
+
+            const result =
+                await liff.shareTargetPicker([
+                    flexMessage
+                ]);
+
+            if (result) {
+                alert("✅ ส่ง Flex ให้พนักงานเรียบร้อยแล้ว");
             }
 
-            fallbackCopyStaffLink(message);
+        } else {
+
+            alert(
+                "อุปกรณ์นี้ไม่รองรับการส่ง Flex โดยตรง\nระบบจะคัดลอกลิงก์ให้แทน"
+            );
+
+            await copyStaffLoginLink();
         }
 
-        async function fallbackCopyStaffLink(text) {
-            try {
-                if (navigator.clipboard && window.isSecureContext) {
-                    await navigator.clipboard.writeText(text);
-                } else {
-                    const el = document.createElement('textarea');
-                    el.value = text;
-                    el.style.position = 'fixed';
-                    el.style.opacity = '0';
-                    document.body.appendChild(el);
-                    el.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(el);
-                }
-                alert("คัดลอกลิงก์พนักงานแล้ว สามารถนำไปวางใน LINE ได้เลย");
-            } catch (err) {
-                console.error("[STAFF SHARE] Copy error:", err);
-                alert("คัดลอกลิงก์ไม่สำเร็จ กรุณาลองใหม่");
-            }
-        }
+    } catch (err) {
+
+        console.error("[STAFF FLEX SHARE ERROR]", err);
+
+        alert(
+            "ไม่สามารถส่ง Flex ได้\nระบบจะคัดลอกลิงก์ให้แทน"
+        );
+
+        await copyStaffLoginLink();
+    }
+}
 
         async function safeLoad(label, fn) {
             try {
