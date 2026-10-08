@@ -327,77 +327,165 @@
     <!-- แถบด้านบน -->
 <div class="header no-print"
      style="
-        background-color: #06C755;
-        padding: 12px 15px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        color: white;
-        gap: 10px;
+        background:#06C755;
+        color:white;
+        padding:8px 12px 10px 12px;
+        display:block;
+        box-sizing:border-box;
      ">
 
-    <!-- ซ้าย: โลโก้ร้าน + ชื่อระบบ -->
+    <!-- ===== แถวบน: ชื่อร้าน + คำว่าสถานะร้าน ===== -->
     <div style="
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        flex: 1;
-        min-width: 0;
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        gap:10px;
+        margin-bottom:5px;
+        min-width:0;
     ">
 
-        <div style="
-            width: 46px;
-            height: 46px;
-            background: white;
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            overflow: hidden;
-            flex-shrink: 0;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.12);
-        ">
-            <img
-                id="storeLogo"
-                src="https://via.placeholder.com/46"
-                alt="Logo"
-                style="
-                    width: 100%;
-                    height: 100%;
-                    object-fit: cover;
-                ">
+        <!-- ชื่อร้านจริง -->
+        <div
+            id="storeName"
+            style="
+                flex:1;
+                min-width:0;
+                font-size:11px;
+                font-weight:bold;
+                color:white;
+                white-space:nowrap;
+                overflow:hidden;
+                text-overflow:ellipsis;
+                opacity:0.95;
+            ">
+            กำลังโหลด...
         </div>
 
+        <!-- หัวข้อสถานะร้าน -->
         <div style="
-            min-width: 0;
-            line-height: 1.15;
+            width:92px;
+            flex-shrink:0;
+            text-align:center;
+            font-size:10px;
+            font-weight:bold;
+            white-space:nowrap;
         ">
-
-            <div style="
-                font-size: 17px;
-                font-weight: bold;
-                white-space: nowrap;
-            ">
-                NPX POS ORDER
-            </div>
-
-            <div
-                id="storeName"
-                style="
-                    font-size: 11px;
-                    margin-top: 3px;
-                    opacity: 0.95;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    max-width: 170px;
-                ">
-                กำลังโหลด...
-            </div>
-
+            สถานะร้าน
         </div>
 
     </div>
+
+
+    <!-- ===== แถวล่าง ===== -->
+    <div style="
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:8px;
+        min-width:0;
+    ">
+
+        <!-- ซ้าย: Logo + NPX POS ORDER -->
+        <div style="
+            display:flex;
+            align-items:center;
+            gap:8px;
+            flex:1;
+            min-width:0;
+        ">
+
+            <div style="
+                width:45px;
+                height:45px;
+                background:white;
+                border-radius:50%;
+                display:flex;
+                justify-content:center;
+                align-items:center;
+                overflow:hidden;
+                flex-shrink:0;
+                box-shadow:0 2px 4px rgba(0,0,0,0.12);
+            ">
+
+                <img
+                    id="storeLogo"
+                    src="https://via.placeholder.com/45"
+                    alt="Logo"
+                    style="
+                        width:100%;
+                        height:100%;
+                        object-fit:cover;
+                    ">
+            </div>
+
+
+            <!-- ชื่อระบบ 2 บรรทัด -->
+            <div style="
+                font-size:16px;
+                font-weight:bold;
+                line-height:1.05;
+                white-space:nowrap;
+                color:white;
+            ">
+                NPX POS<br>
+                ORDER
+            </div>
+
+        </div>
+
+
+        <!-- กลาง: ปุ่มพนักงาน -->
+        <button
+            onclick="openStaffHub()"
+            style="
+                background:#3f51b5;
+                color:white;
+                border:none;
+                height:38px;
+                padding:0 12px;
+                border-radius:20px;
+                cursor:pointer;
+                font-size:12px;
+                font-weight:bold;
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                gap:4px;
+                flex-shrink:0;
+                white-space:nowrap;
+                box-shadow:0 2px 4px rgba(0,0,0,0.12);
+            ">
+            👨‍💼 พนักงาน
+        </button>
+
+
+        <!-- ขวา: สถานะเปิด/ปิดร้าน -->
+        <button
+            id="storeStatusBtn"
+            onclick="toggleStoreStatus()"
+            style="
+                width:92px;
+                height:38px;
+                background:#ff4d4f;
+                color:white;
+                border:none;
+                border-radius:20px;
+                cursor:pointer;
+                font-size:12px;
+                font-weight:bold;
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                flex-shrink:0;
+                white-space:nowrap;
+                box-shadow:0 2px 4px rgba(0,0,0,0.12);
+            ">
+            🔴 ปิดร้าน
+        </button>
+
+    </div>
+
+</div>
 
 
     <!-- ขวา: พนักงาน + สถานะร้าน -->
