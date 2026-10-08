@@ -1060,9 +1060,78 @@ function getValidatedMenuOptions() {
     });
 
     return isValid
-        ? JSON.stringify(currentOptionGroups)
-        : null;
+    ? JSON.stringify(currentOptionGroups)
+    : null;
 }
+
+
+// ========================================================
+// INIT DASHBOARD
+// ========================================================
+
+async function initDashboard() {
+
+    console.log("[INIT] เริ่มต้น Dashboard...");
+
+    try {
+
+        await liff.init({
+            liffId: CONFIG.liffIdDashboard
+        });
+
+        console.log(
+            "[INIT] LIFF พร้อม สถานะ login:",
+            liff.isLoggedIn()
+        );
+
+        if (!liff.isLoggedIn()) {
+
+            liff.login({
+                redirectUri: window.location.href
+            });
+
+            return;
+        }
+
+        const profile =
+            await liff.getProfile();
+
+        console.log(
+            "[INIT] LINE profile พร้อมแล้ว",
+            profile.userId
+        );
+
+        await loadVendorData(
+            profile.userId
+        );
+
+        console.log(
+            "[INIT] Dashboard พร้อมใช้งาน"
+        );
+
+    } catch (err) {
+
+        console.error(
+            "[INIT] Error:",
+            err
+        );
+
+        const storeNameEl =
+            document.getElementById('storeName');
+
+        if (storeNameEl) {
+            storeNameEl.innerText =
+                "โหลดข้อมูลล้มเหลว";
+        }
+
+        alert(
+            "เกิดข้อผิดพลาดในการเปิด Dashboard: " +
+            (err?.message || err)
+        );
+    }
+}
+
+async function loadVendorData(uid) {
 
         async function loadVendorData(uid) {
             try {
