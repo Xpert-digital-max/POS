@@ -242,9 +242,20 @@
                 </select>
                 <input type="number" id="menuPrice" placeholder="ราคา (บาท)" style="width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
                 
-                <label style="font-size: 13px; font-weight: bold; color: #00BCD4;">ตัวเลือกย่อย (คั่นด้วยลูกน้ำ ",") - *ถ้ามี</label>
-                <p style="font-size: 11px; color: #888; margin: 0 0 5px 0;">*ถ้ามีหลายกลุ่ม ให้คั่นด้วย (;) เช่น ความหวาน:หวานมาก,หวานน้อย ; ใส่ไข่:ไข่ดาว</p>
-                <input type="text" id="menuOptions" placeholder="เช่น หวานปกติ, หวานน้อย, ไม่หวาน" style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #b2ebf2; border-radius: 6px; box-sizing:border-box;">
+                <div class="form-group" style="margin-bottom: 15px;">
+    <label style="font-size: 13px; font-weight: bold; color: #00BCD4;">
+        กลุ่มตัวเลือก (Menu Options)
+    </label>
+
+    <div id="optionGroupsContainer" style="margin-top: 8px;"></div>
+
+    <button
+        type="button"
+        onclick="addOptionGroup()"
+        style="margin-top: 10px; padding: 10px; background: #e3f2fd; color: #1a237e; border: 1px dashed #1a237e; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold;">
+        ➕ เพิ่มกลุ่มตัวเลือก
+    </button>
+</div>
 
                 <input type="file" id="menuImage" accept="image/*" style="margin-bottom: 10px;">
                 <button onclick="addNewMenu()" id="saveMenuBtn" style="background: #06C755; color: white; border: none; padding: 11px; border-radius: 6px; cursor: pointer; width: 100%; font-size: 15px; font-weight: bold;">💾 บันทึกเมนูใหม่</button>
