@@ -103,24 +103,131 @@
     </div>
 
     <!-- Modal เพิ่มเมนูแบบรวดเร็ว (Text Import) -->
-    <div id="bulkAddModal" class="no-print" style="display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 400; justify-content: center; align-items: center;">
-        <div style="background: white; width: 90%; max-width: 500px; border-radius: 12px; padding: 20px; box-sizing: border-box;">
-            <h3 style="margin-top: 0; color: #06C755;">⚡ เพิ่มเมนูแบบข้อความ</h3>
-            <p style="font-size: 13px; color: #666; margin-bottom: 8px;">ก๊อปปี้ข้อความเมนูมาวางได้เลย ระบบจะแยกให้อัตโนมัติ</p>
-            
-            <div style="background: #f5f5f5; padding: 10px; border-radius: 6px; margin-bottom: 10px; border-left: 3px solid #06C755;">
-                <span style="font-size: 12px; font-weight: bold; color: #333;">รูปแบบ:</span><br>
-                <span style="font-size: 12px; color: #555;">ชื่อเมนู, ราคา, หมวดหมู่, ตัวเลือก(ถ้ามี)</span><br><br>
-                <span style="font-size: 12px; font-weight: bold; color: #333;">ตัวอย่าง:</span><br>
-                <span style="font-size: 12px; color: #555;">ข้าวกะเพราหมูสับ, 50, อาหารจานเดียว, ไข่: ไข่ดาว, ไข่เจียว<br>ข้าวผัดกุ้ง, 60, อาหารจานเดียว</span>
+<div id="bulkAddModal" class="no-print" style="display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 400; justify-content: center; align-items: center;">
+
+    <div style="background: white; width: 90%; max-width: 500px; border-radius: 12px; padding: 20px; box-sizing: border-box;">
+
+        <h3 style="margin-top: 0; color: #06C755;">
+            ⚡ เพิ่มเมนูแบบข้อความ
+        </h3>
+
+        <p style="font-size: 13px; color: #666; margin-bottom: 8px;">
+            ก๊อปปี้ข้อความเมนูมาวางได้เลย ระบบจะแยกให้อัตโนมัติ
+        </p>
+
+        <div style="background: #f5f5f5; padding: 10px; border-radius: 6px; margin-bottom: 10px; border-left: 3px solid #06C755;">
+
+            <div style="font-size: 12px; font-weight: bold; color: #333; margin-bottom: 5px;">
+                📝 รูปแบบการพิมพ์
             </div>
-            
-            <textarea id="bulkMenuText" placeholder="วางข้อมูลเมนูที่นี่..." style="width: 100%; height: 150px; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; resize: none; font-size: 14px; background: #fafafa;"></textarea>
-            
-            <div style="display: flex; gap: 10px;">
-                <button onclick="closeBulkAddModal()" style="flex: 1; padding: 12px; border: none; border-radius: 6px; background: #eee; font-weight: bold; cursor: pointer; color: #555;">ยกเลิก</button>
-                <button onclick="processBulkAdd()" id="bulkSaveBtn" style="flex: 2; padding: 12px; border: none; border-radius: 6px; background: #06C755; color: white; font-weight: bold; cursor: pointer;">💾 นำเข้าข้อมูล</button>
+
+            <div style="font-size: 12px; color: #555; line-height: 1.7;">
+                ชื่อเมนู ; ราคา ; หมวดหมู่ ; ตัวเลือก(ถ้ามี)
             </div>
+
+            <hr style="border: none; border-top: 1px dashed #ccc; margin: 8px 0;">
+
+            <div style="font-size: 12px; font-weight: bold; color: #333;">
+                ✅ ตัวอย่างเมนูทั่วไป
+            </div>
+
+            <div style="font-size: 12px; color: #555; line-height: 1.7;">
+                ข้าวกะเพราหมูสับ ; 50 ; อาหารจานเดียว ; ไข่:ไข่ดาว,ไข่เจียว
+                <br>
+                ข้าวผัดกุ้ง ; 60 ; อาหารจานเดียว
+            </div>
+
+            <hr style="border: none; border-top: 1px dashed #ccc; margin: 8px 0;">
+
+            <div style="font-size: 12px; font-weight: bold; color: #333;">
+                ✅ หลายกลุ่มตัวเลือก
+            </div>
+
+            <div style="font-size: 12px; color: #555; line-height: 1.7;">
+                ชาไทย ; 45 ; เครื่องดื่ม ; ชนิด:ร้อน,เย็น,ปั่น / ความหวาน:ปกติ,50%,25%,ไม่หวาน
+            </div>
+
+            <hr style="border: none; border-top: 1px dashed #ccc; margin: 8px 0;">
+
+            <div style="font-size: 12px; font-weight: bold; color: #333;">
+                ✅ เลือกได้หลายรายการ
+            </div>
+
+            <div style="font-size: 12px; color: #555; line-height: 1.7;">
+                ชานมไข่มุก ; 35 ; เครื่องดื่ม ; ชนิด:เย็น,ปั่น / ความหวาน:ปกติ,50%,25%,ไม่หวาน / ท็อปปิ้ง(0,3):ไข่มุก,อโลเวร่า,เม็ดบัว,ถั่วแดง
+            </div>
+
+            <hr style="border: none; border-top: 1px dashed #ccc; margin: 8px 0;">
+
+            <div style="font-size: 12px; color: #666; line-height: 1.7;">
+                <strong>วิธีจำง่าย ๆ</strong><br>
+                ไม่มีวงเล็บ = เลือกได้ 1 รายการ<br>
+                (0,3) = ไม่บังคับ เลือกได้สูงสุด 3 รายการ<br>
+                (1,2) = ต้องเลือกอย่างน้อย 1 สูงสุด 2 รายการ<br><br>
+
+                <strong>เครื่องหมายที่ใช้</strong><br>
+                ; แบ่งชื่อ / ราคา / หมวดหมู่ / ตัวเลือก<br>
+                / แบ่งหลายกลุ่มตัวเลือก<br>
+                : แบ่งชื่อกลุ่มกับรายการ<br>
+                , แบ่งแต่ละตัวเลือก
+            </div>
+
+        </div>
+
+        <textarea
+            id="bulkMenuText"
+            placeholder="วางข้อมูลเมนูที่นี่..."
+            style="width: 100%; height: 150px; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; resize: none; font-size: 14px; background: #fafafa;">
+        </textarea>
+
+        <div style="display: flex; gap: 10px;">
+
+            <button
+                onclick="closeBulkAddModal()"
+                style="flex: 1; padding: 12px; border: none; border-radius: 6px; background: #eee; font-weight: bold; cursor: pointer; color: #555;">
+                ยกเลิก
+            </button>
+
+            <button
+                onclick="processBulkAdd()"
+                id="bulkSaveBtn"
+                style="flex: 2; padding: 12px; border: none; border-radius: 6px; background: #06C755; color: white; font-weight: bold; cursor: pointer;">
+                💾 นำเข้าข้อมูล
+            </button>
+
+        </div>
+
+    </div>
+</div>
+            
+            <textarea
+    id="bulkMenuText"
+    placeholder="วางข้อมูลเมนูที่นี่..."
+    style="width: 100%; height: 150px; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; resize: none; font-size: 14px; background: #fafafa;">
+</textarea>
+
+<div style="display: flex; gap: 10px; margin-bottom: 10px;">
+
+    <button
+        onclick="closeBulkAddModal()"
+        style="flex: 1; padding: 12px; border: none; border-radius: 6px; background: #eee; font-weight: bold; cursor: pointer; color: #555;">
+        ยกเลิก
+    </button>
+
+    <button
+        onclick="processBulkAdd()"
+        id="bulkSaveBtn"
+        style="flex: 2; padding: 12px; border: none; border-radius: 6px; background: #06C755; color: white; font-weight: bold; cursor: pointer;">
+        💾 นำเข้าข้อมูล
+    </button>
+
+</div>
+
+<button
+    onclick="undoLastBulkImport()"
+    style="width: 100%; padding: 11px; border: 1px solid #ff9800; border-radius: 6px; background: #fff8e1; color: #e65100; font-weight: bold; cursor: pointer;">
+    ↩️ ยกเลิกการนำเข้าล่าสุด
+</button>
         </div>
     </div>
 
@@ -487,6 +594,7 @@
         let editingCategoryId = null;
         let currentOptionGroups = [];
         let copiedImageUrl = null;
+        let lastBulkInsertedIds = [];
         let branchCount = 1;
 
         let branchListData = []; 
@@ -1682,47 +1790,518 @@ function getValidatedMenuOptions() {
         }
 
         // ==================== ระบบเพิ่มเมนูแบบข้อความรวดเร็ว (Bulk Add) ====================
-        function openBulkAddModal() { document.getElementById('bulkAddModal').style.display = 'flex'; }
-        function closeBulkAddModal() { document.getElementById('bulkAddModal').style.display = 'none'; document.getElementById('bulkMenuText').value = ''; }
 
-        async function processBulkAdd() {
-            const text = document.getElementById('bulkMenuText').value.trim();
-            if (!text) return alert("กรุณาวางข้อมูลเมนูที่ต้องการเพิ่ม");
+function openBulkAddModal() {
+    document.getElementById('bulkAddModal').style.display = 'flex';
+}
 
-            const lines = text.split('\n'); const insertPayload = []; let errorLines = [];
-            const btn = document.getElementById('bulkSaveBtn'); btn.innerText = "⏳ กำลังประมวลผล..."; btn.disabled = true;
+function closeBulkAddModal() {
+    document.getElementById('bulkAddModal').style.display = 'none';
+    document.getElementById('bulkMenuText').value = '';
+}
 
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i].trim(); if (!line) continue; 
-                const parts = line.split(',').map(p => p.trim());
-                if (parts.length < 2) { errorLines.push(`บรรทัด ${i+1}: ข้อมูลไม่ครบ (${line})`); continue; }
-                const name = parts[0]; const price = parseFloat(parts[1]);
-                if (isNaN(price)) { errorLines.push(`บรรทัด ${i+1}: ราคาไม่ใช่ตัวเลข (${line})`); continue; }
-                const catName = parts[2] ? parts[2] : null; let catId = null; const options = parts.length > 3 ? parts.slice(3).join(', ').trim() : ''; 
 
-                if (catName) {
-                    let existingCat = categories.find(c => c.name.toLowerCase() === catName.toLowerCase());
-                    if (existingCat) { catId = existingCat.id; } 
-                    else {
-                        const { data: newCat, error: catErr } = await supabaseClient.from('categories').insert([{ vendor_id: vendorData.id, name: catName }]).select().single();
-                        if (newCat) { categories.push(newCat); catId = newCat.id; }
-                    }
-                }
-                insertPayload.push({ vendor_id: vendorData.id, name: name, price: price, category_id: catId, options: options, is_available: true });
-            }
+// ========================================================
+// แปลงข้อความตัวเลือกจาก Bulk Add
+//
+// รูปแบบ:
+// ชนิด:ร้อน,เย็น,ปั่น
+// ท็อปปิ้ง(0,3):ไข่มุก,วุ้น,พุดดิ้ง
+//
+// ไม่มี () = Single
+// มี (min,max) = Multiple
+// ========================================================
 
-            if (insertPayload.length === 0) { alert("ไม่มีข้อมูลที่ถูกต้องให้บันทึก\n\nข้อผิดพลาดที่พบ:\n" + errorLines.join('\n')); btn.innerText = "💾 นำเข้าข้อมูล"; btn.disabled = false; return; }
-            if (errorLines.length > 0) {
-                const confirmMsg = `พบข้อผิดพลาดบางบรรทัด (ถูกข้ามไป):\n${errorLines.join('\n')}\n\nต้องการบันทึกรายการที่ถูกต้อง (${insertPayload.length} รายการ) เลยหรือไม่?`;
-                if (!confirm(confirmMsg)) { btn.innerText = "💾 นำเข้าข้อมูล"; btn.disabled = false; return; }
-            }
+function parseBulkOptions(rawOptions) {
 
-            try {
-                const { error } = await supabaseClient.from('menu_items').insert(insertPayload); if (error) throw error;
-                alert(`🎉 บันทึกสำเร็จทั้งหมด ${insertPayload.length} รายการ!`); closeBulkAddModal(); await loadCategories(); loadMenuItems(); 
-            } catch (err) { alert("เกิดข้อผิดพลาดในการบันทึก: " + err.message); }
-            btn.innerText = "💾 นำเข้าข้อมูล"; btn.disabled = false;
+    if (!rawOptions || !rawOptions.trim()) {
+        return [];
+    }
+
+    const groups = [];
+
+    const groupTexts = rawOptions
+        .split('/')
+        .map(g => g.trim())
+        .filter(Boolean);
+
+    groupTexts.forEach(groupText => {
+
+        const colonIndex = groupText.indexOf(':');
+
+        if (colonIndex === -1) {
+            return;
         }
+
+        let header = groupText
+            .substring(0, colonIndex)
+            .trim();
+
+        const choicesText = groupText
+            .substring(colonIndex + 1)
+            .trim();
+
+        const choices = choicesText
+            .split(',')
+            .map(c => c.trim())
+            .filter(Boolean);
+
+        if (choices.length === 0) {
+            return;
+        }
+
+        let name = header;
+        let type = 'single';
+        let min = 1;
+        let max = 1;
+
+        // รองรับ:
+        // ท็อปปิ้ง(0,3)
+        // เครื่องเคียง(1,2)
+        const configMatch = header.match(
+            /^(.*?)\(\s*(\d+)\s*,\s*(\d+)\s*\)$/
+        );
+
+        if (configMatch) {
+
+            name = configMatch[1].trim();
+
+            type = 'multiple';
+
+            min = parseInt(configMatch[2], 10);
+            max = parseInt(configMatch[3], 10);
+
+        } else {
+
+            // ไม่มีวงเล็บ = Single
+            type = 'single';
+            min = 1;
+            max = 1;
+        }
+
+
+        if (!name) {
+            name = 'ตัวเลือกเพิ่มเติม';
+        }
+
+
+        // -----------------------------------------
+        // Validation / Auto-fix
+        // -----------------------------------------
+
+        if (type === 'multiple') {
+
+            if (isNaN(min) || min < 0) {
+                min = 0;
+            }
+
+            if (isNaN(max) || max < 1) {
+                max = choices.length;
+            }
+
+            if (max > choices.length) {
+                max = choices.length;
+            }
+
+            if (min > max) {
+                min = max;
+            }
+
+        } else {
+
+            min = 1;
+            max = 1;
+        }
+
+
+        groups.push({
+            name: name,
+            type: type,
+            min: min,
+            max: max,
+            choices: choices
+        });
+    });
+
+    return groups;
+}
+
+
+// ========================================================
+// เพิ่มเมนูแบบข้อความรวดเร็ว
+//
+// รูปแบบ:
+// ชื่อเมนู ; ราคา ; หมวดหมู่ ; ตัวเลือก
+// ========================================================
+
+async function processBulkAdd() {
+
+    const text =
+        document.getElementById('bulkMenuText').value.trim();
+
+    if (!text) {
+        return alert("กรุณาวางข้อมูลเมนูที่ต้องการเพิ่ม");
+    }
+
+
+    const lines = text.split('\n');
+
+    const insertPayload = [];
+
+    const errorLines = [];
+
+    const btn =
+        document.getElementById('bulkSaveBtn');
+
+    btn.innerText =
+        "⏳ กำลังประมวลผล...";
+
+    btn.disabled = true;
+
+
+    for (let i = 0; i < lines.length; i++) {
+
+        const line = lines[i].trim();
+
+        if (!line) {
+            continue;
+        }
+
+
+        // -----------------------------------------
+        // รูปแบบ:
+        //
+        // ชื่อเมนู ; ราคา ; หมวดหมู่ ; options
+        // -----------------------------------------
+
+        const parts = line
+            .split(';')
+            .map(p => p.trim());
+
+
+        if (parts.length < 2) {
+
+            errorLines.push(
+                `บรรทัด ${i + 1}: รูปแบบข้อมูลไม่ถูกต้อง (${line})`
+            );
+
+            continue;
+        }
+
+
+        const name = parts[0];
+
+        const price = parseFloat(parts[1]);
+
+
+        if (!name) {
+
+            errorLines.push(
+                `บรรทัด ${i + 1}: ไม่พบชื่อเมนู`
+            );
+
+            continue;
+        }
+
+
+        if (isNaN(price)) {
+
+            errorLines.push(
+                `บรรทัด ${i + 1}: ราคาไม่ใช่ตัวเลข (${line})`
+            );
+
+            continue;
+        }
+
+
+        const catName =
+            parts[2]
+                ? parts[2].trim()
+                : null;
+
+
+        // ตัวเลือกทั้งหมดอยู่ตั้งแต่ช่องที่ 4 เป็นต้นไป
+        // กรณีมี ; เกินมา จะรวมกลับ
+        const rawOptions =
+            parts.length > 3
+                ? parts.slice(3).join(';').trim()
+                : '';
+
+
+        // -----------------------------------------
+        // แปลง Options เป็น JSON
+        // -----------------------------------------
+
+        let options = '';
+
+        if (rawOptions) {
+
+            const optionGroups =
+                parseBulkOptions(rawOptions);
+
+            if (optionGroups.length > 0) {
+
+                options =
+                    JSON.stringify(optionGroups);
+
+            } else {
+
+                errorLines.push(
+                    `บรรทัด ${i + 1}: รูปแบบตัวเลือกไม่ถูกต้อง (${rawOptions})`
+                );
+
+                continue;
+            }
+        }
+
+
+        // -----------------------------------------
+        // จัดการ Category
+        // -----------------------------------------
+
+        let catId = null;
+
+
+        if (catName) {
+
+            let existingCat =
+                categories.find(c =>
+                    String(c.name || '')
+                        .toLowerCase()
+                        .trim()
+                    ===
+                    catName
+                        .toLowerCase()
+                        .trim()
+                );
+
+
+            if (existingCat) {
+
+                catId =
+                    existingCat.id;
+
+            } else {
+
+                const {
+                    data: newCat,
+                    error: catErr
+                } = await supabaseClient
+                    .from('categories')
+                    .insert([
+                        {
+                            vendor_id: vendorData.id,
+                            name: catName
+                        }
+                    ])
+                    .select()
+                    .single();
+
+
+                if (catErr) {
+
+                    errorLines.push(
+                        `บรรทัด ${i + 1}: สร้างหมวดหมู่ "${catName}" ไม่สำเร็จ`
+                    );
+
+                    continue;
+                }
+
+
+                if (newCat) {
+
+                    categories.push(newCat);
+
+                    catId = newCat.id;
+                }
+            }
+        }
+
+
+        // -----------------------------------------
+        // เตรียมข้อมูลลง menu_items
+        // -----------------------------------------
+
+        insertPayload.push({
+
+            vendor_id: vendorData.id,
+
+            name: name,
+
+            price: price,
+
+            category_id: catId,
+
+            options: options,
+
+            is_available: true
+        });
+    }
+
+
+    // -----------------------------------------
+    // ไม่มีข้อมูลที่ถูกต้อง
+    // -----------------------------------------
+
+    if (insertPayload.length === 0) {
+
+        alert(
+            "ไม่มีข้อมูลที่ถูกต้องให้บันทึก\n\n" +
+            "ข้อผิดพลาดที่พบ:\n" +
+            errorLines.join('\n')
+        );
+
+        btn.innerText = "💾 นำเข้าข้อมูล";
+        btn.disabled = false;
+
+        return;
+    }
+
+
+    // -----------------------------------------
+    // มีบางบรรทัดผิด
+    // -----------------------------------------
+
+    if (errorLines.length > 0) {
+
+        const confirmMsg =
+            `พบข้อผิดพลาดบางบรรทัด (ถูกข้ามไป):\n\n` +
+            `${errorLines.join('\n')}\n\n` +
+            `ต้องการบันทึกรายการที่ถูกต้อง ` +
+            `(${insertPayload.length} รายการ) หรือไม่?`;
+
+
+        if (!confirm(confirmMsg)) {
+
+            btn.innerText = "💾 นำเข้าข้อมูล";
+            btn.disabled = false;
+
+            return;
+        }
+    }
+
+
+    // -----------------------------------------
+    // บันทึกลง Supabase
+    // -----------------------------------------
+
+    try {
+
+        const { data: insertedData, error } =
+    await supabaseClient
+        .from('menu_items')
+        .insert(insertPayload)
+        .select('id');
+
+if (error) {
+    throw error;
+}
+
+lastBulkInsertedIds =
+    (insertedData || []).map(item => item.id);
+
+sessionStorage.setItem(
+    `lastBulkInsertedIds_${vendorData.id}`,
+    JSON.stringify(lastBulkInsertedIds)
+);
+
+
+        alert(
+            `🎉 บันทึกสำเร็จทั้งหมด ${insertPayload.length} รายการ!`
+        );
+
+
+        closeBulkAddModal();
+
+        await loadCategories();
+
+        await loadMenuItems();
+
+
+    } catch (err) {
+
+        console.error(
+            "[BULK ADD ERROR]",
+            err
+        );
+
+        alert(
+            "เกิดข้อผิดพลาดในการบันทึก: " +
+            err.message
+        );
+
+    } finally {
+
+        btn.innerText = "💾 นำเข้าข้อมูล";
+        btn.disabled = false;
+    }
+}
+
+        async function undoLastBulkImport() {
+
+    if (!vendorData || !vendorData.id) {
+        return alert("ไม่พบข้อมูลร้านค้า");
+    }
+
+    let ids = lastBulkInsertedIds;
+
+    if (!ids || ids.length === 0) {
+
+        try {
+            ids = JSON.parse(
+                sessionStorage.getItem(
+                    `lastBulkInsertedIds_${vendorData.id}`
+                ) || '[]'
+            );
+        } catch (e) {
+            ids = [];
+        }
+    }
+
+    if (!ids || ids.length === 0) {
+        return alert("ไม่มีรายการนำเข้าล่าสุดที่สามารถยกเลิกได้");
+    }
+
+    const confirmed = confirm(
+        `ต้องการยกเลิกการนำเข้าล่าสุดจำนวน ${ids.length} รายการหรือไม่?\n\n` +
+        `เมนูที่เพิ่งนำเข้าทั้งชุดจะถูกลบ`
+    );
+
+    if (!confirmed) return;
+
+    try {
+
+        const { error } =
+            await supabaseClient
+                .from('menu_items')
+                .delete()
+                .eq('vendor_id', vendorData.id)
+                .in('id', ids);
+
+        if (error) {
+            throw error;
+        }
+
+        lastBulkInsertedIds = [];
+
+        sessionStorage.removeItem(
+            `lastBulkInsertedIds_${vendorData.id}`
+        );
+
+        alert("↩️ ยกเลิกการนำเข้าล่าสุดเรียบร้อยแล้ว");
+
+        await loadMenuItems();
+
+    } catch (err) {
+
+        console.error("[UNDO BULK IMPORT ERROR]", err);
+
+        alert(
+            "ไม่สามารถยกเลิกการนำเข้าได้: " +
+            err.message
+        );
+    }
+}
 
         // ==================== ระบบหมวดหมู่ & จัดการเมนู ====================
         async function loadCategories() {
