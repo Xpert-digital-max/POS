@@ -375,22 +375,298 @@
             filteredItems.forEach(item => { const imgSrc = (item.image_url && item.image_url.trim() !== '') ? item.image_url : 'https://via.placeholder.com/150?text=No+Image'; const safeItem = JSON.stringify(item).replace(/'/g, "&apos;").replace(/"/g, "&quot;"); html += `<div class="menu-item"><img src="${imgSrc}"><div class="menu-info"><h4 class="menu-name">${item.name}</h4><p class="menu-price">฿${item.price}</p></div><button class="add-btn" onclick='openOptionModal(${safeItem})'>+</button></div>`; }); container.innerHTML = html; 
         } 
         
-        function openOptionModal(itemObj) { 
-            currentModalItem = itemObj; currentModalQty = 1; document.getElementById('modalItemName').innerText = itemObj.name; document.getElementById('modalItemPrice').innerText = `฿${itemObj.price}`; document.getElementById('modalQtyDisplay').innerText = currentModalQty; document.getElementById('modalNote').value = ''; const optContainer = document.getElementById('modalOptionsContainer'); 
-            if (itemObj.options && itemObj.options.trim() !== '') { 
-                const groups = itemObj.options.split(';'); let optHtml = ''; 
-                groups.forEach((group, gIdx) => { const parts = group.split(':'); if (parts.length > 1) { const groupName = parts[0].trim(); const choices = parts[1].split(','); optHtml += `<div class="opt-group"><div class="opt-title">${groupName}</div>`; choices.forEach((choice, cIdx) => { const val = choice.trim(); const checked = cIdx === 0 ? 'checked' : ''; optHtml += `<label class="opt-radio"><input type="radio" name="itemOptionRadio_${gIdx}" value="${val}" ${checked}> ${val}</label>`; }); optHtml += `</div>`; } }); optContainer.innerHTML = optHtml; optContainer.style.display = 'block'; 
-            } else { optContainer.innerHTML = ''; optContainer.style.display = 'none'; } document.getElementById('optionModal').style.display = 'flex'; 
-        } 
-        
+
+        // ==================== MULTIPLE MENU OPTIONS ====================
+        // รองรับ:
+        // 1) JSON Array / JSON String รูปแบบใหม่จาก Dashboard
+        // 2) Legacy String เช่น "ความหวาน:ปกติ,หวานน้อย; ขนาด:S,M,L"
+        // 3) null / ค่าว่าง
+        function normalizeOptions(rawOptions) {
+            if (!rawOptions) return [];
+
+            if (Array.isArray(rawOptions)) {
+                return rawOptions.map(group => ({
+                    name: group.name || 'ตัวเลือกเพิ่มเติม',
+                    type: group.type === 'multiple' ? 'multiple' : 'single',
+                    min: Number.isFinite(Number(group.min))
+                        ? Number(group.min)
+                        : (group.type === 'multiple' ? 0 : 1),
+                    max: Number.isFinite(Number(group.max))
+                        ? Number(group.max)
+                        : 1,
+                    choices: Array.isArray(group.choices)
+                        ? group.choices.map(c => String(c))
+                        : []
+                }));
+            }
+
+            try {
+                const parsed = JSON.parse(rawOptions);
+
+                if (Array.isArray(parsed)) {
+                    return parsed.map(group => ({
+                        name: group.name || 'ตัวเลือกเพิ่มเติม',
+                        type: group.type === 'multiple' ? 'multiple' : 'single',
+                        min: Number.isFinite(Number(group.min))
+                            ? Number(group.min)
+                            : (group.type === 'multiple' ? 0 : 1),
+                        max: Number.isFinite(Number(group.max))
+                            ? Number(group.max)
+                            : 1,
+                        choices: Array.isArray(group.choices)
+                            ? group.choices.map(c => String(c))
+                            : []
+                    }));
+                }
+            } catch (e) {}
+
+            const oldGroups = String(rawOptions)
+                .split(';')
+                .map(x => x.trim())
+                .filter(Boolean);
+
+            return oldGroups.map(groupText => {
+                const colonIndex = groupText.indexOf(':');
+
+                let groupName = 'ตัวเลือกเพิ่มเติม';
+                let choicesText = groupText;
+
+                if (colonIndex !== -1) {
+                    groupName = groupText.substring(0, colonIndex).trim()
+                        || 'ตัวเลือกเพิ่มเติม';
+
+                    choicesText = groupText.substring(colonIndex + 1).trim();
+                }
+
+                const choices = choicesText
+                    .split(',')
+                    .map(c => c.trim())
+                    .filter(Boolean);
+
+                return {
+                    name: groupName,
+                    type: 'single',
+                    min: 1,
+                    max: 1,
+                    choices: choices
+                };
+            });
+        }
+
+        function escapeOptionHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function renderCustomerOptions(rawOptions) {
+            const groups = normalizeOptions(rawOptions);
+            const container = document.getElementById('modalOptionsContainer');
+
+            if (!container) return;
+
+            container.innerHTML = '';
+
+            if (groups.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+
+            let html = '';
+
+            groups.forEach((group, gIndex) => {
+                const type = group.type === 'multiple' ? 'multiple' : 'single';
+                const inputType = type === 'multiple' ? 'checkbox' : 'radio';
+
+                const choices = Array.isArray(group.choices)
+                    ? group.choices.filter(choice => String(choice).trim() !== '')
+                    : [];
+
+                let min = Number(group.min);
+                let max = Number(group.max);
+
+                if (type === 'single') {
+                    min = 1;
+                    max = 1;
+                } else {
+                    if (!Number.isFinite(min) || min < 0) min = 0;
+                    if (!Number.isFinite(max) || max < 1) max = choices.length || 1;
+                    if (max > choices.length && choices.length > 0) max = choices.length;
+                    if (min > max) min = max;
+                }
+
+                const requiredText = min > 0
+                    ? `<span style="color:#E91E63; font-size:12px; margin-left:5px;">* ต้องเลือกอย่างน้อย ${min}</span>`
+                    : `<span style="color:#888; font-size:12px; margin-left:5px;">ไม่บังคับ</span>`;
+
+                const maxText = type === 'multiple'
+                    ? `<span style="color:#888; font-size:12px;">เลือกได้สูงสุด ${max}</span>`
+                    : `<span style="color:#888; font-size:12px;">เลือก 1 รายการ</span>`;
+
+                let choicesHtml = '';
+
+                choices.forEach(choice => {
+                    const safeChoice = escapeOptionHtml(choice);
+
+                    choicesHtml += `
+                        <label class="opt-radio"
+                               style="display:flex; align-items:center; gap:10px; padding:10px; margin-bottom:8px; background:#fafafa; border:1px solid #eee; border-radius:8px; cursor:pointer;">
+                            <input
+                                type="${inputType}"
+                                name="itemOptionGroup_${gIndex}"
+                                value="${safeChoice}"
+                                onchange="handleOptionSelect(this)"
+                                style="transform:scale(1.15);"
+                            >
+                            <span>${safeChoice}</span>
+                        </label>
+                    `;
+                });
+
+                html += `
+                    <div class="option-group-wrapper"
+                         data-name="${escapeOptionHtml(group.name || 'ตัวเลือกเพิ่มเติม')}"
+                         data-type="${type}"
+                         data-min="${min}"
+                         data-max="${max}"
+                         style="margin-bottom:15px;">
+
+                        <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom:8px;">
+                            <div class="opt-title" style="margin-bottom:0;">
+                                ${escapeOptionHtml(group.name || 'ตัวเลือกเพิ่มเติม')}
+                                ${requiredText}
+                            </div>
+                            ${maxText}
+                        </div>
+
+                        ${choicesHtml}
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+            container.style.display = 'block';
+        }
+
+        function handleOptionSelect(el) {
+            const group = el.closest('.option-group-wrapper');
+            if (!group) return;
+
+            if (group.dataset.type !== 'multiple') return;
+
+            const max = parseInt(group.dataset.max, 10) || 0;
+            const checked = group.querySelectorAll('input[type="checkbox"]:checked');
+
+            if (max > 0 && checked.length >= max) {
+                group.querySelectorAll('input[type="checkbox"]:not(:checked)')
+                    .forEach(cb => cb.disabled = true);
+            } else {
+                group.querySelectorAll('input[type="checkbox"]')
+                    .forEach(cb => cb.disabled = false);
+            }
+        }
+
+        function getSelectedOptionsForCart() {
+            const resultText = [];
+            let isValid = true;
+
+            document.querySelectorAll('#modalOptionsContainer .option-group-wrapper')
+                .forEach(group => {
+
+                    const type = group.dataset.type || 'single';
+                    const name = group.dataset.name || 'ตัวเลือกเพิ่มเติม';
+                    const min = parseInt(group.dataset.min, 10) || 0;
+                    const max = parseInt(group.dataset.max, 10) || 0;
+
+                    const selected = [];
+
+                    if (type === 'multiple') {
+                        group.querySelectorAll('input[type="checkbox"]:checked')
+                            .forEach(cb => selected.push(cb.value));
+                    } else {
+                        const checked = group.querySelector('input[type="radio"]:checked');
+                        if (checked) selected.push(checked.value);
+                    }
+
+                    if (selected.length < min) {
+                        alert(`กรุณาเลือก "${name}" อย่างน้อย ${min} รายการ`);
+                        isValid = false;
+                        return;
+                    }
+
+                    if (max > 0 && selected.length > max) {
+                        alert(`"${name}" เลือกได้สูงสุด ${max} รายการ`);
+                        isValid = false;
+                        return;
+                    }
+
+                    if (selected.length > 0) {
+                        resultText.push(`${name}: ${selected.join(', ')}`);
+                    }
+                });
+
+            if (!isValid) return null;
+
+            return resultText.join(' | ');
+        }
+
+        function openOptionModal(itemObj) {
+            currentModalItem = itemObj;
+            currentModalQty = 1;
+
+            document.getElementById('modalItemName').innerText = itemObj.name;
+            document.getElementById('modalItemPrice').innerText = `฿${itemObj.price}`;
+            document.getElementById('modalQtyDisplay').innerText = currentModalQty;
+            document.getElementById('modalNote').value = '';
+
+            renderCustomerOptions(itemObj.options);
+
+            document.getElementById('optionModal').style.display = 'flex';
+        }
+
         function closeOptionModal() { document.getElementById('optionModal').style.display = 'none'; } 
         function changeModalQty(delta) { currentModalQty += delta; if (currentModalQty < 1) currentModalQty = 1; document.getElementById('modalQtyDisplay').innerText = currentModalQty; } 
-        function confirmAddToCart() { 
-            let selectedOpts = []; if (currentModalItem.options && currentModalItem.options.trim() !== '') { const groups = currentModalItem.options.split(';'); groups.forEach((group, gIdx) => { const radios = document.getElementsByName(`itemOptionRadio_${gIdx}`); for (let r of radios) { if (r.checked) { const parts = group.split(':'); const groupName = parts.length > 1 ? parts[0].trim() : ''; selectedOpts.push(groupName ? `${groupName}: ${r.value}` : r.value); } } }); } 
-            const finalOptionString = selectedOpts.join(' | '); const note = document.getElementById('modalNote').value.trim(); 
-            cart.push({ id: currentModalItem.id, name: currentModalItem.name, price: parseFloat(currentModalItem.price), qty: currentModalQty, option: finalOptionString, note: note }); updateCartBadge(); closeOptionModal(); if (navigator.vibrate) navigator.vibrate(50); 
-        } 
-        
+        function confirmAddToCart() {
+            if (!currentModalItem) return;
+
+            const finalOptionString = getSelectedOptionsForCart();
+
+            if (finalOptionString === null) {
+                return;
+            }
+
+            const note = document.getElementById('modalNote').value.trim();
+
+            const existingIndex = cart.findIndex(item =>
+                item.id === currentModalItem.id &&
+                item.option === finalOptionString &&
+                item.note === note
+            );
+
+            if (existingIndex >= 0) {
+                cart[existingIndex].qty += currentModalQty;
+            } else {
+                cart.push({
+                    id: currentModalItem.id,
+                    name: currentModalItem.name,
+                    price: parseFloat(currentModalItem.price),
+                    qty: currentModalQty,
+                    option: finalOptionString,
+                    note: note
+                });
+            }
+
+            updateCartBadge();
+            closeOptionModal();
+
+            if (navigator.vibrate) {
+                navigator.vibrate(50);
+            }
+        }
+
         function updateCartBadge() { const badge = document.getElementById('cartCountBadge'); if (cart.length > 0) { let totalQty = cart.reduce((sum, item) => sum + item.qty, 0); badge.innerText = totalQty; badge.style.display = 'flex'; } else { badge.style.display = 'none'; } } 
         function openCartModal() { 
             if (cart.length === 0) return alert("ตะกร้าของคุณว่างเปล่า"); const container = document.getElementById('cartItemsContainer'); let html = ''; let total = 0; 
