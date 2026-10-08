@@ -675,9 +675,6 @@ container.innerHTML = html;
             renderMenuList();
         }
 
-; renderMenuList(); 
-        }
-
         function calculateTotal() { let totalQty = 0; let totalPrice = 0; cart.forEach(c => { totalQty += c.qty; totalPrice += (c.qty * c.price); }); document.getElementById('totalItems').innerText = totalQty; document.getElementById('totalPrice').innerText = totalPrice; const footer = document.getElementById('cartFooter'); if (totalQty > 0) { footer.classList.add('show'); } else { footer.classList.remove('show'); } }
 
         function goToCheckout() {
