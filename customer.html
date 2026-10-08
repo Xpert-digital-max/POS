@@ -330,17 +330,26 @@
                     try {
                         await liff.init({ liffId: liffToUse }); 
                         if (liff.isLoggedIn()) { 
-                            try {
-                                const idToken = liff.getDecodedIDToken();
-                                if (idToken && idToken.sub) {
-                                    customerUid = idToken.sub;
-                                } else {
-                                    const profile = await liff.getProfile();
-                                    customerUid = profile.userId;
-                                }
-                            } catch (e) {
-                                console.warn("Cannot get profile from LIFF:", e);
-                            }
+                    try {
+                        const idToken = liff.getDecodedIDToken();
+                        if (idToken && idToken.sub) {
+                            customerUid = idToken.sub;
+                        } else {
+                            const profile = await liff.getProfile();
+                            customerUid = profile.userId;
+                        }
+
+                        // ตรวจสอบสถานะการเป็นเพื่อนกับ LINE OA
+                        const friendship = await liff.getFriendship();
+                        if (!friendship.friendFlag) {
+                            console.log("ลูกค้ายังไม่ได้เป็นเพื่อนกับ LINE OA");
+                            // กรณีต้องการให้เด้งไปหน้าเพิ่มเพื่อนของร้านทันที (ถ้ามีลิงก์ LINE OA ของร้าน):
+                            // window.location.href = "https://line.me/R/ti/p/@ไอดีไลน์ร้าน";
+                        }
+
+                    } catch (e) {
+                        console.warn("Cannot get profile / friendship from LIFF:", e);
+                    }
                         } else if (liff.isInClient()) {
                             liff.login();
                             return;
