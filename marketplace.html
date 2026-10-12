@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NPX FOOD MARKETPLACE</title>
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 0; background-color: #f4f6f8; color: #333; }
+        
+        /* Header & Search */
+        .header { background: #06C755; padding: 15px 20px; color: white; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header h1 { margin: 0; font-size: 20px; font-weight: bold; display: flex; align-items: center; gap: 8px; }
+        .search-box { margin-top: 15px; position: relative; }
+        .search-box input { width: 100%; padding: 12px 15px 12px 40px; border-radius: 8px; border: none; font-size: 15px; box-sizing: border-box; outline: none; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .search-icon { position: absolute; left: 12px; top: 12px; color: #888; font-size: 16px; }
+
+        /* Filter Tabs */
+        .filter-scroll { display: flex; gap: 10px; overflow-x: auto; padding: 15px 20px; background: white; white-space: nowrap; -ms-overflow-style: none; scrollbar-width: none; border-bottom: 1px solid #eee; }
+        .filter-scroll::-webkit-scrollbar { display: none; }
+        .filter-btn { background: #f0f0f0; border: none; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: bold; color: #555; cursor: pointer; transition: 0.2s; }
+        .filter-btn.active { background: #06C755; color: white; box-shadow: 0 2px 5px rgba(6,199,85,0.3); }
+
+        /* Store List */
+        .store-container { padding: 15px 20px; }
+        .section-title { font-size: 16px; font-weight: bold; margin: 0 0 15px 0; color: #333; display: flex; justify-content: space-between; align-items: center;}
+        
+        .store-card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; gap: 15px; cursor: pointer; transition: transform 0.2s; }
+        .store-card:active { transform: scale(0.98); }
+        .store-img { width: 85px; height: 85px; border-radius: 10px; object-fit: cover; flex-shrink: 0; border: 1px solid #eee; }
+        .store-info { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+        .store-name { margin: 0 0 4px 0; font-size: 16px; font-weight: bold; line-height: 1.3; }
+        .store-cat { font-size: 12px; color: #666; background: #f4f6f8; padding: 2px 8px; border-radius: 4px; display: inline-block; width: fit-content; margin-bottom: 5px;}
+        .store-meta { display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-top: 5px; }
+        .distance { color: #00BCD4; font-weight: bold; display: flex; align-items: center; gap: 4px; }
+        
+        .status-badge { font-weight: bold; font-size: 11px; padding: 3px 8px; border-radius: 12px; }
+        .status-open { background: #e8f5e9; color: #06C755; }
+        .status-closed { background: #ffebee; color: #f44336; }
+
+        /* Utils */
+        .location-btn { background: #e0f7fa; color: #00838f; border: 1px solid #b2ebf2; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+        .loading-state, .empty-state { text-align: center; padding: 40px 20px; color: #888; }
+        .loader-spinner { width: 30px; height: 30px; border: 3px solid #f3f3f3; border-top: 3px solid #06C755; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 15px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>🍔 NPX FOOD</h1>
+        <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="searchInput" placeholder="ค้นหาร้านอาหาร, สาขา, เมนู..." onkeyup="filterStores()">
+        </div>
+    </div>
+
+    <div class="filter-scroll" id="filterContainer">
+        <button class="filter-btn active" onclick="setCategoryFilter('all', this)">ทั้งหมด</button>
+        <button class="filter-btn" onclick="setCategoryFilter('อาหารตามสั่ง', this)">อาหารตามสั่ง</button>
+        <button class="filter-btn" onclick="setCategoryFilter('ก๋วยเตี๋ยว', this)">ก๋วยเตี๋ยว</button>
+        <button class="filter-btn" onclick="setCategoryFilter('คาเฟ่', this)">คาเฟ่/เครื่องดื่ม</button>
+        <button class="filter-btn" onclick="setCategoryFilter('ของหวาน', this)">ของหวาน</button>
+        <button class="filter-btn" onclick="setCategoryFilter('ส้มตำ', this)">ส้มตำ/ยำ</button>
+    </div>
+
+    <div class="store-container">
+        <div class="section-title">
+            <span id="listTitle">📍 ร้านใกล้คุณ</span>
+            <button class="location-btn" onclick="requestLocation()"><span id="locIcon">📡</span> อัปเดตพิกัด</button>
+        </div>
+        
+        <div id="storeListContainer">
+            <div class="loading-state">
+                <div class="loader-spinner"></div>
+                กำลังค้นหาร้านอาหารรอบๆ ตัวคุณ...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
+        
+        let allStores = [];
+        let userLat = null;
+        let userLng = null;
+        let currentFilter = 'all';
+
+        // ==================== Haversine Formula ====================
+        function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+            if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+            const R = 6371; // Radius of the earth in km
+            const dLat = deg2rad(lat2 - lat1);
+            const dLon = deg2rad(lon2 - lon1);
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c; // Distance in km
+        }
+
+        function deg2rad(deg) {
+            return deg * (Math.PI / 180);
+        }
+
+        // ==================== Init & Location ====================
+        async function initMarketplace() {
+            // ดึง LIFF ID ของ Marketplace (ถ้าไม่มีใช้ของ Customer ชั่วคราว)
+            const liffId = CONFIG.liffIdMarketplace || CONFIG.liffIdCustomer;
+            
+            try {
+                await liff.init({ liffId: liffId });
+                requestLocation(); // ขอพิกัดก่อนโหลดข้อมูล
+            } catch (err) {
+                console.warn("LIFF Init Failed:", err);
+                requestLocation(); // Fallback ลองขอ GPS ธรรมดาถ้าไม่ผ่าน LIFF
+            }
+        }
+
+        function requestLocation() {
+            const locIcon = document.getElementById('locIcon');
+            locIcon.innerText = "⏳";
+            
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        userLat = position.coords.latitude;
+                        userLng = position.coords.longitude;
+                        locIcon.innerText = "✅";
+                        loadStores();
+                    },
+                    (error) => {
+                        console.warn("Geolocation denied or failed:", error);
+                        userLat = null; userLng = null;
+                        locIcon.innerText = "⚠️";
+                        document.getElementById('listTitle').innerText = "⭐ ร้านอาหารแนะนำ";
+                        loadStores();
+                    },
+                    { enableHighAccuracy: true, timeout: 5000 }
+                );
+            } else {
+                loadStores();
+            }
+        }
+
+        // ==================== Fetch Data ====================
+        async function loadStores() {
+            try {
+                // 1. ดึงร้านค้าหลักที่เปิด Marketplace
+                const { data: vendors, error: vErr } = await supabaseClient.from('vendors')
+                    .select('id, name, line_picture_url, is_open, latitude, longitude, address, food_category')
+                    .eq('marketplace_enabled', true);
+                
+                if (vErr) throw vErr;
+                if (!vendors || vendors.length === 0) {
+                    renderEmpty("ยังไม่มีร้านอาหารในพื้นที่ของคุณ");
+                    return;
+                }
+
+                const vendorIds = vendors.map(v => v.id);
+
+                // 2. ดึงสาขาที่ Active ภายใต้ร้านค้าเหล่านั้น
+                const { data: branches, error: bErr } = await supabaseClient.from('branches')
+                    .select('id, merchant_id, branch_name, latitude, longitude, address, is_active')
+                    .in('merchant_id', vendorIds)
+                    .eq('is_active', true);
+                
+                if (bErr) throw bErr;
+
+                // 3. รวมร่างข้อมูล (Main + Branches)
+                let combinedStores = [];
+
+                vendors.forEach(v => {
+                    // สาขาหลัก (ใช้ lat/lng จาก vendor)
+                    combinedStores.push({
+                        vid: v.id,
+                        bid: null,
+                        name: v.name,
+                        branchName: 'สาขาหลัก',
+                        image: v.line_picture_url || 'https://via.placeholder.com/100?text=NPX',
+                        is_open: v.is_open,
+                        lat: v.latitude,
+                        lng: v.longitude,
+                        address: v.address || '',
+                        category: v.food_category || 'ทั่วไป'
+                    });
+
+                    // สาขาย่อย
+                    const vBranches = branches.filter(b => b.merchant_id === v.id);
+                    vBranches.forEach(b => {
+                        // ป้องกันการแสดงซ้ำถ้าตั้งชื่อสาขาว่า "สาขาหลัก" ใน branches table
+                        if (b.branch_name !== 'สาขาหลัก') {
+                            combinedStores.push({
+                                vid: v.id,
+                                bid: b.id,
+                                name: v.name,
+                                branchName: b.branch_name,
+                                image: v.line_picture_url || 'https://via.placeholder.com/100?text=NPX',
+                                is_open: v.is_open, // อิงสถานะการเปิดรับออเดอร์จากร้านแม่
+                                lat: b.latitude,
+                                lng: b.longitude,
+                                address: b.address || '',
+                                category: v.food_category || 'ทั่วไป'
+                            });
+                        }
+                    });
+                });
+
+                // 4. คำนวณระยะทาง
+                combinedStores = combinedStores.map(store => {
+                    const dist = getDistanceFromLatLonInKm(userLat, userLng, store.lat, store.lng);
+                    return { ...store, distance: dist };
+                });
+
+                // 5. เรียงลำดับ (ใกล้สุดขึ้นก่อน ถ้าระยะทาง null ไปอยู่ท้ายสุด)
+                combinedStores.sort((a, b) => {
+                    if (a.distance === null) return 1;
+                    if (b.distance === null) return -1;
+                    return a.distance - b.distance;
+                });
+
+                allStores = combinedStores;
+                filterStores();
+
+            } catch (error) {
+                console.error("Error loading stores:", error);
+                renderEmpty("เกิดข้อผิดพลาดในการโหลดข้อมูล");
+            }
+        }
+
+        // ==================== Filters & Rendering ====================
+        function setCategoryFilter(category, btnElement) {
+            currentFilter = category;
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            btnElement.classList.add('active');
+            filterStores();
+        }
+
+        function filterStores() {
+            const searchText = document.getElementById('searchInput').value.toLowerCase();
+            
+            const filtered = allStores.filter(store => {
+                const matchSearch = store.name.toLowerCase().includes(searchText) || 
+                                    store.branchName.toLowerCase().includes(searchText) || 
+                                    store.category.toLowerCase().includes(searchText);
+                
+                const matchCategory = currentFilter === 'all' || store.category === currentFilter;
+                
+                return matchSearch && matchCategory;
+            });
+
+            renderStores(filtered);
+        }
+
+        function renderStores(stores) {
+            const container = document.getElementById('storeListContainer');
+            
+            if (stores.length === 0) {
+                renderEmpty("ไม่พบร้านอาหารที่คุณค้นหา");
+                return;
+            }
+
+            let html = '';
+            stores.forEach(store => {
+                const distText = store.distance !== null ? `${store.distance.toFixed(1)} km` : '-';
+                const statusHtml = store.is_open 
+                    ? `<span class="status-badge status-open">🟢 เปิดอยู่</span>` 
+                    : `<span class="status-badge status-closed">🔴 ปิดอยู่</span>`;
+                
+                // ถ้าระยะทางไกลกว่า 20km อาจจะหรี่สีป้าย หรือไม่ก็ปล่อยไว้
+                
+                html += `
+                <div class="store-card" onclick="goToStore('${store.vid}', '${store.bid}')">
+                    <img src="${store.image}" class="store-img">
+                    <div class="store-info">
+                        <div>
+                            <h3 class="store-name">${store.name}</h3>
+                            ${store.bid ? `<div style="font-size: 11px; color: #888; margin-bottom: 4px;">🏢 ${store.branchName}</div>` : ''}
+                            <span class="store-cat">${store.category}</span>
+                        </div>
+                        <div class="store-meta">
+                            <span class="distance">📍 ${distText}</span>
+                            ${statusHtml}
+                        </div>
+                    </div>
+                </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function renderEmpty(message) {
+            document.getElementById('storeListContainer').innerHTML = `
+                <div class="empty-state">
+                    <div style="font-size: 40px; margin-bottom: 10px;">🍽️</div>
+                    <div>${message}</div>
+                </div>
+            `;
+        }
+
+        function goToStore(vid, bid) {
+            let url = `customer.html?vid=${vid}`;
+            if (bid && bid !== 'null') {
+                url += `&bid=${bid}`;
+            }
+            window.location.href = url;
+        }
+
+        // ==================== Start ====================
+        window.onload = initMarketplace;
+    </script>
+</body>
+</html>
