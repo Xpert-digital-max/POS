@@ -3190,6 +3190,36 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             if (!vendorData) return;
             document.getElementById('settingStoreName').value = vendorData.name || ''; document.getElementById('settingPhone').value = vendorData.phone || '';
             document.getElementById('settingPaymentType').value = vendorData.payment_type || 'promptpay'; document.getElementById('settingPromptpay').value = vendorData.promptpay_number || ''; document.getElementById('settingBankInfo').value = vendorData.bank_info || ''; document.getElementById('settingAllowCash').checked = vendorData.allow_cash_payment === true;
+
+            // ===== Marketplace Settings =====
+            const isMarketplaceEnabled = vendorData.marketplace_enabled === true;
+            const mkCheckbox = document.getElementById('settingMarketplace');
+            const foodCategory = document.getElementById('settingFoodCategory');
+            const addressInput = document.getElementById('settingAddress');
+            const latInput = document.getElementById('settingLat');
+            const lngInput = document.getElementById('settingLng');
+            const mkGroup = document.getElementById('marketplaceSettingsGroup');
+
+            if (mkCheckbox) {
+                mkCheckbox.checked = isMarketplaceEnabled;
+            }
+            if (foodCategory) {
+                foodCategory.value = vendorData.food_category || 'ทั่วไป';
+            }
+            if (addressInput) {
+                addressInput.value = vendorData.address || '';
+            }
+            if (latInput) {
+                latInput.value = vendorData.latitude ?? '';
+            }
+            if (lngInput) {
+                lngInput.value = vendorData.longitude ?? '';
+            }
+            if (mkGroup) {
+                mkGroup.style.display = isMarketplaceEnabled ? 'block' : 'none';
+            }
+            // ===== End Marketplace Settings =====
+
             togglePaymentInputs();
 
             if (vendorData.name || vendorData.promptpay_number || vendorData.bank_info) { setPaymentFieldsState(false); } else { setPaymentFieldsState(true); }
@@ -3205,6 +3235,15 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
                 tokenInput.placeholder = "วาง Token ที่นี่..."; tokenInput.value = ''; liffInput.placeholder = "เช่น 1234567890-AbCdEfGh"; liffInput.value = ''; 
                 if(tokenBtn) { tokenBtn.innerText = "💾 บันทึก Token & LIFF"; tokenBtn.style.background = "#00B900"; }
             }
+        }
+
+        function toggleMarketplaceSettings() {
+            const checkbox = document.getElementById('settingMarketplace');
+            const group = document.getElementById('marketplaceSettingsGroup');
+
+            if (!checkbox || !group) return;
+
+            group.style.display = checkbox.checked ? 'block' : 'none';
         }
 
         function togglePaymentInputs() {
