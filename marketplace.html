@@ -242,11 +242,18 @@
             const searchText = document.getElementById('searchInput').value.toLowerCase();
             
             const filtered = allStores.filter(store => {
-                const matchSearch = store.name.toLowerCase().includes(searchText) || 
-                                    store.branchName.toLowerCase().includes(searchText) || 
-                                    store.category.toLowerCase().includes(searchText);
+                // แปลงเป็นตัวพิมพ์เล็กทั้งหมดและป้องกันกรณีค่าว่าง
+                const sName = String(store.name || '').toLowerCase();
+                const sBranch = String(store.branchName || '').toLowerCase();
+                const sCat = String(store.category || '').toLowerCase();
+                const filterTarget = String(currentFilter).toLowerCase();
                 
-                const matchCategory = currentFilter === 'all' || store.category === currentFilter;
+                const matchSearch = sName.includes(searchText) || 
+                                    sBranch.includes(searchText) || 
+                                    sCat.includes(searchText);
+                
+                // ใช้ .includes() แทน === เพื่อให้ค้นหาเจอแม้มีช่องว่างเกินใน Database
+                const matchCategory = currentFilter === 'all' || sCat.includes(filterTarget);
                 
                 return matchSearch && matchCategory;
             });
