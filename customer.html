@@ -111,6 +111,10 @@
         <div class="header-info">
             <h2 id="storeName">กำลังโหลด...</h2>
             <div id="storeStatus" class="status-badge status-open">กำลังตรวจสอบสถานะ...</div>
+            <!-- เพิ่มปุ่มแชร์ตรงนี้ -->
+            <button onclick="openShareModal()" style="margin-top: 8px; background: #ff5722; color: white; border: none; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(255,87,34,0.3); width: fit-content;">
+                📢 แชร์แนะนำร้านนี้
+            </button>
         </div>
     </div>
     <div class="category-bar" id="categoryBar">
@@ -127,6 +131,47 @@
         <h2 style="color: #f44336; margin-bottom: 10px;">🔴 ขออภัย ร้านปิดชั่วคราว</h2>
         <p style="color: #555;">ขณะนี้ร้านยังไม่เปิดรับออเดอร์</p>
     </div>
+
+<!-- เริ่มต้น: Modal เลือกรูปแบบการแชร์ -->
+<div id="shareOptionsModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: flex-end; padding-bottom: 20px;">
+    <div style="background: white; width: 95%; max-width: 400px; border-radius: 16px; padding: 20px; box-sizing: border-box; text-align: center; position: relative; animation: slideUp 0.3s ease-out;">
+        <button onclick="closeShareModal()" style="position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 20px; color: #888; cursor: pointer;">✕</button>
+        
+        <h3 style="margin: 0 0 10px 0; color: #333;">เลือกลักษณะการแชร์</h3>
+        <p style="font-size: 13px; color: #666; margin-bottom: 20px;">คุณสามารถแชร์เพื่อบอกต่อเพื่อนๆ หรือสมัครเป็นพาร์ทเนอร์เพื่อรับค่าคอมมิชชันได้</p>
+        
+        <!-- ตัวเลือกที่ 1: แชร์ปกติ -->
+        <div style="background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 12px; padding: 15px; margin-bottom: 12px; text-align: left;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h4 style="margin: 0; color: #333;">💌 แชร์บอกต่อ (ปกติ)</h4>
+                <span style="background: #e9ecef; color: #555; padding: 3px 8px; border-radius: 12px; font-size: 11px;">ไม่มีค่าคอม</span>
+            </div>
+            <p style="font-size: 12px; color: #666; margin: 0 0 10px 0;">แชร์ร้านนี้ให้เพื่อนๆ รู้จัก ได้ลิงก์ปกติ</p>
+            <div style="display: flex; gap: 8px;">
+                <button onclick="shareNormalFlex()" style="flex: 1; background: #00B900; color: white; border: none; padding: 10px; border-radius: 8px; font-weight: bold; font-size: 13px; cursor: pointer;">📲 ส่งในแชท LINE</button>
+                <button onclick="copyNormalLink()" style="flex: 1; background: #f1f3f5; color: #333; border: 1px solid #dee2e6; padding: 10px; border-radius: 8px; font-weight: bold; font-size: 13px; cursor: pointer;">🔗 คัดลอกลิงก์</button>
+            </div>
+        </div>
+        
+        <!-- ตัวเลือกที่ 2: แชร์รับค่าคอม -->
+        <div style="background: #fff8e1; border: 1px solid #ffe0b2; border-radius: 12px; padding: 15px; text-align: left;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h4 style="margin: 0; color: #e65100;">💰 แชร์เป็นพาร์ทเนอร์</h4>
+                <span id="shareCommBadge" style="background: #ffe0b2; color: #e65100; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">มีค่าคอมมิชชัน</span>
+            </div>
+            <p style="font-size: 12px; color: #666; margin: 0 0 10px 0;">ได้ลิงก์พิเศษของตัวเอง เมื่อมีออเดอร์สำเร็จรับเงินเข้ากระเป๋าทันที</p>
+            <button onclick="handleInfluencerShare()" style="width: 100%; background: #ff9800; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer;">🚀 รับลิงก์พาร์ทเนอร์ของฉัน</button>
+        </div>
+    </div>
+</div>
+
+<style>
+@keyframes slideUp {
+    from { transform: translateY(100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+</style>
+<!-- สิ้นสุด: Modal เลือกรูปแบบการแชร์ -->
 
     <script>
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
@@ -946,6 +991,122 @@
                 window.location.reload(); 
             }
         }
+        // ==================== ระบบแชร์ (Share & Affiliate) ====================
+let userLineProfile = null;
+
+function openShareModal() {
+    const modal = document.getElementById('shareOptionsModal');
+    if (!modal) return;
+    
+    // ดึงค่าคอมของร้านมาโชว์ที่ป้าย (ถ้ามี)
+    const commBadge = document.getElementById('shareCommBadge');
+    if (vendorData && vendorData.influencer_comm_value > 0) {
+        const commVal = vendorData.influencer_comm_value;
+        const commType = vendorData.influencer_comm_type === 'percentage' ? '%' : ' บ.';
+        commBadge.innerText = `รับค่าคอม ${commVal}${commType}`;
+        commBadge.style.display = 'inline-block';
+    } else {
+        commBadge.style.display = 'none'; // ถ้าร้านไม่ตั้งค่าคอม ก็ซ่อนป้ายไว้
+    }
+    
+    modal.style.display = 'flex';
+    
+    // โหลด Profile LINE รอไว้เลย (สำหรับเอา UID ไปทำระบบ พาร์ทเนอร์)
+    if (liff.isLoggedIn() && !userLineProfile) {
+        liff.getProfile().then(profile => {
+            userLineProfile = profile;
+        }).catch(err => console.error("ไม่สามารถดึง Profile ได้", err));
+    }
+}
+
+function closeShareModal() {
+    const modal = document.getElementById('shareOptionsModal');
+    if (modal) modal.style.display = 'none';
+}
+
+function getBaseCustomerUrl() {
+    const currentUrl = window.location.href.split('?')[0]; 
+    return `${currentUrl}?vid=${vendorId}`;
+}
+
+// ---- แชร์ปกติ ----
+function copyNormalLink() {
+    const url = getBaseCustomerUrl();
+    if(navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(url).then(() => {
+            alert('คัดลอกลิงก์เรียบร้อยแล้ว!\nนำไปแชร์ให้เพื่อนๆ ได้เลยครับ');
+            closeShareModal();
+        });
+    } else {
+        const tempInput = document.createElement("input");
+        tempInput.value = url;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand("copy");
+        document.body.removeChild(tempInput);
+        alert('คัดลอกลิงก์เรียบร้อยแล้ว!');
+        closeShareModal();
+    }
+}
+
+function shareNormalFlex() {
+    if (!liff.isLoggedIn()) return alert("กรุณาเปิดลิงก์นี้ในแอป LINE เพื่อใช้ฟังก์ชันส่งข้อความ");
+    
+    const url = getBaseCustomerUrl();
+    const storeName = vendorData?.name || "ร้านอาหารน่าทาน";
+    const storeImg = vendorData?.line_picture_url || "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1024&q=80";
+    
+    const flexMessage = {
+        type: "flex",
+        altText: `แวะมาดูร้าน ${storeName} กัน!`,
+        contents: {
+            type: "bubble",
+            hero: { type: "image", url: storeImg, size: "full", aspectRatio: "20:13", aspectMode: "cover" },
+            body: { type: "box", layout: "vertical", contents: [
+                { type: "text", text: storeName, weight: "bold", size: "xl", wrap: true },
+                { type: "text", text: "เห็นร้านนี้แล้วน่าทานมาก เลยส่งมาให้ดู สั่งออนไลน์ได้เลยนะ!", size: "sm", color: "#666666", wrap: true, margin: "md" }
+            ]},
+            footer: { type: "box", layout: "vertical", spacing: "sm", contents: [
+                { type: "button", style: "primary", color: "#06C755", action: { type: "uri", label: "👉 กดดูเมนูเลย", uri: url } }
+            ]}
+        }
+    };
+    
+    if (liff.isApiAvailable('shareTargetPicker')) {
+        liff.shareTargetPicker([flexMessage]).then((res) => {
+            if (res) { alert('ส่งให้เพื่อนสำเร็จ!'); closeShareModal(); }
+        }).catch(() => {});
+    } else {
+        alert('อุปกรณ์ไม่รองรับการส่งข้อความผ่านแอป LINE (ลองคัดลอกลิงก์แทนนะ)');
+    }
+}
+
+// ---- แชร์รับค่าคอม (Influencer) ----
+function handleInfluencerShare() {
+    if (!liff.isLoggedIn()) {
+        alert("กรุณาเปิดลิงก์นี้ในแอป LINE หรือเข้าสู่ระบบ LINE เพื่อใช้ระบบพาร์ทเนอร์ครับ");
+        liff.login({ redirectUri: window.location.href });
+        return;
+    }
+    
+    // ตรวจสอบว่าร้านเปิดระบบค่าคอมหรือไม่
+    if (!vendorData || !vendorData.influencer_comm_value || vendorData.influencer_comm_value <= 0) {
+        alert("ขออภัยครับ ร้านค้านี้ยังไม่ได้เปิดใช้งานระบบให้ค่าคอมมิชชันพาร์ทเนอร์\nคุณสามารถใช้ปุ่ม 'แชร์บอกต่อ(ปกติ)' ได้ครับ");
+        return;
+    }
+
+    if (!userLineProfile) {
+        alert("กำลังเชื่อมต่อระบบ LINE ข้อมูลยังไม่พร้อม กรุณาลองกดใหม่อีกครั้ง");
+        return;
+    }
+
+    // มีโปรไฟล์แล้ว เด้งไปหน้าจอ Dashboard ของ Influencer เลย
+    const basePath = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+    const influUrl = `${basePath}/influencer.html?uid=${userLineProfile.userId}&vid=${vendorId}`;
+    window.location.href = influUrl;
+}
+
+        window.onload = initCustomerApp;
 
         window.onload = initCustomerApp;
     </script>
