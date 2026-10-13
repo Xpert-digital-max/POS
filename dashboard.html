@@ -3274,6 +3274,10 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             const latInput = document.getElementById('settingLat');
             const lngInput = document.getElementById('settingLng');
             const mkGroup = document.getElementById('marketplaceSettingsGroup');
+            const influTypeInput = document.getElementById('settingInfluType');
+            const influValueInput = document.getElementById('settingInfluValue');
+            if (influTypeInput) influTypeInput.value = vendorData.influencer_comm_type || 'percentage';
+            if (influValueInput) influValueInput.value = vendorData.influencer_comm_value || '';
 
             if (mkCheckbox) {
                 mkCheckbox.checked = isMarketplaceEnabled;
@@ -3327,6 +3331,37 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             else { document.getElementById('divPromptpay').style.display = 'none'; document.getElementById('divBank').style.display = 'block'; }
         }
 
+        function getCurrentGPS() {
+            const btnIcon = document.getElementById('gpsIcon');
+            const latInput = document.getElementById('settingLat');
+            const lngInput = document.getElementById('settingLng');
+            
+            btnIcon.innerText = "⏳";
+            if (navigator.geolocation) {
+                // ปรับการตั้งค่า GPS ให้รองรับ LINE Browser ได้ดีขึ้น
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        latInput.value = position.coords.latitude;
+                        lngInput.value = position.coords.longitude;
+                        btnIcon.innerText = "📍";
+                        alert("✅ ดึงพิกัดร้านค้าสำเร็จ!");
+                    },
+                    (error) => {
+                        console.warn("GPS Error:", error);
+                        btnIcon.innerText = "📍";
+                        let msg = "ไม่สามารถดึงพิกัดได้";
+                        if (error.code === 1) msg = "คุณปฏิเสธการเข้าถึงตำแหน่งที่ตั้ง (Permission Denied)";
+                        else if (error.code === 2) msg = "ไม่พบสัญญาณ GPS (Position Unavailable)";
+                        else if (error.code === 3) msg = "หมดเวลาเชื่อมต่อ GPS (Timeout)";
+                        alert(`❌ ${msg}\nโปรดเปิด GPS หรืออนุญาต Location ในการตั้งค่า LINE/เบราว์เซอร์`);
+                    },
+                    { maximumAge: 10000, timeout: 10000, enableHighAccuracy: false } // ปิด HighAccuracy ป้องกันค้าง
+                );
+            } else {
+                alert("อุปกรณ์นี้ไม่รองรับการดึงตำแหน่งที่ตั้ง");
+                btnIcon.innerText = "📍";
+            }
+        }
         async function updateStoreSettings(btn) {
             if (btn && btn.innerText.includes("แก้ไข")) { setPaymentFieldsState(true); return; }
 
@@ -3345,12 +3380,46 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
                 if (!uploadError) { const { data: publicUrlData } = supabaseClient.storage.from('menu-images').getPublicUrl(fileName); logoUrl = publicUrlData.publicUrl; }
             }
 
+            // === ดึงข้อมูล Marketplace และ Influencer จากหน้าจอ ===
+            const mkCheckbox = document.getElementById('settingMarketplace');
+            const isMkEnabled = mkCheckbox ? mkCheckbox.checked : false;
+            
+            const catSelect = document.getElementById('settingFoodCategory');
+            const mkCategory = catSelect ? catSelect.value : 'ทั่วไป';
+            
+            const addrInput = document.getElementById('settingAddress');
+            const mkAddress = addrInput ? addrInput.value.trim() : '';
+            
+            const latIn = document.getElementById('settingLat');
+            const mkLat = latIn ? latIn.value || null : null;
+            
+            const lngIn = document.getElementById('settingLng');
+            const mkLng = lngIn ? lngIn.value || null : null;
+            
+            const influTypeEl = document.getElementById('settingInfluType');
+            const influType = influTypeEl ? influTypeEl.value : 'percentage';
+            
+            const influValEl = document.getElementById('settingInfluValue');
+            const influValue = influValEl ? influValEl.value || 0 : 0;
+
+            // === อัปเดตข้อมูลทั้งหมดลงฐานข้อมูล ===
             await supabaseClient.from('vendors').update({ 
-                name: name, phone: phone, payment_type: payType, promptpay_number: cleanPromptpay, bank_info: bankInfo, line_picture_url: logoUrl, allow_cash_payment: allowCash
+                name: name, phone: phone, payment_type: payType, promptpay_number: cleanPromptpay, bank_info: bankInfo, line_picture_url: logoUrl, allow_cash_payment: allowCash,
+                marketplace_enabled: isMkEnabled,
+                food_category: mkCategory,
+                address: mkAddress,
+                latitude: mkLat,
+                longitude: mkLng,
+                influencer_comm_type: influType,
+                influencer_comm_value: Number(influValue)
             }).eq('id', vendorData.id);
             
             alert("อัปเดตข้อมูลร้านค้าเรียบร้อยแล้ว!");
+            
+            // อัปเดตตัวแปรในหน้าเว็บให้เป็นค่าปัจจุบัน
             vendorData.name = name; vendorData.phone = phone; vendorData.payment_type = payType; vendorData.promptpay_number = cleanPromptpay; vendorData.bank_info = bankInfo; vendorData.line_picture_url = logoUrl; vendorData.allow_cash_payment = allowCash;
+            vendorData.marketplace_enabled = isMkEnabled; vendorData.food_category = mkCategory; vendorData.address = mkAddress; vendorData.latitude = mkLat; vendorData.longitude = mkLng; vendorData.influencer_comm_type = influType; vendorData.influencer_comm_value = Number(influValue);
+            
             document.getElementById('storeName').innerText = name; 
             const storeLogoEl = document.getElementById('storeLogo');
             if(logoUrl && storeLogoEl) storeLogoEl.src = logoUrl;
