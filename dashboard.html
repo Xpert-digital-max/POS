@@ -752,7 +752,6 @@
     <label style="font-size: 13px; font-weight: bold; color: #555;">
         หมวดหมู่หลักของร้าน
     </label>
-
     <select id="settingFoodCategory"
             style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
         <option value="ทั่วไป">-- เลือกหมวดหมู่ร้าน --</option>
@@ -767,39 +766,42 @@
     <label style="font-size: 13px; font-weight: bold; color: #555;">
         ที่อยู่ร้าน (สั้นๆ ให้ลูกค้าหาเจอ)
     </label>
-
     <textarea id="settingAddress"
               placeholder="เช่น ใกล้บิ๊กซีจันทบุรี, ปากซอยท่าช้าง 2"
               style="width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 15px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px; resize: none;"
               rows="2"></textarea>
 
+    <!-- [แก้ไขใหม่] เพิ่มช่อง ค่าแนะนำ Influencer -->
+    <label style="font-size: 13px; font-weight: bold; color: #555;">
+        ค่าแนะนำสำหรับ Influencer
+    </label>
+    <p style="font-size: 11px; color: #888; margin: 3px 0 8px 0;">
+        (มอบให้ผู้ที่นำลิงก์ร้านคุณไปแชร์ เมื่อมีออเดอร์สำเร็จ)
+    </p>
+    <div style="display: flex; gap: 8px; margin-bottom: 15px;">
+        <select id="settingInfluType" style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;">
+            <option value="percentage">เป็นเปอร์เซ็นต์ (%)</option>
+            <option value="fixed">เป็นจำนวนเงิน (บาท)</option>
+        </select>
+        <input type="number" id="settingInfluValue" placeholder="ระบุตัวเลข" style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;">
+    </div>
+
+    <!-- [แก้ไขใหม่] ปรับ Layout GPS ให้อยู่คนละบรรทัด -->
     <label style="font-size: 13px; font-weight: bold; color: #555;">
         พิกัดร้าน (Latitude / Longitude)
     </label>
-
     <p style="font-size: 11px; color: #888; margin: 3px 0 8px 0;">
-        (จำเป็นต้องมีพิกัดเพื่อให้ระบบคำนวณระยะทางจากลูกค้ามาร้านได้ถูกต้อง)
+        (จำเป็นต้องมีพิกัดเพื่อให้ระบบคำนวณระยะทางได้ถูกต้อง)
     </p>
-
-    <div style="display: flex; gap: 8px; margin-bottom: 10px;">
-        <input type="text"
-               id="settingLat"
-               placeholder="Latitude"
-               readonly
-               style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 6px;">
-
-        <input type="text"
-               id="settingLng"
-               placeholder="Longitude"
-               readonly
-               style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 6px;">
+    <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px;">
+        <input type="text" id="settingLat" placeholder="Latitude (ละติจูด)" readonly style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;">
+        <input type="text" id="settingLng" placeholder="Longitude (ลองจิจูด)" readonly style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;">
     </div>
 
     <button type="button"
             onclick="getCurrentGPS()"
             style="background: #2196F3; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 5px;">
-        <span id="gpsIcon">📍</span>
-        ดึงพิกัดร้านจากมือถือเครื่องนี้อัตโนมัติ
+        <span id="gpsIcon">📍</span> ดึงพิกัดร้านจากมือถือเครื่องนี้อัตโนมัติ
     </button>
 
 </div>
