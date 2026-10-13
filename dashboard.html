@@ -771,6 +771,21 @@
               style="width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 15px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px; resize: none;"
               rows="2"></textarea>
 
+    <!-- เริ่ม: กล่องกระเป๋าเงินการตลาด -->
+<div style="background: #fff8e1; border: 1px solid #ffe0b2; padding: 20px; border-radius: 12px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+    <div>
+        <h3 style="margin: 0; color: #e65100; font-size: 16px;">💰 กระเป๋าเงินค่าการตลาด (พาร์ทเนอร์)</h3>
+        <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">ยอดคงเหลือสำหรับจ่ายค่าคอมมิชชันให้ Influencer</p>
+        <h1 style="margin: 10px 0 0 0; color: #ff9800; font-size: 28px;">฿<span id="displayMarketingWallet">0.00</span></h1>
+    </div>
+    <div>
+        <button type="button" onclick="openTopupModal()" style="background: #ff9800; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(255,152,0,0.3); font-size: 14px;">
+            ➕ เติมเงินเครดิต
+        </button>
+    </div>
+</div>
+<!-- จบ: กล่องกระเป๋าเงินการตลาด -->
+    
     <!-- [แก้ไขใหม่] ปรับ Layout ค่าแนะนำ Influencer เป็นปุ่มวงกลม (Radio) -->
     <label style="font-size: 13px; font-weight: bold; color: #555;">
         ค่าแนะนำสำหรับ Influencer
@@ -3412,6 +3427,13 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             const influValEl = document.getElementById('settingInfluValue');
             const influValue = influValEl ? influValEl.value || 0 : 0;
 
+            // ดึงค่ายอดเงินในกระเป๋าการตลาดมาแสดง
+            const walletEl = document.getElementById('displayMarketingWallet');
+            if (walletEl) {
+                walletEl.innerText = Number(vendorData.marketing_wallet || 0).toFixed(2);
+            }
+            // ====================
+
             // === อัปเดตข้อมูลทั้งหมดลงฐานข้อมูล ===
             await supabaseClient.from('vendors').update({ 
                 name: name, phone: phone, payment_type: payType, promptpay_number: cleanPromptpay, bank_info: bankInfo, line_picture_url: logoUrl, allow_cash_payment: allowCash,
@@ -3502,6 +3524,24 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             if (isOpen) { btn.innerText = "🟢 เปิดร้าน"; btn.style.background = "white"; btn.style.color = "#06C755"; } 
             else { btn.innerText = "🔴 ปิดร้าน"; btn.style.background = "#ff4d4f"; btn.style.color = "white"; }
         }
+        
+        // ==================== ระบบเติมเงินการตลาด ====================
+        function openTopupModal() {
+            // ในเฟสแรก ใช้เป็น Alert แจ้งช่องทางโอนเงินให้ติดต่อแอดมิน
+            // คุณสามารถเปลี่ยน Link LINE ด้านล่างเป็นลิงก์ LINE OA ของคุณได้เลยครับ
+            const lineOaLink = "https://lin.me/R/ti/p/@NPX_SUPPORT"; // <-- เปลี่ยนเป็นลิงก์ LINE OA ของคุณ
+            
+            const msg = "📥 การเติมเงินค่าการตลาด (พาร์ทเนอร์)\n\n" +
+                        "เพื่อความปลอดภัย กรุณาเติมเงินผ่าน LINE แอดมินครับ\n" +
+                        "1. โอนเงินเข้าบัญชี: กสิกรไทย 123-4-56789-0 (ชื่อบัญชี NPX)\n" +
+                        "2. ส่งสลิปให้แอดมินทาง LINE\n\n" +
+                        "แอดมินจะปรับยอดเครดิตให้คุณทันทีครับ!";
+            
+            if(confirm(msg + "\n\nกด 'ตกลง' เพื่อไปที่แชท LINE แอดมิน")) {
+                window.open(lineOaLink, '_blank');
+            }
+        }
+        // ====================
 
         window.onload = initDashboard;
     </script>
