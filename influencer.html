@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NPX Partner Dashboard</title>
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 0; background-color: #f4f6f8; color: #333; }
+        .header { background: #ff9800; color: white; padding: 20px; text-align: center; border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header h2 { margin: 0 0 5px 0; font-size: 22px; }
+        .header p { margin: 0; font-size: 13px; opacity: 0.9; }
+        .container { padding: 20px; max-width: 500px; margin: 0 auto; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        
+        /* Form Styles */
+        label { font-size: 13px; font-weight: bold; color: #555; display: block; margin-bottom: 5px; }
+        input, textarea { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 14px; background: #fafafa; }
+        input:focus, textarea:focus { border-color: #ff9800; outline: none; background: #fff; }
+        .btn-primary { background: #ff9800; color: white; border: none; padding: 14px; border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer; width: 100%; box-shadow: 0 2px 4px rgba(255,152,0,0.3); }
+        .btn-secondary { background: #eee; color: #555; border: none; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; width: 100%; margin-top: 10px; }
+        
+        /* Dashboard Styles */
+        .profile-section { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; }
+        .profile-img { width: 60px; height: 60px; border-radius: 50%; border: 2px solid #ff9800; object-fit: cover; }
+        .wallet-box { background: #fff8e1; border: 1px solid #ffe0b2; padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 20px; }
+        .wallet-box h3 { margin: 0; font-size: 14px; color: #e65100; }
+        .wallet-box h1 { margin: 10px 0; font-size: 36px; color: #ff9800; }
+        
+        /* Modal Styles */
+        .modal-overlay { display: none; background: rgba(0,0,0,0.6); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1000; justify-content: center; align-items: center; padding: 20px; }
+        .modal-content { background: white; width: 100%; max-width: 400px; border-radius: 16px; padding: 20px; box-sizing: border-box; animation: fadeIn 0.2s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h2>🚀 ศูนย์พาร์ทเนอร์ NPX</h2>
+        <p>แชร์ร้านอาหาร รับค่าคอมมิชชันเข้ากระเป๋าทันที</p>
+    </div>
+
+    <div class="container">
+        
+        <!-- Loading State -->
+        <div id="loadingState" style="text-align: center; padding: 40px 0; color: #888;">
+            <p>⏳ กำลังโหลดข้อมูลพาร์ทเนอร์...</p>
+        </div>
+
+        <!-- หน้าจอที่ 1: สำหรับลงทะเบียนครั้งแรก -->
+        <div id="registerState" style="display: none;">
+            <div class="card" style="border-top: 4px solid #ff9800;">
+                <h3 style="margin-top: 0; color: #333;">📝 สมัครเข้าร่วมเป็นพาร์ทเนอร์</h3>
+                <p style="font-size: 13px; color: #666; margin-bottom: 20px;">กรุณากรอกข้อมูลสำหรับรับเงินค่าคอมมิชชัน (ทำเพียงครั้งเดียว)</p>
+                
+                <label>เบอร์โทรศัพท์ (ติดต่อ)</label>
+                <input type="tel" id="regPhone" placeholder="เช่น 0812345678">
+                
+                <label>ช่องทางรับเงิน (ธนาคาร หรือ พร้อมเพย์)</label>
+                <textarea id="regBank" rows="3" placeholder="เช่น ธ.กสิกรไทย เลขบัญชี 123-4-56789-0 ชื่อ นายรับทรัพย์" style="resize: none;"></textarea>
+                
+                <button class="btn-primary" onclick="registerPartner()">✅ ยืนยันการสมัคร</button>
+            </div>
+        </div>
+
+        <!-- หน้าจอที่ 2: แดชบอร์ดของพาร์ทเนอร์ -->
+        <div id="dashboardState" style="display: none;">
+            
+            <div class="card">
+                <div class="profile-section">
+                    <img id="profileImg" src="https://via.placeholder.com/60" class="profile-img">
+                    <div>
+                        <h3 id="profileName" style="margin: 0 0 5px 0; color: #333;">ชื่อผู้ใช้งาน</h3>
+                        <span style="background: #e8f5e9; color: #2e7d32; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">พาร์ทเนอร์ยืนยันแล้ว</span>
+                    </div>
+                </div>
+
+                <div class="wallet-box">
+                    <h3>ยอดเงินสะสมที่ถอนได้</h3>
+                    <h1>฿<span id="walletBalance">0.00</span></h1>
+                    <button onclick="openWithdrawModal()" style="background: #e65100; color: white; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 13px;">💸 แจ้งถอนเงิน</button>
+                </div>
+            </div>
+
+            <!-- กล่องแสดงร้านค้าที่จะแชร์ (ถ้ามี vid ส่งมา) -->
+            <div id="targetVendorBox" class="card" style="display: none; border-left: 4px solid #06C755;">
+                <h3 style="margin-top: 0; color: #333;">🎯 ร้านที่คุณกำลังจะโปรโมท</h3>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <div style="font-weight: bold; font-size: 16px;" id="targetVendorName">ชื่อร้าน...</div>
+                    <div id="targetVendorComm" style="background: #ffe0b2; color: #e65100; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: bold;">รับ 0%</div>
+                </div>
+                
+                <p style="font-size: 12px; color: #666; margin-bottom: 10px;">ลิงก์ส่วนตัวของคุณ (แชร์ลิงก์นี้เพื่อรับค่าคอมฯ)</p>
+                <div style="display: flex; gap: 8px; margin-bottom: 15px;">
+                    <input type="text" id="affiliateLink" readonly style="margin-bottom: 0; background: #fff; border-color: #06C755; color: #2e7d32; font-weight: bold;">
+                    <button onclick="copyAffiliateLink()" style="background: #06C755; color: white; border: none; padding: 0 15px; border-radius: 8px; font-weight: bold; cursor: pointer;">คัดลอก</button>
+                </div>
+                <button class="btn-primary" onclick="shareAffiliateFlex()" style="background: #00B900; box-shadow: 0 2px 4px rgba(0,185,0,0.3);">📲 ส่งในแชท LINE ให้เพื่อน</button>
+                <button class="btn-secondary" onclick="backToMarketplace()">🏠 กลับไปดูร้านค้าอื่นๆ</button>
+            </div>
+            
+        </div>
+
+    </div>
+
+    <!-- Modal แจ้งถอนเงิน -->
+    <div id="withdrawModal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 style="margin-top: 0; color: #e65100;">💸 แจ้งถอนเงินค่าคอมมิชชัน</h3>
+            <p style="font-size: 13px; color: #666; margin-bottom: 15px;">ยอดเงินจะถูกโอนเข้าบัญชีที่ลงทะเบียนไว้</p>
+            
+            <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 13px; color: #555;">
+                <b>บัญชีรับเงินของคุณ:</b><br>
+                <span id="displayBankInfo">กำลังโหลด...</span>
+            </div>
+            
+            <label>ระบุจำนวนเงินที่ต้องการถอน (บาท)</label>
+            <input type="number" id="withdrawAmount" placeholder="ยอดคงเหลือสูงสุด: ฿0">
+            
+            <div style="display: flex; gap: 10px;">
+                <button onclick="closeWithdrawModal()" style="flex: 1; padding: 12px; border: none; border-radius: 8px; background: #eee; font-weight: bold; cursor: pointer; color: #555;">ยกเลิก</button>
+                <button id="submitWithdrawBtn" onclick="submitWithdraw()" style="flex: 2; padding: 12px; border: none; border-radius: 8px; background: #e65100; color: white; font-weight: bold; cursor: pointer;">ยืนยันการถอน</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
+        let userLineProfile = null;
+        let influencerData = null;
+        let targetVendorId = null;
+        let targetVendorData = null;
+
+        // ดึงค่าพารามิเตอร์จาก URL
+        function getUrlParameter(name) {
+            name = name.replace(/[\[\]]/g, '\\$&');
+            const regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)');
+            const results = regex.exec(window.location.href);
+            if (!results) return null;
+            if (!results[2]) return '';
+            return decodeURIComponent(results[2].replace(/\+/g, ' '));
+        }
+
+        async function initApp() {
+            targetVendorId = getUrlParameter('vid');
+            
+            try {
+                // Initialize LIFF
+                await liff.init({ liffId: CONFIG.liffIdCustomer || CONFIG.liffIdDashboard }); // ใช้ LIFF ID ตัวไหนก็ได้ที่มี
+                if (!liff.isLoggedIn()) {
+                    liff.login({ redirectUri: window.location.href });
+                    return;
+                }
+                
+                userLineProfile = await liff.getProfile();
+                await checkInfluencerStatus();
+                
+            } catch (err) {
+                console.error("LIFF Init Error:", err);
+                document.getElementById('loadingState').innerHTML = `<p style="color:red;">เกิดข้อผิดพลาดในการโหลดระบบ LINE<br>${err.message}</p>`;
+            }
+        }
+
+        async function checkInfluencerStatus() {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('influencers')
+                    .select('*')
+                    .eq('line_uid', userLineProfile.userId)
+                    .maybeSingle();
+
+                if (error) throw error;
+
+                document.getElementById('loadingState').style.display = 'none';
+
+                if (data) {
+                    // ลงทะเบียนแล้ว -> โชว์ Dashboard
+                    influencerData = data;
+                    showDashboard();
+                } else {
+                    // ยังไม่เคยลงทะเบียน -> โชว์หน้าสมัตร
+                    document.getElementById('registerState').style.display = 'block';
+                }
+            } catch (err) {
+                alert("เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล");
+                console.error(err);
+            }
+        }
+
+        async function registerPartner() {
+            const phone = document.getElementById('regPhone').value.trim();
+            const bank = document.getElementById('regBank').value.trim();
+
+            if (!phone || !bank) {
+                alert("กรุณากรอกข้อมูลให้ครบถ้วนเพื่อผลประโยชน์ในการรับเงินของคุณครับ");
+                return;
+            }
+
+            try {
+                const { data, error } = await supabaseClient
+                    .from('influencers')
+                    .insert([{
+                        line_uid: userLineProfile.userId,
+                        display_name: userLineProfile.displayName,
+                        picture_url: userLineProfile.pictureUrl,
+                        phone: phone,
+                        bank_info: bank
+                    }])
+                    .select()
+                    .single();
+
+                if (error) throw error;
+
+                alert("🎉 สมัครเข้าร่วมเป็นพาร์ทเนอร์สำเร็จ!");
+                influencerData = data;
+                document.getElementById('registerState').style.display = 'none';
+                showDashboard();
+            } catch (err) {
+                alert("เกิดข้อผิดพลาดในการลงทะเบียน: " + err.message);
+            }
+        }
+
+        async function showDashboard() {
+            document.getElementById('dashboardState').style.display = 'block';
+            
+            // Set Profile Info
+            document.getElementById('profileName').innerText = influencerData.display_name || userLineProfile.displayName;
+            if (influencerData.picture_url) document.getElementById('profileImg').src = influencerData.picture_url;
+            document.getElementById('walletBalance').innerText = Number(influencerData.wallet_balance || 0).toFixed(2);
+            document.getElementById('displayBankInfo').innerText = influencerData.bank_info || '-';
+
+            // โหลดข้อมูลร้านค้าเป้าหมาย (ถ้ามี)
+            if (targetVendorId) {
+                try {
+                    const { data: vendor, error } = await supabaseClient
+                        .from('vendors')
+                        .select('id, name, line_picture_url, influencer_comm_type, influencer_comm_value')
+                        .eq('id', targetVendorId)
+                        .single();
+
+                    if (!error && vendor) {
+                        targetVendorData = vendor;
+                        document.getElementById('targetVendorBox').style.display = 'block';
+                        document.getElementById('targetVendorName').innerText = vendor.name;
+                        
+                        const commVal = vendor.influencer_comm_value || 0;
+                        const commType = vendor.influencer_comm_type === 'percentage' ? '%' : ' บ.';
+                        document.getElementById('targetVendorComm').innerText = `รับ ${commVal}${commType}`;
+
+                        // สร้างลิงก์ Affiliate โดยแนบ &ref=LINE_UID
+                        const basePath = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+                        const affLink = `${basePath}/customer.html?vid=${vendor.id}&ref=${userLineProfile.userId}`;
+                        document.getElementById('affiliateLink').value = affLink;
+                    }
+                } catch (err) {
+                    console.error("Error fetching target vendor:", err);
+                }
+            }
+        }
+
+        function copyAffiliateLink() {
+            const linkInput = document.getElementById('affiliateLink');
+            linkInput.select();
+            document.execCommand("copy");
+            alert("📋 คัดลอกลิงก์เรียบร้อยแล้ว!\nนำไปแปะในโพสต์ TikTok, Facebook หรือที่อื่นๆ ได้เลยครับ");
+        }
+
+        function shareAffiliateFlex() {
+            if (!liff.isLoggedIn()) return alert("กรุณาเปิดลิงก์นี้ในแอป LINE");
+            if (!targetVendorData) return alert("ไม่พบข้อมูลร้านค้า");
+            
+            const link = document.getElementById('affiliateLink').value;
+            const storeName = targetVendorData.name;
+            const storeImg = targetVendorData.line_picture_url || "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1024&q=80";
+            
+            const flexMessage = {
+                type: "flex",
+                altText: `แวะมาดูร้าน ${storeName} กัน!`,
+                contents: {
+                    type: "bubble",
+                    hero: { type: "image", url: storeImg, size: "full", aspectRatio: "20:13", aspectMode: "cover" },
+                    body: { type: "box", layout: "vertical", contents: [
+                        { type: "text", text: storeName, weight: "bold", size: "xl", wrap: true },
+                        { type: "text", text: "ร้านนี้เด็ดมาก เลยเอามาฝาก! ลองกดเข้าไปดูเมนูสิ รับรองหิวแน่นอน 🤤", size: "sm", color: "#666666", wrap: true, margin: "md" }
+                    ]},
+                    footer: { type: "box", layout: "vertical", spacing: "sm", contents: [
+                        { type: "button", style: "primary", color: "#06C755", action: { type: "uri", label: "👉 สั่งอาหาร / ดูเมนู", uri: link } }
+                    ]}
+                }
+            };
+            
+            if (liff.isApiAvailable('shareTargetPicker')) {
+                liff.shareTargetPicker([flexMessage]).then((res) => {
+                    if (res) alert('ส่งให้เพื่อนสำเร็จ!');
+                }).catch(() => {});
+            } else {
+                alert('อุปกรณ์ไม่รองรับการส่งข้อความผ่านแอป LINE\nกรุณาใช้ปุ่มคัดลอกลิงก์แทนครับ');
+            }
+        }
+
+        function backToMarketplace() {
+            const basePath = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+            window.location.href = `${basePath}/marketplace.html`;
+        }
+
+        // ================= ถอนเงิน =================
+        function openWithdrawModal() {
+            const balance = Number(influencerData.wallet_balance || 0);
+            if (balance <= 0) {
+                alert("ยอดเงินของคุณเป็น 0 บาท ยังไม่สามารถถอนได้ครับ");
+                return;
+            }
+            document.getElementById('withdrawAmount').placeholder = `ถอนได้สูงสุด: ฿${balance.toFixed(2)}`;
+            document.getElementById('withdrawModal').style.display = 'flex';
+        }
+
+        function closeWithdrawModal() {
+            document.getElementById('withdrawModal').style.display = 'none';
+            document.getElementById('withdrawAmount').value = '';
+        }
+
+        async function submitWithdraw() {
+            const amountInput = document.getElementById('withdrawAmount').value;
+            const amount = parseFloat(amountInput);
+            const balance = Number(influencerData.wallet_balance || 0);
+
+            if (!amount || amount <= 0) return alert('กรุณาระบุจำนวนเงินให้ถูกต้อง');
+            if (amount > balance) return alert(`ยอดเงินไม่พอ (ถอนได้สูงสุด ${balance} บาท)`);
+
+            const btn = document.getElementById('submitWithdrawBtn');
+            btn.innerText = "กำลังดำเนินการ...";
+            btn.disabled = true;
+
+            try {
+                // 1. บันทึกประวัติการขอถอนเงิน
+                const { error: insertErr } = await supabaseClient
+                    .from('influencer_withdrawals')
+                    .insert([{
+                        influencer_uid: influencerData.line_uid,
+                        amount: amount,
+                        bank_info: influencerData.bank_info,
+                        status: 'pending'
+                    }]);
+                
+                if (insertErr) throw insertErr;
+
+                // 2. หักเงินออกจากกระเป๋า
+                const newBalance = balance - amount;
+                const { error: updateErr } = await supabaseClient
+                    .from('influencers')
+                    .update({ wallet_balance: newBalance })
+                    .eq('line_uid', influencerData.line_uid);
+                
+                if (updateErr) throw updateErr;
+
+                alert('✅ ส่งคำร้องขอถอนเงินเรียบร้อยแล้ว!\nระบบจะดำเนินการโอนเงินให้เร็วที่สุดครับ');
+                
+                // อัปเดตหน้าจอ
+                influencerData.wallet_balance = newBalance;
+                document.getElementById('walletBalance').innerText = newBalance.toFixed(2);
+                closeWithdrawModal();
+
+            } catch (err) {
+                alert('เกิดข้อผิดพลาด: ' + err.message);
+            }
+
+            btn.innerText = "ยืนยันการถอน";
+            btn.disabled = false;
+        }
+
+        window.onload = initApp;
+    </script>
+</body>
+</html>
