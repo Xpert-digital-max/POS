@@ -1049,19 +1049,31 @@ function copyNormalLink() {
     }
 }
 
+// ---- แชร์ปกติ ----
 function shareNormalFlex() {
-    if (!liff.isLoggedIn()) return alert("กรุณาเปิดลิงก์นี้ในแอป LINE เพื่อใช้ฟังก์ชันส่งข้อความ");
+    // 1. ตรวจสอบก่อนว่าเปิดใน LINE หรือไม่
+    if (!liff.isLoggedIn() || !liff.isInClient()) {
+        alert("คุณกำลังเปิดผ่านเบราว์เซอร์ปกติ\nระบบจะทำการ 'คัดลอกลิงก์' ให้แทนครับ");
+        copyNormalLink(); // เรียกใช้ฟังก์ชันก๊อปลิงก์แทน
+        return;
+    }
     
     const url = getBaseCustomerUrl();
     const storeName = vendorData?.name || "ร้านอาหารน่าทาน";
-    const storeImg = vendorData?.line_picture_url || "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1024&q=80";
+    const storeImg = vendorData?.line_picture_url || ""; 
     
+    // สร้าง Flex Message
+    let heroBlock = undefined;
+    if(storeImg !== ""){
+         heroBlock = { type: "image", url: storeImg, size: "full", aspectRatio: "20:13", aspectMode: "cover" };
+    }
+
     const flexMessage = {
         type: "flex",
         altText: `แวะมาดูร้าน ${storeName} กัน!`,
         contents: {
             type: "bubble",
-            hero: { type: "image", url: storeImg, size: "full", aspectRatio: "20:13", aspectMode: "cover" },
+            hero: heroBlock,
             body: { type: "box", layout: "vertical", contents: [
                 { type: "text", text: storeName, weight: "bold", size: "xl", wrap: true },
                 { type: "text", text: "เห็นร้านนี้แล้วน่าทานมาก เลยส่งมาให้ดู สั่งออนไลน์ได้เลยนะ!", size: "sm", color: "#666666", wrap: true, margin: "md" }
@@ -1075,9 +1087,14 @@ function shareNormalFlex() {
     if (liff.isApiAvailable('shareTargetPicker')) {
         liff.shareTargetPicker([flexMessage]).then((res) => {
             if (res) { alert('ส่งให้เพื่อนสำเร็จ!'); closeShareModal(); }
-        }).catch(() => {});
+        }).catch((err) => {
+             console.error(err);
+             alert("ไม่สามารถเปิดหน้าต่างแชร์ได้ ระบบจะคัดลอกลิงก์ให้แทนครับ");
+             copyNormalLink();
+        });
     } else {
-        alert('อุปกรณ์ไม่รองรับการส่งข้อความผ่านแอป LINE (ลองคัดลอกลิงก์แทนนะ)');
+        alert('อุปกรณ์ไม่รองรับการส่งข้อความผ่านแอป LINE\nระบบจะทำการคัดลอกลิงก์ให้แทนครับ');
+        copyNormalLink();
     }
 }
 
@@ -1100,13 +1117,16 @@ function handleInfluencerShare() {
         return;
     }
 
-    // มีโปรไฟล์แล้ว เด้งไปหน้าจอ Dashboard ของ Influencer เลย
+    // === แก้ไขชั่วคราว: แจ้งเตือนก่อนสร้างไฟล์ ===
+    alert("ระบบ Dashboard ของ Influencer กำลังอยู่ในขั้นตอนการพัฒนาครับ!\n(รอทำใน Step 3)");
+    
+    // โค้ดเดิม (ถูกปิดไว้ก่อนชั่วคราว)
+    /*
     const basePath = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
     const influUrl = `${basePath}/influencer.html?uid=${userLineProfile.userId}&vid=${vendorId}`;
     window.location.href = influUrl;
+    */
 }
-
-        window.onload = initCustomerApp;
 
         window.onload = initCustomerApp;
     </script>
