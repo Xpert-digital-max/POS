@@ -1117,15 +1117,10 @@ function handleInfluencerShare() {
         return;
     }
 
-    // === แก้ไขชั่วคราว: แจ้งเตือนก่อนสร้างไฟล์ ===
-    alert("ระบบ Dashboard ของ Influencer กำลังอยู่ในขั้นตอนการพัฒนาครับ!\n(รอทำใน Step 3)");
-    
-    // โค้ดเดิม (ถูกปิดไว้ก่อนชั่วคราว)
-    /*
+    // เปิดใช้งานโค้ดส่วนที่เคยปิดไว้ (เชื่อมโยงไปหน้า Dashboard ของ Influencer)
     const basePath = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
     const influUrl = `${basePath}/influencer.html?uid=${userLineProfile.userId}&vid=${vendorId}`;
     window.location.href = influUrl;
-    */
 }
 
         window.onload = initCustomerApp;
