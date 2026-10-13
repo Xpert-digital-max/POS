@@ -3545,7 +3545,7 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
                         "แอดมินจะปรับยอดเครดิตให้คุณทันทีครับ!";
             
             if(confirm(msg + "\n\nกด 'ตกลง' เพื่อไปที่แชท LINE แอดมิน")) {
-                window.open(lineOaLink, '_blank');
+                window.location.href = lineOaLink;
             }
         }
         // ====================
