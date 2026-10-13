@@ -3303,6 +3303,13 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             const influValueInput = document.getElementById('settingInfluValue');
             if (influValueInput) influValueInput.value = vendorData.influencer_comm_value || '';
 
+            // === เพิ่มโค้ดดึงยอดเงินกระเป๋าการตลาดตรงนี้ ===
+            const walletEl = document.getElementById('displayMarketingWallet');
+            if (walletEl) {
+                walletEl.innerText = Number(vendorData.marketing_wallet || 0).toFixed(2);
+            }
+            // ==============================================
+
             if (mkCheckbox) {
                 mkCheckbox.checked = isMarketplaceEnabled;
             }
