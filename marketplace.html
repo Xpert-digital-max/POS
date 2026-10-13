@@ -240,9 +240,9 @@
 
         function filterStores() {
             const searchText = document.getElementById('searchInput').value.toLowerCase();
+            const MAX_RADIUS_KM = 20; // กำหนดระยะทางสูงสุดที่ต้องการแสดง (20 กิโลเมตร)
             
             const filtered = allStores.filter(store => {
-                // แปลงเป็นตัวพิมพ์เล็กทั้งหมดและป้องกันกรณีค่าว่าง
                 const sName = String(store.name || '').toLowerCase();
                 const sBranch = String(store.branchName || '').toLowerCase();
                 const sCat = String(store.category || '').toLowerCase();
@@ -252,10 +252,14 @@
                                     sBranch.includes(searchText) || 
                                     sCat.includes(searchText);
                 
-                // ใช้ .includes() แทน === เพื่อให้ค้นหาเจอแม้มีช่องว่างเกินใน Database
                 const matchCategory = currentFilter === 'all' || sCat.includes(filterTarget);
+
+                // กรองเงื่อนไขระยะทาง: 
+                // แสดงเฉพาะร้านที่ระยะทางน้อยกว่าหรือเท่ากับ 20 กม. 
+                // หรือร้านที่ระยะทางเป็น null (กรณีที่ลูกค้าไม่เปิด GPS เราจะโชว์หมด)
+                const matchDistance = store.distance === null || store.distance <= MAX_RADIUS_KM;
                 
-                return matchSearch && matchCategory;
+                return matchSearch && matchCategory && matchDistance;
             });
 
             renderStores(filtered);
@@ -271,7 +275,15 @@
 
             let html = '';
             stores.forEach(store => {
-                const distText = store.distance !== null ? `${store.distance.toFixed(1)} km` : '-';
+                // แปลงหน่วยระยะทาง
+                let distText = '-';
+                if (store.distance !== null) {
+                    if (store.distance < 1) {
+                        distText = `${(store.distance * 1000).toFixed(0)} เมตร`; // ถ้าน้อยกว่า 1 กม. แสดงเป็นเมตร
+                    } else {
+                        distText = `${store.distance.toFixed(1)} กม.`; // ถ้ามากกว่า 1 กม. แสดงเป็นกิโลเมตร
+                    }
+                }
                 const statusHtml = store.is_open 
                     ? `<span class="status-badge status-open">🟢 เปิดอยู่</span>` 
                     : `<span class="status-badge status-closed">🔴 ปิดอยู่</span>`;
