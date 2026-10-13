@@ -126,12 +126,35 @@
             <h2 style="margin-top: 0;">รายชื่อร้านค้าทั้งหมด</h2>
             <div class="table-container">
                 <table id="allVendorsTable">
-                    <thead><tr><th>ชื่อร้าน</th><th>แพ็กเกจ</th><th>วันหมดอายุ</th><th>โควต้าสลิป</th><th>ยอดสะสม (Aff)</th><th>จัดการร้าน</th></tr></thead>
+                    <thead><tr><th>ชื่อร้าน</th><th>แพ็กเกจ</th><th>วันหมดอายุ</th><th>โควต้าสลิป</th><th>กระเป๋าเงิน (Aff / Mkt)</th><th>จัดการร้าน</th></tr></thead>
                     <tbody></tbody>
                 </table>
             </div>
         </div>
 
+    </div>
+
+    <!-- Modal เติมเงินกระเป๋าการตลาด -->
+    <div id="topupWalletModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 2000; justify-content: center; align-items: center;">
+        <div style="background: white; width: 90%; max-width: 400px; border-radius: 12px; padding: 20px; box-sizing: border-box;">
+            <h3 style="margin-top: 0; color: #ff9800;">💰 เติมเงินกระเป๋าการตลาด</h3>
+            <p id="topupVendorName" style="font-weight: bold; color: #333; margin-bottom: 5px;">ร้าน: -</p>
+            <p style="font-size: 13px; color: #666; margin-bottom: 15px;">(วางแผนอนาคต: พื้นที่สำหรับเชื่อมระบบตัดบัตร/พร้อมเพย์อัตโนมัติ)</p>
+            
+            <div style="background: #fff8e1; padding: 10px; border-radius: 6px; margin-bottom: 15px; border: 1px dashed #ffb74d;">
+                <p style="margin: 0; font-size: 13px; color: #e65100;">ยอดปัจจุบัน: ฿<span id="currentMarketingWallet">0</span></p>
+            </div>
+            
+            <label style="font-size: 13px; font-weight: bold; color: #555;">จำนวนเงินที่ต้องการเติมเพิ่ม (บาท)</label>
+            <input type="number" id="topupAmount" placeholder="เช่น 500" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
+            
+            <input type="hidden" id="topupVendorId">
+            
+            <div style="display: flex; gap: 10px;">
+                <button onclick="closeTopupWalletModal()" style="flex: 1; padding: 12px; border: none; border-radius: 6px; background: #eee; font-weight: bold; cursor: pointer; color: #555;">ยกเลิก</button>
+                <button onclick="submitTopupWallet(this)" style="flex: 2; padding: 12px; border: none; border-radius: 6px; background: #ff9800; color: white; font-weight: bold; cursor: pointer;">ยืนยันการเติมเงิน</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -285,6 +308,10 @@
                 if (v.is_subscription_active === false) {
                     actionBtns += `<button class="btn btn-success" style="margin-bottom:5px; width:100%;" onclick="approveVendor('${v.id}', '${v.name}', '${v.subscription_plan}', '${v.referrer_id || ''}')">✅ อนุมัติเปิดร้าน</button><br>`;
                 }
+                
+                // ปุ่มเติมเงินค่าการตลาด
+                actionBtns += `<button class="btn" style="background:#ff9800; color:white; margin-bottom:5px; width:100%;" onclick="openTopupWalletModal('${v.id}', '${v.name}', ${v.marketing_wallet || 0})">💰 เติมค่าการตลาด</button><br>`;
+                
                 actionBtns += `<button class="btn btn-danger" style="width:100%;" onclick="suspendVendor('${v.id}', '${v.name}')">🛑 ระงับการใช้งาน</button>`;
 
                 html += `<tr>
@@ -292,7 +319,10 @@
                     <td>${planName}</td>
                     <td>${expDate.toLocaleDateString('th-TH')} ${expBadge}</td>
                     <td><strong style="color:#06C755;">${v.slip_quota || 0}</strong> บิล</td>
-                    <td>฿${v.wallet_balance || 0}</td>
+                    <td>
+                        Aff: ฿${v.wallet_balance || 0}<br>
+                        <span style="color:#ff9800; font-weight:bold;">Mkt: ฿${v.marketing_wallet || 0}</span>
+                    </td>
                     <td>${actionBtns}</td>
                 </tr>`;
             }); 
@@ -340,6 +370,44 @@
 
             alert(`✅ อนุมัติเปิดใช้งานร้าน ${name} เรียบร้อยแล้ว!`); 
             loadAllVendors();
+        }
+
+        // ================= จัดการกระเป๋าเงินการตลาด =================
+        function openTopupWalletModal(id, name, currentBalance) {
+            document.getElementById('topupVendorId').value = id;
+            document.getElementById('topupVendorName').innerText = `ร้าน: ${name}`;
+            document.getElementById('currentMarketingWallet').innerText = currentBalance;
+            document.getElementById('topupAmount').value = '';
+            document.getElementById('topupWalletModal').style.display = 'flex';
+        }
+
+        function closeTopupWalletModal() {
+            document.getElementById('topupWalletModal').style.display = 'none';
+        }
+
+        async function submitTopupWallet(btn) {
+            const id = document.getElementById('topupVendorId').value;
+            const amount = parseFloat(document.getElementById('topupAmount').value);
+            const current = parseFloat(document.getElementById('currentMarketingWallet').innerText);
+            
+            if (isNaN(amount) || amount <= 0) return alert('กรุณาระบุจำนวนเงินให้ถูกต้อง');
+            if (!confirm(`ยืนยันการเติมเงิน ฿${amount} เข้ากระเป๋าการตลาดให้ร้านนี้?`)) return;
+            
+            btn.innerText = "⏳ กำลังดำเนินการ..."; btn.disabled = true;
+            
+            const newBalance = current + amount;
+            try {
+                const { error } = await supabaseClient.from('vendors').update({ marketing_wallet: newBalance }).eq('id', id);
+                if (error) throw error;
+                
+                alert(`✅ เติมเงินสำเร็จ! ยอดใหม่คือ ฿${newBalance}`);
+                closeTopupWalletModal();
+                loadAllVendors();
+            } catch (err) {
+                alert('เกิดข้อผิดพลาด: ' + err.message);
+            }
+            
+            btn.innerText = "ยืนยันการเติมเงิน"; btn.disabled = false;
         }
     </script>
 </body>
