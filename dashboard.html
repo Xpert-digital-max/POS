@@ -771,19 +771,25 @@
               style="width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 15px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px; resize: none;"
               rows="2"></textarea>
 
-    <!-- [แก้ไขใหม่] เพิ่มช่อง ค่าแนะนำ Influencer -->
+    <!-- [แก้ไขใหม่] ปรับ Layout ค่าแนะนำ Influencer เป็นปุ่มวงกลม (Radio) -->
     <label style="font-size: 13px; font-weight: bold; color: #555;">
         ค่าแนะนำสำหรับ Influencer
     </label>
     <p style="font-size: 11px; color: #888; margin: 3px 0 8px 0;">
         (มอบให้ผู้ที่นำลิงก์ร้านคุณไปแชร์ เมื่อมีออเดอร์สำเร็จ)
     </p>
-    <div style="display: flex; gap: 8px; margin-bottom: 15px;">
-        <select id="settingInfluType" style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;">
-            <option value="percentage">เป็นเปอร์เซ็นต์ (%)</option>
-            <option value="fixed">เป็นจำนวนเงิน (บาท)</option>
-        </select>
-        <input type="number" id="settingInfluValue" placeholder="ระบุตัวเลข" style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;">
+    <div style="margin-bottom: 15px; border: 1px solid #ddd; padding: 12px; border-radius: 6px; background: #fff;">
+        <div style="display: flex; gap: 15px; margin-bottom: 10px;">
+            <label style="font-size: 13px; display: flex; align-items: center; gap: 5px; cursor: pointer; color: #333;">
+                <input type="radio" name="settingInfluType" value="percentage" style="accent-color: #ff5722; width: 16px; height: 16px;" checked>
+                เป็นเปอร์เซ็นต์ (%)
+            </label>
+            <label style="font-size: 13px; display: flex; align-items: center; gap: 5px; cursor: pointer; color: #333;">
+                <input type="radio" name="settingInfluType" value="fixed" style="accent-color: #ff5722; width: 16px; height: 16px;">
+                เป็นจำนวนเงิน (บาท)
+            </label>
+        </div>
+        <input type="number" id="settingInfluValue" placeholder="ระบุจำนวน (เช่น 5 หรือ 10)" style="width: 100%; padding: 10px; border: 1px solid #eee; border-radius: 6px; box-sizing: border-box; background: #fafafa;">
     </div>
 
     <!-- [แก้ไขใหม่] ปรับ Layout GPS ให้อยู่คนละบรรทัด -->
@@ -3274,9 +3280,12 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             const latInput = document.getElementById('settingLat');
             const lngInput = document.getElementById('settingLng');
             const mkGroup = document.getElementById('marketplaceSettingsGroup');
-            const influTypeInput = document.getElementById('settingInfluType');
+            // ดึงข้อมูล Influencer สำหรับปุ่ม Radio
+            const influType = vendorData.influencer_comm_type || 'percentage';
+            const radioSelected = document.querySelector(`input[name="settingInfluType"][value="${influType}"]`);
+            if (radioSelected) { radioSelected.checked = true; }
+            
             const influValueInput = document.getElementById('settingInfluValue');
-            if (influTypeInput) influTypeInput.value = vendorData.influencer_comm_type || 'percentage';
             if (influValueInput) influValueInput.value = vendorData.influencer_comm_value || '';
 
             if (mkCheckbox) {
@@ -3396,7 +3405,8 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             const lngIn = document.getElementById('settingLng');
             const mkLng = lngIn ? lngIn.value || null : null;
             
-            const influTypeEl = document.getElementById('settingInfluType');
+            // อ่านค่าจากปุ่ม Radio
+            const influTypeEl = document.querySelector('input[name="settingInfluType"]:checked');
             const influType = influTypeEl ? influTypeEl.value : 'percentage';
             
             const influValEl = document.getElementById('settingInfluValue');
