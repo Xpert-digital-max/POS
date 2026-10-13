@@ -185,6 +185,7 @@
         let selectedCategory = 'all';
         let currentModalItem = null; 
         let currentModalQty = 1;
+        let influencerRef = null; // [เพิ่มใหม่] เก็บค่ารหัส LINE UID ของคนแนะนำ
 
         // ================= EMVCo PromptPay Generator =================
         function generatePromptPayPayload(promptpayId, amount) {
@@ -320,6 +321,7 @@
                 const ctx = recoverCustomerContext();
                 vendorId = ctx.vendorId;
                 branchId = ctx.branchId;
+                influencerRef = getUrlParameter('ref'); // [เพิ่มใหม่] ดึงรหัสพาร์ทเนอร์จากลิงก์
 
                 if (!vendorId) {
                     alert("ไม่พบรหัสร้านค้า กรุณาตรวจสอบลิงก์อีกครั้ง");
@@ -937,13 +939,25 @@
                 if (cashBtn) cashBtn.innerText = "⏳ กำลังบันทึกออเดอร์...";
             }
 
+            // [แก้ไขใหม่] คำนวณค่าคอมมิชชันก่อนส่ง
+            let commAmount = 0;
+            if (influencerRef && vendorData && vendorData.influencer_comm_value > 0) {
+                if (vendorData.influencer_comm_type === 'percentage') {
+                    commAmount = (parseFloat(total) * vendorData.influencer_comm_value) / 100;
+                } else {
+                    commAmount = vendorData.influencer_comm_value; // จ่ายเป็นจำนวนเงินคงที่
+                }
+            }
+
             const orderPayload = { 
                 vendor_id: vendorId, 
                 customer_uid: customerUid, 
                 items: cart, 
                 total_price: parseFloat(total), 
                 slip_image_url: slipUrl, 
-                status: orderStatus
+                status: orderStatus,
+                influencer_uid: influencerRef,        // [เพิ่มใหม่] ส่งรหัสคนแนะนำ
+                influencer_commission: commAmount     // [เพิ่มใหม่] ส่งยอดค่าคอมมิชชัน
             };
             if (branchId) orderPayload.branch_id = branchId;
 
