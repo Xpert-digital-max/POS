@@ -390,17 +390,29 @@
             const amount = parseFloat(document.getElementById('topupAmount').value);
             const current = parseFloat(document.getElementById('currentMarketingWallet').innerText);
             
-            if (isNaN(amount) || amount <= 0) return alert('กรุณาระบุจำนวนเงินให้ถูกต้อง');
-            if (!confirm(`ยืนยันการเติมเงิน ฿${amount} เข้ากระเป๋าการตลาดให้ร้านนี้?`)) return;
+            // 1. อนุญาตให้ใส่ค่าลบได้ แต่ห้ามเว้นว่างหรือเป็น 0
+            if (isNaN(amount) || amount === 0) {
+                return alert('กรุณาระบุจำนวนเงิน\n(หากต้องการดึงเงินกลับ ให้ใส่เครื่องหมายลบด้านหน้า เช่น -100)');
+            }
+            
+            const newBalance = current + amount;
+
+            // 2. ป้องกันไม่ให้แอดมินหักเงินจนยอดติดลบ
+            if (newBalance < 0) {
+                return alert(`ไม่สามารถทำรายการได้!\nยอดเงินปัจจุบันคือ ฿${current} หากหัก ฿${Math.abs(amount)} ยอดจะติดลบครับ`);
+            }
+            
+            // 3. ปรับข้อความแจ้งเตือนให้เข้ากับบริบท (บวก/ลบ)
+            const actionText = amount > 0 ? `เติมเงินเพิ่ม ฿${amount}` : `ดึงเงินกลับ ฿${Math.abs(amount)}`;
+            if (!confirm(`ยืนยันการ ${actionText} ให้ร้านนี้ใช่หรือไม่?\n(ยอดใหม่จะเป็น ฿${newBalance})`)) return;
             
             btn.innerText = "⏳ กำลังดำเนินการ..."; btn.disabled = true;
             
-            const newBalance = current + amount;
             try {
                 const { error } = await supabaseClient.from('vendors').update({ marketing_wallet: newBalance }).eq('id', id);
                 if (error) throw error;
                 
-                alert(`✅ เติมเงินสำเร็จ! ยอดใหม่คือ ฿${newBalance}`);
+                alert(`✅ ปรับยอดสำเร็จ! ยอดใหม่คือ ฿${newBalance}`);
                 closeTopupWalletModal();
                 loadAllVendors();
             } catch (err) {
