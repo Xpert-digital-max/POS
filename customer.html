@@ -993,6 +993,7 @@
                         uid: customerUid, 
                         order_status: orderStatus, 
                         store_name: vendorData.name, 
+                        branch_name: (typeof branchData !== 'undefined' && branchData) ? branchData.branch_name : '', // [NEW] เพิ่มบรรทัดนี้
                         order_ref: referenceNo,
                         queue_num: queueNo
                     })
