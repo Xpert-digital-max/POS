@@ -982,6 +982,7 @@
             alert(orderStatus === 'processing' ? "✅ รับออเดอร์เรียบร้อย กำลังเตรียมอาหาร!" : "ส่งออเดอร์เรียบร้อยแล้ว!\n(รอร้านตรวจสอบและยืนยันสักครู่นะครับ)");
             
             if (customerUid && CONFIG.gasWebhookUrl) {
+                // 1. แจ้งเตือนลูกค้าผ่าน LINE
                 fetch(CONFIG.gasWebhookUrl, {
                     method: 'POST', 
                     redirect: 'follow', 
@@ -995,7 +996,27 @@
                         order_ref: referenceNo,
                         queue_num: queueNo
                     })
-                }).catch(e => console.log(e)); 
+                }).catch(e => console.log("Notify Customer Error:", e)); 
+            }
+
+            // [NEW] 2. แจ้งเตือนเจ้าของร้านผ่าน LINE
+            if (CONFIG.gasWebhookUrl) {
+                fetch(CONFIG.gasWebhookUrl, {
+                    method: 'POST',
+                    redirect: 'follow',
+                    headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: JSON.stringify({
+                        action: 'notify_vendor_new_order',
+                        vendor_id: vendorId,
+                        store_name: vendorData.name,
+                        branch_name: (typeof branchData !== 'undefined' && branchData) ? branchData.branch_name : '',
+                        order_ref: referenceNo,
+                        queue_num: queueNo,
+                        total_price: Number(total),
+                        payment_method: paymentMethod || 'ไม่ระบุ',
+                        order_status: orderStatus
+                    })
+                }).catch(e => console.log("Notify Vendor Error:", e));
             }
 
             clearSavedCart();
