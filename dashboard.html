@@ -3223,7 +3223,21 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
                 
                 const d = new Date(order.created_at); const orderTime = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }); 
                 const orderRef = order.reference_no ? order.reference_no : `${d.getFullYear().toString().slice(-2) + ('0' + (d.getMonth()+1)).slice(-2) + ('0' + d.getDate()).slice(-2)}-${order.id.substring(0,4).toUpperCase()}`; 
-                const queueNum = order.queue_no ? order.queue_no : "?"; const custUid = order.customer_uid || '';
+                const actualQueueNum =
+    order.queue_no !== null &&
+    order.queue_no !== undefined &&
+    order.queue_no !== ''
+        ? order.queue_no
+        : null;
+
+const queueDisplay =
+    actualQueueNum !== null
+        ? `คิวที่ ${actualQueueNum}`
+        : (order.status === 'pending'
+            ? 'คิว: รอยืนยัน'
+            : 'คิว: -');
+
+const queueParam = actualQueueNum !== null ? actualQueueNum : ''; const custUid = order.customer_uid || '';
                 let branchTag = '<span style="background:#e1bee7; color:#6a1b9a; padding:3px 8px; border-radius:12px; font-size:11px; margin-left:8px;">👑 สาขาหลัก</span>';
                 if (order.branch_id) { const bInfo = branchListData.find(b => b.id === order.branch_id); const bName = bInfo ? bInfo.branch_name : 'สาขาย่อย'; branchTag = `<span style="background:#e3f2fd; color:#0d47a1; padding:3px 8px; border-radius:12px; font-size:11px; margin-left:8px;">🏢 ${bName}</span>`; }
                 
@@ -3239,7 +3253,7 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
                 html += `
                     <div class="card" style="border-left: 4px solid #06C755;">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                            <h3 style="margin: 0; display:flex; flex-direction:column;"><div>คิวที่ ${queueNum} ${branchTag}</div><span style="font-size: 12px; color: #888; font-weight: normal; margin-top:3px;">อ้างอิง: ${orderRef} • ${orderTime}</span></h3>
+                            <h3 style="margin: 0; display:flex; flex-direction:column;"><div>${queueDisplay} ${branchTag}</div><span style="font-size: 12px; color: #888; font-weight: normal; margin-top:3px;">อ้างอิง: ${orderRef} • ${orderTime}</span></h3>
                             <div>${statusBadge}</div>
                         </div>
                         <div style="display: flex; gap: 15px; margin-bottom: 15px; background: #f9f9f9; padding: 10px; border-radius: 8px;">
@@ -3253,20 +3267,85 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
         }
 
         async function updateOrderStatus(orderId, newStatus, customerUid, orderRef, queueNum, btnElement) {
-            let confirmMsg = newStatus === 'processing' ? "ตรวจสอบสลิปถูกต้อง และรับคิวนี้ใช่หรือไม่?" : newStatus === 'completed' ? "อาหารเสร็จแล้ว ส่งมอบเรียบร้อยใช่หรือไม่?" : "ต้องการยกเลิกออเดอร์นี้ใช่หรือไม่?";
-            if (!confirm(confirmMsg)) return;
-
-            btnElement.innerText = "⏳ กำลังส่งข้อมูล..."; btnElement.disabled = true;
-            await supabaseClient.from('orders').update({ status: newStatus }).eq('id', orderId);
+    let confirmMsg = newStatus === 'processing' ? "ยืนยันรับออเดอร์นี้ใช่หรือไม่?" : newStatus === 'completed' ? "อาหารเสร็จแล้ว ส่งมอบเรียบร้อยใช่หรือไม่?" : "ต้องการยกเลิกออเดอร์นี้ใช่หรือไม่?";
+    if (!confirm(confirmMsg)) return;
+    
+    btnElement.innerText = "⏳ กำลังส่งข้อมูล..."; 
+    btnElement.disabled = true;
+    
+    try {
+        let assignedQueue = null;
+        
+        // ถ้าเป็นการรับออเดอร์ (processing) และยังไม่มีเลขคิว ให้ดึงและสร้างเลขคิวใหม่
+        if (newStatus === 'processing') {
+            const { data: targetOrder } = await supabaseClient.from('orders').select('vendor_id, branch_id, created_at, queue_no').eq('id', orderId).single();
             
-            if (customerUid && customerUid !== '') { 
-                fetch(CONFIG.gasWebhookUrl, { 
-                    method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
-                    body: JSON.stringify({ action: 'notify_customer', vendor_id: vendorData.id, uid: customerUid, order_status: newStatus, store_name: vendorData.name, order_ref: orderRef, queue_num: queueNum }) 
-                }).catch(e => console.log(e)); 
+            if (targetOrder && !targetOrder.queue_no) {
+                const businessDate = targetOrder.created_at ? new Date(targetOrder.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+                const vId = targetOrder.vendor_id;
+                const bId = targetOrder.branch_id;
+                
+                // ค้นหา counter เดิม
+                let counterQuery = supabaseClient.from('order_counters').select('*').eq('vendor_id', vId).eq('business_date', businessDate);
+                if (bId) counterQuery = counterQuery.eq('branch_id', bId);
+                else counterQuery = counterQuery.is('branch_id', null);
+                
+                const { data: existingCounter } = await counterQuery.maybeSingle();
+                
+                if (existingCounter) {
+                    assignedQueue = (existingCounter.queue_sequence || 0) + 1;
+                    await supabaseClient.from('order_counters').update({ queue_sequence: assignedQueue }).eq('id', existingCounter.id);
+                } else {
+                    assignedQueue = 1;
+                    await supabaseClient.from('order_counters').insert([{
+                        vendor_id: vId,
+                        branch_id: bId || null,
+                        business_date: businessDate,
+                        order_sequence: 1,
+                        queue_sequence: 1
+                    }]);
+                }
+                
+                // อัปเดตสถานะและเลขคิวลงตาราง orders
+                await supabaseClient.from('orders').update({ status: newStatus, queue_no: assignedQueue }).eq('id', orderId);
+            } else {
+                assignedQueue = targetOrder?.queue_no;
+                await supabaseClient.from('orders').update({ status: newStatus }).eq('id', orderId);
             }
-            loadOrders(); 
+        } else {
+            await supabaseClient.from('orders').update({ status: newStatus }).eq('id', orderId);
+            assignedQueue = queueNum !== '?' ? queueNum : null;
         }
+
+        const finalQueueForNotify = newStatus === 'processing' ? assignedQueue : (assignedQueue || '-');
+
+        // ส่ง LINE Flex แจ้งลูกค้า
+        if (customerUid && customerUid !== '') { 
+            fetch(CONFIG.gasWebhookUrl, { 
+                method: 'POST', 
+                redirect: 'follow', 
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({ 
+                    action: 'notify_customer', 
+                    vendor_id: vendorData.id, 
+                    uid: customerUid, 
+                    order_status: newStatus, 
+                    store_name: vendorData.name, 
+                    order_ref: orderRef, 
+                    queue_num: finalQueueForNotify 
+                }) 
+            }).catch(e => console.log(e)); 
+        }
+        
+        await loadOrders();
+    } catch (err) {
+        console.error("Update Order Error:", err);
+        alert("อัปเดตสถานะไม่สำเร็จ: " + err.message);
+        btnElement.innerText = "✅ รับออเดอร์";
+        btnElement.disabled = false;
+        loadOrders();
+    }
+}
 
         // ==================== ระบบตั้งค่าทั่วไป ====================
         function setPaymentFieldsState(isEditing) {
