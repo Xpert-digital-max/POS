@@ -983,21 +983,26 @@
             
             if (customerUid && CONFIG.gasWebhookUrl) {
                 // 1. แจ้งเตือนลูกค้าผ่าน LINE
-                fetch(CONFIG.gasWebhookUrl, {
-                    method: 'POST', 
-                    redirect: 'follow', 
-                    headers: { "Content-Type": "text/plain;charset=utf-8" },
-                    body: JSON.stringify({ 
-                        action: 'notify_customer', 
-                        vendor_id: vendorId, 
-                        uid: customerUid, 
-                        order_status: orderStatus, 
-                        store_name: vendorData.name, 
-                        branch_name: (typeof branchData !== 'undefined' && branchData) ? branchData.branch_name : '', // [NEW] เพิ่มบรรทัดนี้
-                        order_ref: referenceNo,
-                        queue_num: queueNo
-                    })
-                }).catch(e => console.log("Notify Customer Error:", e)); 
+                try {
+                    await fetch(CONFIG.gasWebhookUrl, {
+                        method: 'POST', 
+                        redirect: 'follow', 
+                        headers: { "Content-Type": "text/plain;charset=utf-8" },
+                        body: JSON.stringify({ 
+                            action: 'notify_customer', 
+                            vendor_id: vendorId, 
+                            uid: customerUid, 
+                            order_status: orderStatus, 
+                            store_name: vendorData.name, 
+                            branch_name: (typeof branchData !== 'undefined' && branchData) ? branchData.branch_name : '',
+                            order_ref: referenceNo,
+                            queue_num: queueNo,
+                            payment_method: paymentMethod
+                        })
+                    });
+                } catch (e) {
+                    console.error("Notify Customer Error:", e);
+                }
             }
 
             // [NEW] 2. แจ้งเตือนเจ้าของร้านผ่าน LINE
