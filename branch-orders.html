@@ -68,6 +68,7 @@
         let branchId = null;
         let sessionToken = null;
         let currentVendorId = null;
+        let currentStoreName = '';
         
         // Audio Notification Context
         let notificationAudioContext = null;
@@ -126,11 +127,12 @@
                 if (!data.success) throw new Error(data.message);
 
                 // ล็อกอินสำเร็จ เก็บ Token
-                sessionToken = data.token;
-                currentVendorId = data.vendor_id;
-                localStorage.setItem(`staff_session_${branchId}`, sessionToken);
-                
-                document.getElementById('displayBranchName').innerText = data.branch_name;
+              sessionToken = data.token;
+              currentVendorId = data.vendor_id;
+              currentStoreName = data.store_name || 'ร้านค้า';
+              localStorage.setItem(`staff_session_${branchId}`, sessionToken);
+
+              document.getElementById('displayBranchName').innerText = data.branch_name;
                 
                 alert("✅ เข้าสู่ระบบสำเร็จ!");
                 await validateAndLoadOrders();
@@ -324,22 +326,23 @@
 
                 // หากฝั่งฐานข้อมูล Update สำเร็จ ให้ยิงหา GAS Webhook ของร้านค้านี้เพื่อแจ้ง LINE ให้ลูกค้าทันที
                 if (customerUid && customerUid !== '' && currentVendorId) { 
-                    fetch(CONFIG.gasWebhookUrl, { 
-                        method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
-                        body: JSON.stringify({
-                            action: 'notify_customer',
-                            vendor_id: currentVendorId,
-                            uid: customerUid,
-                            order_status: newStatus,
-                            store_name: document.getElementById('displayBranchName').innerText,
-                            order_ref: data.reference_no || orderRef,
-                            queue_num:
-                                newStatus === 'processing'
-                                    ? assignedQueue
-                                    : (assignedQueue || queueNum || '-')
-                        }) 
-                    }).catch(e => console.log(e)); 
-                }
+                  fetch(CONFIG.gasWebhookUrl, { 
+                      method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
+                      body: JSON.stringify({
+                          action: 'notify_customer',
+                          vendor_id: currentVendorId,
+                          uid: customerUid,
+                          order_status: newStatus,
+                          store_name: currentStoreName,
+                          branch_name: document.getElementById('displayBranchName').innerText,
+                          order_ref: data.reference_no || orderRef,
+                          queue_num:
+                              newStatus === 'processing'
+                                  ? assignedQueue
+                                  : (assignedQueue || queueNum || '-')
+                      }) 
+                  }).catch(e => console.log(e)); 
+              }
                 await loadBranchOrders();
             } catch(err) {
                 alert("การเปลี่ยนสถานะล้มเหลว: " + err.message);
