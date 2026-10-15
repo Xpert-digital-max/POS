@@ -3262,18 +3262,37 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
                     actionButtons = `<button onclick="updateOrderStatus('${order.id}','processing','${custUid}', '${orderRef}','${queueParam}', this, '${paymentType}')" style="background: #06C755; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; flex: 1;">✅ รับออเดอร์</button> <button onclick="updateOrderStatus('${order.id}','rejected','${custUid}', '${orderRef}','${queueParam}', this, '${paymentType}')" style="background: #ff4d4f; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; flex: 1;">❌ ปฏิเสธ</button>`; 
                 } else if (order.status === 'processing') { 
                     statusBadge = '<span style="background: #cce5ff; color: #004085; padding: 3px 8px; border-radius: 12px; font-size: 12px;">กำลังทำอาหาร 🍳</span>'; 
-                    actionButtons = `<button onclick="updateOrderStatus('${order.id}','completed','${custUid}', '${orderRef}','${queueParam}', this)" style="background: #2196F3; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%;">🏁 อาหารเสร็จแล้ว</button>`; 
+                    actionButtons = `<button onclick="updateOrderStatus('${order.id}','completed','${custUid}', '${orderRef}','${queueParam}', this, '${paymentType}')" style="background: #2196F3; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%;">🏁 อาหารเสร็จแล้ว</button>`; 
+                }
+
+                // ทำความสะอาดตัวแปร slip URL
+                const slipUrl =
+                    typeof order.slip_image_url === 'string'
+                        ? order.slip_image_url.trim()
+                        : '';
+
+                // ตรวจสอบและสร้าง UI ส่วนของ Slip ให้ปลอดภัย
+                let slipAreaHtml = '';
+                if (isCashOrder) {
+                    // กรณีเงินสด: ไม่แสดงรูปแตก
+                    slipAreaHtml = `<div style="display:flex; flex-direction:column; justify-content:center; align-items:center; width: 70px; height: 100px; border: 1px dashed #ddd; border-radius: 8px; background: #fff;"><span style="font-size: 20px;">💵</span><span style="font-size: 10px; color: #555; font-weight: bold; text-align: center; line-height: 1.2; margin-top: 4px;">ชำระเงินสด<br>หน้าร้าน</span></div>`;
+                } else if (slipUrl !== '' && slipUrl !== 'null' && slipUrl !== 'undefined') {
+                    // กรณีโอนเงินและมีรูปสลิปจริง
+                    slipAreaHtml = `<a href="${slipUrl}" target="_blank"><img src="${slipUrl}" style="width: 70px; height: 100px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd;"></a>`;
+                } else {
+                    // กรณีโอนเงินแต่ไม่พบรูปสลิป (รูปหาย / null)
+                    slipAreaHtml = `<div style="display:flex; flex-direction:column; justify-content:center; align-items:center; width: 70px; height: 100px; border: 1px dashed #ffccc7; border-radius: 8px; background: #fff2f0;"><span style="font-size: 20px;">⚠️</span><span style="font-size: 10px; color: #cf1322; font-weight: bold; text-align: center; line-height: 1.2; margin-top: 4px;">ไม่พบ<br>รูปสลิป</span></div>`;
                 }
                 
                 html += `
                     <div class="card" style="border-left: 4px solid #06C755;">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                            <h3 style="margin: 0; display:flex; flex-direction:column;"><div>${queueDisplay}${branchTag}</div><span style="font-size: 12px; color: #888; font-weight: normal; margin-top:3px;">อ้างอิง: ${orderRef} •${orderTime}</span></h3>
+                            <h3 style="margin: 0; display:flex; flex-direction:column;"><div>${queueDisplay} ${branchTag}</div><span style="font-size: 12px; color: #888; font-weight: normal; margin-top:3px;">อ้างอิง: ${orderRef} • ${orderTime}</span></h3>
                             <div>${statusBadge}</div>
                         </div>
                         <div style="display: flex; gap: 15px; margin-bottom: 15px; background: #f9f9f9; padding: 10px; border-radius: 8px;">
-                            <div style="flex: 1;"><ul style="margin: 0; padding-left: 20px; color: #333; list-style-type: square;">${itemsHtml}</ul><p style="margin: 10px 0 0 0; font-weight: bold; color: #06C755;">ยอดโอน: ฿${order.total_price}</p></div>
-                            <div style="text-align: center;"><a href="${order.slip_image_url}" target="_blank"><img src="${order.slip_image_url}" style="width: 70px; height: 100px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd;"></a></div>
+                            <div style="flex: 1;"><ul style="margin: 0; padding-left: 20px; color: #333; list-style-type: square;">${itemsHtml}</ul><p style="margin: 10px 0 0 0; font-weight: bold; color: #06C755;">ยอดบิล: ฿${order.total_price}</p></div>
+                            <div style="text-align: center; width: 70px;">${slipAreaHtml}</div>
                         </div>
                         <div style="display: flex; gap: 10px;">${actionButtons}</div>
                     </div>`;
