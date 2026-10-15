@@ -893,7 +893,8 @@
                                 slip_url: slipUrl,
                                 amount: Number(total),
                                 vendor_id: vendorId,
-                                branch_id: branchId || null
+                                branch_id: branchId || null,
+                                payment_context: 'CUSTOMER_ORDER'
                             }
                         }
                     );
@@ -906,6 +907,30 @@
                         orderStatus = 'processing'; 
                     } else {
                         const errCode = (verifyResult.debug && verifyResult.debug.code) ? verifyResult.debug.code : "";
+
+                        // Security-critical failures:
+                        // ห้ามสร้างออเดอร์ต่อเมื่อสลิปซ้ำ / บัญชีปลายทางผิด / วันที่สลิปไม่ใช่วันนี้
+                        const hardRejectMessages = {
+                            DUPLICATE_SLIP: "สลิปนี้ถูกใช้งานแล้ว กรุณาใช้สลิปใหม่",
+                            RECEIVER_ACCOUNT_MISMATCH: "บัญชีผู้รับเงินในสลิปไม่ตรงกับบัญชีรับเงินของร้าน",
+                            RECEIVER_ACCOUNT_UNVERIFIED: "ระบบไม่สามารถยืนยันบัญชีผู้รับเงินปลายทางได้",
+                            SLIP_DATE_MISMATCH: "วันที่ในสลิปไม่ใช่วันที่ปัจจุบัน กรุณาใช้สลิปของรายการนี้",
+                            SLIP_DATE_UNVERIFIED: "ระบบไม่สามารถยืนยันวันที่ทำรายการในสลิปได้"
+                        };
+
+                        if (hardRejectMessages[errCode]) {
+                            alert(`❌ ตรวจสลิปไม่ผ่าน:\n${hardRejectMessages[errCode]}\nกรุณาแนบสลิปที่ถูกต้องใหม่อีกครั้งครับ`);
+                            btn.innerText = "ยืนยันการสั่งซื้อ";
+                            btn.disabled = false;
+                            if (cashBtn) {
+                                cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน";
+                                cashBtn.disabled = false;
+                            }
+                            return;
+                        }
+
+                        // Business Rule เดิม:
+                        // ยอดเงินไม่ตรง -> pending เพื่อให้ร้านตรวจสอบเอง
                         if (errCode === "AMOUNT_UNMATCHED") {
                             orderStatus = 'pending';
                             if (cart.length > 0) {
@@ -913,11 +938,15 @@
                             }
                             alert(`⚠️ แจ้งเตือน: ยอดโอนไม่ตรงกับค่าอาหาร\n(${verifyResult.msg})\nระบบจะส่งออเดอร์ให้ร้านค้าตรวจสอบอีกครั้งครับ`);
                         } else {
-                            alert(`❌ ตรวจสลิปไม่ผ่าน:\n${verifyResult.msg}\nกรุณาแนบสลิปที่ถูกต้องใหม่อีกครั้งครับ`);
-                            btn.innerText = "ยืนยันการสั่งซื้อ"; 
+                            // Failure อื่นทั้งหมด: ไม่สร้างออเดอร์ต่อ
+                            alert(`❌ ตรวจสลิปไม่ผ่าน:\n${verifyResult.msg || "ไม่สามารถยืนยันสลิปได้"}\nกรุณาแนบสลิปที่ถูกต้องใหม่อีกครั้งครับ`);
+                            btn.innerText = "ยืนยันการสั่งซื้อ";
                             btn.disabled = false;
-                            if (cashBtn) { cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
-                            return; 
+                            if (cashBtn) {
+                                cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน";
+                                cashBtn.disabled = false;
+                            }
+                            return;
                         }
                     }
                 } catch (e) {
