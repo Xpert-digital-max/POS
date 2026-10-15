@@ -3222,24 +3222,44 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
                 });
                 
                 const d = new Date(order.created_at); const orderTime = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }); 
-                const orderRef = order.reference_no ? order.reference_no : `${d.getFullYear().toString().slice(-2) + ('0' + (d.getMonth()+1)).slice(-2) + ('0' + d.getDate()).slice(-2)}-${order.id.substring(0,4).toUpperCase()}`; 
-                const queueNum = order.queue_no ? order.queue_no : "?"; const custUid = order.customer_uid || '';
+                const orderRef = order.reference_no ? order.reference_no : `$d.getFullYear().toString().slice(-2)+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2)-${order.id.substring(0,4).toUpperCase()}`; 
+                
+                const actualQueueNum =
+                    order.queue_no !== null &&
+                    order.queue_no !== undefined &&
+                    order.queue_no !== ''
+                        ? order.queue_no
+                        : null;
+
+                const queueDisplay =
+                    actualQueueNum !== null
+                        ? `คิวที่ ${actualQueueNum}`
+                        : (order.status === 'pending'
+                            ? 'คิว: รอยืนยัน'
+                            : 'คิว: -');
+
+                const queueParam =
+                    actualQueueNum !== null
+                        ? actualQueueNum
+                        : '';
+
+                const custUid = order.customer_uid || '';
                 let branchTag = '<span style="background:#e1bee7; color:#6a1b9a; padding:3px 8px; border-radius:12px; font-size:11px; margin-left:8px;">👑 สาขาหลัก</span>';
                 if (order.branch_id) { const bInfo = branchListData.find(b => b.id === order.branch_id); const bName = bInfo ? bInfo.branch_name : 'สาขาย่อย'; branchTag = `<span style="background:#e3f2fd; color:#0d47a1; padding:3px 8px; border-radius:12px; font-size:11px; margin-left:8px;">🏢 ${bName}</span>`; }
                 
                 let statusBadge = ''; let actionButtons = '';
                 if (order.status === 'pending') { 
                     statusBadge = '<span style="background: #fff3cd; color: #856404; padding: 3px 8px; border-radius: 12px; font-size: 12px;">รอยืนยันสลิป</span>'; 
-                    actionButtons = `<button onclick="updateOrderStatus('${order.id}', 'processing', '${custUid}', '${orderRef}', '${queueNum}', this)" style="background: #06C755; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; flex: 1;">✅ รับออเดอร์</button> <button onclick="updateOrderStatus('${order.id}', 'rejected', '${custUid}', '${orderRef}', '${queueNum}', this)" style="background: #ff4d4f; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; flex: 1;">❌ ปฏิเสธ</button>`; 
+                    actionButtons = `<button onclick="updateOrderStatus('${order.id}','processing','${custUid}', '${orderRef}','${queueParam}', this)" style="background: #06C755; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; flex: 1;">✅ รับออเดอร์</button> <button onclick="updateOrderStatus('${order.id}','rejected','${custUid}', '${orderRef}','${queueParam}', this)" style="background: #ff4d4f; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; flex: 1;">❌ ปฏิเสธ</button>`; 
                 } else if (order.status === 'processing') { 
                     statusBadge = '<span style="background: #cce5ff; color: #004085; padding: 3px 8px; border-radius: 12px; font-size: 12px;">กำลังทำอาหาร 🍳</span>'; 
-                    actionButtons = `<button onclick="updateOrderStatus('${order.id}', 'completed', '${custUid}', '${orderRef}', '${queueNum}', this)" style="background: #2196F3; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%;">🏁 อาหารเสร็จแล้ว</button>`; 
+                    actionButtons = `<button onclick="updateOrderStatus('${order.id}','completed','${custUid}', '${orderRef}','${queueParam}', this)" style="background: #2196F3; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%;">🏁 อาหารเสร็จแล้ว</button>`; 
                 }
                 
                 html += `
                     <div class="card" style="border-left: 4px solid #06C755;">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                            <h3 style="margin: 0; display:flex; flex-direction:column;"><div>คิวที่ ${queueNum} ${branchTag}</div><span style="font-size: 12px; color: #888; font-weight: normal; margin-top:3px;">อ้างอิง: ${orderRef} • ${orderTime}</span></h3>
+                            <h3 style="margin: 0; display:flex; flex-direction:column;"><div>${queueDisplay}${branchTag}</div><span style="font-size: 12px; color: #888; font-weight: normal; margin-top:3px;">อ้างอิง: ${orderRef} •${orderTime}</span></h3>
                             <div>${statusBadge}</div>
                         </div>
                         <div style="display: flex; gap: 15px; margin-bottom: 15px; background: #f9f9f9; padding: 10px; border-radius: 8px;">
@@ -3255,17 +3275,64 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
         async function updateOrderStatus(orderId, newStatus, customerUid, orderRef, queueNum, btnElement) {
             let confirmMsg = newStatus === 'processing' ? "ตรวจสอบสลิปถูกต้อง และรับคิวนี้ใช่หรือไม่?" : newStatus === 'completed' ? "อาหารเสร็จแล้ว ส่งมอบเรียบร้อยใช่หรือไม่?" : "ต้องการยกเลิกออเดอร์นี้ใช่หรือไม่?";
             if (!confirm(confirmMsg)) return;
-
-            btnElement.innerText = "⏳ กำลังส่งข้อมูล..."; btnElement.disabled = true;
-            await supabaseClient.from('orders').update({ status: newStatus }).eq('id', orderId);
             
-            if (customerUid && customerUid !== '') { 
-                fetch(CONFIG.gasWebhookUrl, { 
-                    method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" },
-                    body: JSON.stringify({ action: 'notify_customer', vendor_id: vendorData.id, uid: customerUid, order_status: newStatus, store_name: vendorData.name, order_ref: orderRef, queue_num: queueNum }) 
-                }).catch(e => console.log(e)); 
+            const originalText = btnElement.innerText;
+            btnElement.innerText = "⏳ กำลังส่งข้อมูล..."; 
+            btnElement.disabled = true;
+
+            try {
+                // 1. ดึง LINE Access Token จาก LIFF
+                const lineAccessToken = liff.getAccessToken();
+                if (!lineAccessToken) {
+                    throw new Error("ไม่พบ LINE Access Token กรุณาเข้าสู่ระบบใหม่");
+                }
+
+                // 2. เรียก Edge Function แทน Direct Update
+                const { data, error } = await supabaseClient.functions.invoke('owner-update-order-status', {
+                    body: {
+                        order_id: orderId,
+                        new_status: newStatus,
+                        line_access_token: lineAccessToken
+                    }
+                });
+
+                // 3. ตรวจสอบ Error
+                if (error) throw error;
+                if (!data || !data.success) {
+                    throw new Error(data?.message || "ทำรายการไม่สำเร็จ");
+                }
+
+                // 4. ตรวจสอบคิวกรณี processing
+                if (newStatus === 'processing' && (data.queue_no === null || data.queue_no === undefined)) {
+                    throw new Error("รับออเดอร์สำเร็จแต่ระบบไม่ได้คืนเลขคิว");
+                }
+
+                // 5. ส่ง LINE แจ้งลูกค้าด้วยข้อมูลจริงที่ได้จาก Edge Function / Database
+                if (data.customer_uid && data.customer_uid !== '') { 
+                    fetch(CONFIG.gasWebhookUrl, { 
+                        method: 'POST', 
+                        redirect: 'follow', 
+                        headers: { "Content-Type": "text/plain;charset=utf-8" },
+                        body: JSON.stringify({ 
+                            action: 'notify_customer', 
+                            vendor_id: vendorData.id, 
+                            uid: data.customer_uid, 
+                            order_status: data.status, 
+                            store_name: vendorData.name, 
+                            order_ref: data.reference_no, 
+                            queue_num: data.queue_no 
+                        }) 
+                    }).catch(e => console.log(e)); 
+                }
+
+                await loadOrders(); 
+
+            } catch (err) {
+                console.error("Owner Update Order Error:", err);
+                alert("เกิดข้อผิดพลาด: " + (err.message || err));
+                btnElement.innerText = originalText; 
+                btnElement.disabled = false;
             }
-            loadOrders(); 
         }
 
         // ==================== ระบบตั้งค่าทั่วไป ====================
