@@ -229,25 +229,32 @@
                     order.queue_no !== ''
                         ? order.queue_no
                         : null;
-
                 const queueDisplay =
                     actualQueueNum !== null
                         ? `คิวที่ ${actualQueueNum}`
                         : (order.status === 'pending'
                             ? 'คิว: รอยืนยัน'
                             : 'คิว: -');
-
                 const custUid = order.customer_uid || '';
                 const queueParam = actualQueueNum !== null ? actualQueueNum : '';
+                
+                const isCashOrder = itemsArray.some(
+                    item =>
+                        item.note &&
+                        item.note.includes('ชำระเงินสดหน้าร้าน')
+                );
+                const paymentType = isCashOrder ? 'cash' : 'transfer';
                 
                 // ใช้ข้อมูลจาก Record ปัจจุบัน (vendor_id มาจากตาราง orders) เพื่อส่ง Notification
                 currentVendorId = order.vendor_id; 
                 let statusBadge = ''; let actionButtons = '';
                 if (order.status === 'pending') { 
-                    statusBadge = '<span class="status-badge" style="background: #fff3cd; color: #856404;">รอยืนยันสลิป</span>'; 
-                    actionButtons = `<button onclick="updateOrderStatus('${order.id}','processing','${custUid}', '${orderRef}','${queueParam}', this)" class="btn-action" style="background: #06C755; flex: 1;">✅ รับออเดอร์</button> <button onclick="updateOrderStatus('${order.id}','rejected','${custUid}', '${orderRef}','${queueParam}', this)" class="btn-action" style="background: #ff4d4f; flex: 1;">❌ ปฏิเสธ</button>`; 
+                    statusBadge = isCashOrder
+                        ? '<span class="status-badge" style="background: #fff3cd; color: #856404;">💵 ชำระเงินสด</span>'
+                        : '<span class="status-badge" style="background: #fff3cd; color: #856404;">⏳ รอตรวจสอบสลิป</span>'; 
+                    actionButtons = `<button onclick="updateOrderStatus('${order.id}','processing','${custUid}', '${orderRef}','${queueParam}', this, '${paymentType}')" class="btn-action" style="background: #06C755; flex: 1;">✅ รับออเดอร์</button> <button onclick="updateOrderStatus('${order.id}','rejected','${custUid}', '${orderRef}','${queueParam}', this, '${paymentType}')" class="btn-action" style="background: #ff4d4f; flex: 1;">❌ ปฏิเสธ</button>`; 
                 } 
-                else if (order.status === 'processing') { 
+                else if (order.status === 'processing') {
                     statusBadge = '<span class="status-badge" style="background: #cce5ff; color: #004085;">กำลังทำอาหาร 🍳</span>'; 
                     actionButtons = `<button onclick="updateOrderStatus('${order.id}','completed','${custUid}', '${orderRef}','${queueParam}', this)" class="btn-action" style="background: #2196F3; width: 100%;">🏁 อาหารเสร็จแล้ว</button>`; 
                 }
@@ -271,8 +278,18 @@
         }
 
        // ==================== ระบบอัปเดตสถานะ (แจ้ง GAS ด้วย) ====================
-        async function updateOrderStatus(orderId, newStatus, customerUid, orderRef, queueNum, btnElement) {
-            let confirmMsg = newStatus === 'processing' ? "ตรวจสอบสลิปถูกต้อง และรับคิวนี้ใช่หรือไม่?" : newStatus === 'completed' ? "อาหารเสร็จแล้ว ส่งมอบเรียบร้อยใช่หรือไม่?" : "ต้องการยกเลิกออเดอร์นี้ใช่หรือไม่?";
+        // ==================== ระบบอัปเดตสถานะ (แจ้ง GAS ด้วย) ====================
+        async function updateOrderStatus(orderId, newStatus, customerUid, orderRef, queueNum, btnElement, paymentType = 'transfer') {
+            let confirmMsg = "";
+            if (newStatus === 'processing') {
+                confirmMsg = paymentType === 'cash' 
+                    ? "รับเงินสดเรียบร้อย และยืนยันรับออเดอร์นี้ใช่หรือไม่?" 
+                    : "ตรวจสอบสลิปถูกต้อง และยืนยันรับออเดอร์นี้ใช่หรือไม่?";
+            } else if (newStatus === 'completed') {
+                confirmMsg = "อาหารเสร็จแล้ว ส่งมอบเรียบร้อยใช่หรือไม่?";
+            } else {
+                confirmMsg = "ต้องการยกเลิกออเดอร์นี้ใช่หรือไม่?";
+            }
             if (!confirm(confirmMsg)) return;
             const originalText = btnElement.innerText;
             btnElement.innerText = "⏳ กำลังส่งข้อมูล...";
