@@ -771,20 +771,31 @@
               style="width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 15px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px; resize: none;"
               rows="2"></textarea>
 
-    <!-- เริ่ม: กล่องกระเป๋าเงินการตลาด -->
-<div style="background: #fff8e1; border: 1px solid #ffe0b2; padding: 20px; border-radius: 12px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
-    <div>
-        <h3 style="margin: 0; color: #e65100; font-size: 16px;">💰 กระเป๋าเงินค่าการตลาด (พาร์ทเนอร์)</h3>
-        <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">ยอดคงเหลือสำหรับจ่ายค่าคอมมิชชันให้ Influencer</p>
-        <h1 style="margin: 10px 0 0 0; color: #ff9800; font-size: 28px;">฿<span id="displayMarketingWallet">0.00</span></h1>
+    <!-- เริ่ม: Marketing Wallet V2 -->
+<div id="marketingWalletCard" style="background:#fff8e1;border:1px solid #ffe0b2;padding:18px;border-radius:12px;margin-bottom:25px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+        <div>
+            <h3 style="margin:0;color:#e65100;font-size:16px;">💰 Marketing Wallet (พาร์ทเนอร์)</h3>
+            <p style="margin:5px 0 0;font-size:12px;color:#666;">งบสำหรับจ่ายค่าคอมมิชชันให้ผู้แนะนำ</p>
+        </div>
+        <div id="marketingWalletStatusBadge" style="padding:6px 10px;border-radius:14px;background:#eee;color:#666;font-size:12px;font-weight:bold;">กำลังโหลด...</div>
     </div>
-    <div>
-        <button type="button" onclick="openTopupModal()" style="background: #ff9800; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(255,152,0,0.3); font-size: 14px;">
-            ➕ เติมเงินเครดิต
-        </button>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px;">
+        <div style="background:white;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:11px;color:#777;">ยอด Wallet</div><div style="font-size:20px;font-weight:bold;color:#ff9800;">฿<span id="displayMarketingWallet">0.00</span></div></div>
+        <div style="background:white;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:11px;color:#777;">กันไว้รอค่าคอม</div><div style="font-size:20px;font-weight:bold;color:#7e57c2;">฿<span id="displayReservedCommission">0.00</span></div></div>
+        <div style="background:white;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:11px;color:#777;">ใช้รับ Referral ใหม่ได้</div><div style="font-size:20px;font-weight:bold;color:#06C755;">฿<span id="displayAvailableBalance">0.00</span></div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+        <div style="background:#fff;border-radius:10px;padding:10px;"><div style="font-size:11px;color:#777;">ค่าคอมจ่ายแล้ว</div><div style="font-weight:bold;color:#333;">฿<span id="displayCommissionPaidTotal">0.00</span></div></div>
+        <div style="background:#fff;border-radius:10px;padding:10px;"><div style="font-size:11px;color:#777;">ออเดอร์ที่จ่ายค่าคอม</div><div style="font-weight:bold;color:#333;"><span id="displayCommissionPaidCount">0</span> ออเดอร์</div></div>
+    </div>
+    <div id="marketingWalletWarning" style="display:none;margin-top:10px;padding:10px;border-radius:8px;font-size:12px;line-height:1.5;"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;">
+        <div style="font-size:11px;color:#777;">เติมครั้งแรกขั้นต่ำ <b>100 บาท</b> · ครั้งต่อไปขั้นต่ำ <b>10 บาท</b><br>ร้านจะถูกซ่อนจากหน้าพาร์ทเนอร์เมื่อยอดพร้อมใช้ ≤ <b>10 บาท</b></div>
+        <button type="button" onclick="openTopupModal()" style="background:#ff9800;color:white;border:none;padding:12px 20px;border-radius:8px;font-weight:bold;cursor:pointer;">➕ เติม Marketing Wallet</button>
     </div>
 </div>
-<!-- จบ: กล่องกระเป๋าเงินการตลาด -->
+<!-- จบ: Marketing Wallet V2 -->
     
     <!-- [แก้ไขใหม่] ปรับ Layout ค่าแนะนำ Influencer เป็นปุ่มวงกลม (Radio) -->
     <label style="font-size: 13px; font-weight: bold; color: #555;">
@@ -1592,6 +1603,7 @@ async function loadVendorData(uid) {
 
                 // UI ข้อมูลร้าน — แยก error ไม่ให้ทำ Dashboard ทั้งหน้าหยุด
                 await safeLoad('Settings Form', async () => populateSettingsForm());
+                await safeLoad('Marketing Wallet', loadMarketingWalletStatus);
                 await safeLoad('Affiliate', async () => renderAffiliateInfo());
                 await safeLoad('Subscription', async () => renderSubscriptionInfo());
 
@@ -2129,8 +2141,6 @@ async function loadVendorData(uid) {
             btn.disabled = true;
 
             try {
-                // ทำที่ Database transaction เดียว:
-                // ตรวจเจ้าของร้าน + ตรวจยอด + หัก wallet + สร้าง withdrawal
                 const { data, error } = await supabaseClient.rpc(
                     'request_affiliate_withdrawal',
                     {
@@ -2147,10 +2157,10 @@ async function loadVendorData(uid) {
                 }
 
                 const newBalance = Number(data.wallet_after || 0);
-
                 vendorData.wallet_balance = newBalance;
-                document.getElementById('walletBalance').innerText =
-                    newBalance.toFixed(2);
+
+                const walletEl = document.getElementById('walletBalance');
+                if (walletEl) walletEl.innerText = newBalance.toFixed(2);
 
                 alert(
                     '✅ ส่งคำร้องขอถอนเรียบร้อยแล้ว\n' +
@@ -3702,6 +3712,35 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
         }
         
         // ==================== ระบบเติมเงินการตลาด ====================
+        async function loadMarketingWalletStatus() {
+            if (!vendorData || !vendorData.id) return;
+            try {
+                const [{ data: walletStatus, error: walletError }, { data: paidOrders, error: paidError }] = await Promise.all([
+                    supabaseClient.from('vendor_influencer_wallet_status').select('*').eq('vendor_id', vendorData.id).single(),
+                    supabaseClient.from('orders').select('influencer_commission').eq('vendor_id', vendorData.id).eq('is_commission_paid', true)
+                ]);
+                if (walletError) throw walletError;
+                if (paidError) throw paidError;
+                const wallet=Number(walletStatus?.marketing_wallet||0), reserved=Number(walletStatus?.reserved_commission||0), available=Number(walletStatus?.available_balance||0), status=walletStatus?.influencer_program_status||'disabled';
+                const paidRows=paidOrders||[]; const paidTotal=paidRows.reduce((s,r)=>s+Number(r.influencer_commission||0),0);
+                const setText=(id,v)=>{const el=document.getElementById(id); if(el) el.innerText=v;};
+                setText('displayMarketingWallet',wallet.toFixed(2)); setText('displayReservedCommission',reserved.toFixed(2)); setText('displayAvailableBalance',available.toFixed(2)); setText('displayCommissionPaidTotal',paidTotal.toFixed(2)); setText('displayCommissionPaidCount',String(paidRows.length));
+                const badge=document.getElementById('marketingWalletStatusBadge'), warning=document.getElementById('marketingWalletWarning');
+                let label='⚪ ปิดระบบ', bg='#eee', color='#666', warningText='', warningBg='#fff', warningColor='#555';
+                if(status==='active'){label='🟢 เปิดรับ Referral';bg='#e8f5e9';color='#2e7d32';}
+                else if(status==='low_balance'){label='🟡 เครดิตใกล้หมด';bg='#fff8e1';color='#ef6c00';warningText=`⚠️ ยอดพร้อมใช้เหลือ ฿${available.toFixed(2)} กรุณาเติมเงินก่อนลดเหลือ 10 บาท`;warningBg='#fff3e0';warningColor='#e65100';}
+                else if(status==='paused'){label='🔴 พักจากหน้าพาร์ทเนอร์';bg='#ffebee';color='#c62828';warningText='ร้านยังแสดงใน Marketplace ปกติ แต่ถูกซ่อนจากหน้าผู้แนะนำจนกว่าจะเติม Marketing Wallet';warningBg='#ffebee';warningColor='#c62828';}
+                else if(status==='not_activated'){label='⚪ ยังไม่เปิดระบบพาร์ทเนอร์';warningText='เติมครั้งแรกขั้นต่ำ 100 บาท เพื่อเปิดระบบผู้แนะนำ';warningBg='#f5f5f5';}
+                else if(status==='disabled'){label='⚪ ยังไม่ได้ตั้งค่าคอม';warningText='กำหนดค่าแนะนำมากกว่า 0 และเติม Wallet เพื่อเปิดระบบพาร์ทเนอร์';warningBg='#f5f5f5';}
+                if(badge){badge.innerText=label;badge.style.background=bg;badge.style.color=color;}
+                if(warning){if(warningText){warning.style.display='block';warning.style.background=warningBg;warning.style.color=warningColor;warning.innerText=warningText;}else warning.style.display='none';}
+                vendorData.marketing_wallet=wallet;
+            } catch(err) {
+                console.error('[MARKETING WALLET STATUS]',err);
+                const badge=document.getElementById('marketingWalletStatusBadge'); if(badge){badge.innerText='⚠️ โหลดสถานะไม่สำเร็จ';badge.style.background='#ffebee';badge.style.color='#c62828';}
+            }
+        }
+
         function openTopupModal() {
             if (!vendorData) {
                 alert('ไม่พบข้อมูลร้านค้า');
@@ -3722,6 +3761,7 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             amountInput.min = minimum;
             amountInput.value = minimum;
 
+            document.getElementById('marketingWalletPaymentArea').style.display = 'block';
             document.getElementById('marketingWalletSlipArea').style.display = 'none';
             document.getElementById('marketingWalletSlipImage').value = '';
             document.getElementById('marketingWalletSlipPreviewWrap').style.display = 'none';
@@ -3742,10 +3782,15 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             const amount = Number(document.getElementById('marketingWalletTopupAmount').value || 0);
             const minimum = getMarketingWalletMinimum();
             const paymentArea = document.getElementById('marketingWalletPaymentArea');
+            const amountError = document.getElementById('marketingWalletAmountError');
 
             if (!Number.isFinite(amount) || amount < minimum) {
-                paymentArea.style.display = 'none';
-                return;
+                paymentArea.style.opacity = '0.45';
+                amountError.style.display = 'block';
+                amountError.innerText = `ยอดขั้นต่ำครั้งนี้ ${minimum} บาท`;
+            } else {
+                paymentArea.style.opacity = '1';
+                amountError.style.display = 'none';
             }
 
             const promptpay = String(CONFIG.adminPromptpay || '').replace(/\s+/g, '');
@@ -3753,13 +3798,13 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
 
             document.getElementById('marketingWalletAdminBank').innerText = bankInfo;
             document.getElementById('marketingWalletAdminPromptpay').innerText = promptpay || '-';
-            document.getElementById('marketingWalletPayAmount').innerText = amount.toFixed(2);
+            document.getElementById('marketingWalletPayAmount').innerText =
+                Number.isFinite(amount) ? amount.toFixed(2) : '0.00';
 
-            // QR สำหรับชำระเงิน: มีเลขบัญชีแสดงเป็น fallback เสมอ
-            document.getElementById('marketingWalletQrImage').src =
-                `https://promptpay.io/${encodeURIComponent(promptpay)}/${encodeURIComponent(amount.toFixed(2))}.png`;
-
-            paymentArea.style.display = 'block';
+            if (promptpay && Number.isFinite(amount) && amount > 0) {
+                document.getElementById('marketingWalletQrImage').src =
+                    `https://promptpay.io/${encodeURIComponent(promptpay)}/${encodeURIComponent(amount.toFixed(2))}.png`;
+            }
         }
 
         async function copyMarketingWalletAccount() {
@@ -3836,8 +3881,7 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             try {
                 const file = fileInput.files[0];
                 const ext = (file.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '');
-                const fileName =
-                    `marketing-wallet-${vendorData.id}-${Date.now()}.${ext}`;
+                const fileName = `marketing-wallet-${vendorData.id}-${Date.now()}.${ext}`;
 
                 const { error: uploadError } = await supabaseClient.storage
                     .from('slip-images')
@@ -3866,7 +3910,7 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
 
                 if (requestError) throw requestError;
 
-                // แจ้งแอดมินผ่าน GAS แบบ best-effort
+                // แจ้งแอดมินแบบ best-effort
                 fetch(CONFIG.gasWebhookUrl, {
                     method: 'POST',
                     redirect: 'follow',
@@ -3886,7 +3930,7 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
                     `✅ ส่งสลิปเรียบร้อยแล้ว\n` +
                     `ยอดเติม ฿${amount.toFixed(2)}\n\n` +
                     `สถานะ: รอแอดมินตรวจสอบ\n` +
-                    `เมื่ออนุมัติ Wallet จะเพิ่มอัตโนมัติ`
+                    `Wallet จะยังไม่เพิ่มจนกว่าแอดมินอนุมัติ`
                 );
 
                 closeMarketingWalletTopupModal();
@@ -3904,80 +3948,79 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
         window.onload = initDashboard;
     </script>
 
-<!-- =====================================================
-     Marketing Wallet Top-up Modal
-===================================================== -->
+<!-- ================= Marketing Wallet Top-up ================= -->
 <div id="marketingWalletTopupModal"
-     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:99999;
+     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.60);z-index:99999;
             align-items:center;justify-content:center;padding:14px;box-sizing:border-box;">
-    <div style="background:#fff;width:100%;max-width:440px;max-height:92vh;overflow-y:auto;
-                border-radius:20px;padding:20px;box-sizing:border-box;box-shadow:0 18px 50px rgba(0,0,0,.25);">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+    <div style="background:#fff;width:100%;max-width:440px;max-height:92vh;overflow:auto;
+                border-radius:22px;padding:20px;box-sizing:border-box;box-shadow:0 20px 60px rgba(0,0,0,.28);">
+
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
             <div>
-                <div style="font-size:21px;font-weight:800;color:#e65100;">💰 เติม Marketing Wallet</div>
-                <div id="walletTopupMinimumText" style="font-size:12px;color:#777;margin-top:4px;"></div>
+                <div style="font-size:22px;font-weight:900;color:#e65100;">💰 เติม Marketing Wallet</div>
+                <div id="walletTopupMinimumText" style="font-size:12px;color:#777;margin-top:3px;"></div>
             </div>
             <button type="button" onclick="closeMarketingWalletTopupModal()"
-                    style="border:none;background:#f1f3f5;width:36px;height:36px;border-radius:50%;
-                           font-size:20px;cursor:pointer;">✕</button>
+                    style="border:none;background:#f1f3f5;border-radius:50%;width:38px;height:38px;font-size:20px;">✕</button>
         </div>
 
         <div style="margin-top:16px;background:#fff8e1;border:1px solid #ffe0b2;border-radius:14px;padding:14px;">
-            <label style="font-size:12px;font-weight:bold;color:#6d4c41;">จำนวนเงินที่ต้องการเติม (บาท)</label>
+            <label style="font-size:13px;font-weight:800;color:#6d4c41;">1. ระบุจำนวนเงินที่ต้องการเติม</label>
             <input id="marketingWalletTopupAmount" type="number" inputmode="decimal"
                    oninput="refreshMarketingWalletPayment()"
-                   style="width:100%;box-sizing:border-box;margin-top:7px;padding:13px;border:1px solid #ffcc80;
-                          border-radius:10px;font-size:20px;font-weight:bold;"
+                   style="width:100%;box-sizing:border-box;margin-top:8px;padding:13px;border:1px solid #ffb74d;
+                          border-radius:10px;font-size:22px;font-weight:900;"
                    placeholder="เช่น 100">
+            <div id="marketingWalletAmountError"
+                 style="display:none;color:#c62828;font-size:12px;margin-top:7px;font-weight:bold;"></div>
         </div>
 
         <div id="marketingWalletPaymentArea"
-             style="display:none;margin-top:14px;border:1px solid #e5e7eb;border-radius:16px;padding:16px;text-align:center;">
-            <div style="font-size:15px;font-weight:800;color:#333;">สแกน QR หรือโอนเข้าบัญชีนี้</div>
+             style="margin-top:14px;border:1px solid #e5e7eb;border-radius:16px;padding:16px;text-align:center;">
+            <div style="font-size:15px;font-weight:900;color:#333;">2. โอนเงินตามยอดด้านล่าง</div>
 
             <img id="marketingWalletQrImage" alt="PromptPay QR"
                  style="display:block;width:230px;max-width:82%;margin:12px auto;border:1px solid #eee;
                         border-radius:12px;background:#fff;padding:6px;box-sizing:border-box;">
 
-            <div style="background:#f8fafc;border-radius:12px;padding:12px;text-align:left;">
+            <div style="background:#f8fafc;border-radius:12px;padding:13px;text-align:left;">
                 <div style="font-size:12px;color:#777;">บัญชีรับเงิน</div>
-                <div id="marketingWalletAdminBank" style="font-weight:bold;color:#222;margin-top:4px;"></div>
+                <div id="marketingWalletAdminBank" style="font-weight:800;color:#222;margin-top:4px;"></div>
 
-                <div style="font-size:12px;color:#777;margin-top:9px;">พร้อมเพย์ / เลขบัญชี</div>
+                <div style="font-size:12px;color:#777;margin-top:10px;">พร้อมเพย์ / เลขบัญชี</div>
                 <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
                     <div id="marketingWalletAdminPromptpay"
-                         style="font-size:18px;font-weight:800;color:#0f766e;letter-spacing:.5px;flex:1;"></div>
+                         style="font-size:18px;font-weight:900;color:#0f766e;flex:1;"></div>
                     <button type="button" onclick="copyMarketingWalletAccount()"
                             style="border:none;background:#e0f2f1;color:#00695c;padding:8px 10px;border-radius:8px;font-weight:bold;">
                         คัดลอก
                     </button>
                 </div>
 
-                <div style="font-size:12px;color:#777;margin-top:9px;">ยอดที่ต้องโอน</div>
-                <div style="font-size:24px;font-weight:900;color:#e65100;">
+                <div style="font-size:12px;color:#777;margin-top:10px;">ยอดที่ต้องโอน</div>
+                <div style="font-size:26px;font-weight:900;color:#e65100;">
                     ฿<span id="marketingWalletPayAmount">0.00</span>
                 </div>
             </div>
 
             <button type="button" onclick="showMarketingWalletSlipStep()"
-                    style="width:100%;margin-top:14px;padding:13px;border:none;border-radius:11px;
-                           background:#06C755;color:white;font-weight:800;font-size:16px;cursor:pointer;">
+                    style="width:100%;margin-top:14px;padding:14px;border:none;border-radius:11px;
+                           background:#06C755;color:#fff;font-size:16px;font-weight:900;">
                 ✅ โอนแล้ว — ไปแนบสลิป
             </button>
         </div>
 
         <div id="marketingWalletSlipArea"
              style="display:none;margin-top:14px;border:2px dashed #26c6da;border-radius:16px;padding:16px;background:#f3fdff;">
-            <div style="font-weight:800;color:#00838f;text-align:center;">📎 แนบสลิปเติม Wallet</div>
+            <div style="font-size:15px;font-weight:900;color:#00838f;text-align:center;">3. แนบสลิปเพื่อส่งตรวจ</div>
 
             <label for="marketingWalletSlipImage"
                    style="display:block;margin-top:12px;background:#fff;border:1px solid #b2ebf2;border-radius:11px;
-                          padding:12px;text-align:center;font-weight:bold;color:#007c91;cursor:pointer;">
+                          padding:13px;text-align:center;font-weight:900;color:#007c91;cursor:pointer;">
                 📤 อัพโหลดสลิป
             </label>
             <input id="marketingWalletSlipImage" type="file" accept="image/*"
-                   onchange="previewMarketingWalletSlip(this)"
-                   style="display:none;">
+                   onchange="previewMarketingWalletSlip(this)" style="display:none;">
 
             <div id="marketingWalletSlipPreviewWrap" style="display:none;margin-top:12px;text-align:center;">
                 <img id="marketingWalletSlipPreview"
@@ -3987,14 +4030,14 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
 
             <button id="submitMarketingWalletSlipBtn" type="button"
                     onclick="submitMarketingWalletTopupRequest(this)"
-                    style="width:100%;margin-top:14px;padding:13px;border:none;border-radius:11px;
-                           background:#ff9800;color:white;font-weight:800;font-size:16px;cursor:pointer;">
+                    style="width:100%;margin-top:14px;padding:14px;border:none;border-radius:11px;
+                           background:#ff9800;color:#fff;font-size:16px;font-weight:900;">
                 📩 ส่งสลิปเติม Wallet
             </button>
 
-            <div style="font-size:11px;color:#777;line-height:1.5;margin-top:10px;text-align:center;">
-                หลังส่งสลิป สถานะจะเป็น “รอตรวจสอบ”<br>
-                เมื่อแอดมินอนุมัติ ยอด Marketing Wallet จะเพิ่มอัตโนมัติ
+            <div style="font-size:11px;color:#777;line-height:1.55;text-align:center;margin-top:10px;">
+                ส่งสลิปแล้ว Wallet จะยังไม่เพิ่ม<br>
+                รอแอดมินตรวจและกดอนุมัติก่อน
             </div>
         </div>
     </div>
