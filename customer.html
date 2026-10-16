@@ -1274,29 +1274,20 @@ function copyNormalLink() {
 
 // ---- แชร์ปกติ ----
 function shareNormalFlex() {
-    // 1. ตรวจสอบก่อนว่าเปิดใน LINE หรือไม่
-    if (!liff.isLoggedIn() || !liff.isInClient()) {
-        alert("คุณกำลังเปิดผ่านเบราว์เซอร์ปกติ\nระบบจะทำการ 'คัดลอกลิงก์' ให้แทนครับ");
-        copyNormalLink(); // เรียกใช้ฟังก์ชันก๊อปลิงก์แทน
-        return;
-    }
-    
     const url = getBaseCustomerUrl();
-    const storeName = vendorData?.name || "ร้านอาหารน่าทาน";
-    const storeImg = vendorData?.line_picture_url || ""; 
-    
-    // สร้าง Flex Message
-    let heroBlock = undefined;
-    if(storeImg !== ""){
-         heroBlock = { type: "image", url: storeImg, size: "full", aspectRatio: "20:13", aspectMode: "cover" };
-    }
+    const storeName = vendorData?.name || 'ร้านอาหาร';
 
-    const flexMessage = {
-        type: "flex",
-        altText: `แวะมาดูร้าน ${storeName} กัน!`,
-        contents: {
+    const fallbackToLineShareUrl = () => {
+        const text = `แนะนำร้าน ${storeName}\n${url}`;
+        const lineShareUrl = `https://line.me/R/share?text=${encodeURIComponent(text)}`;
+        window.location.href = lineShareUrl;
+    };
+
+    try {
+        const heroUrl = vendorData?.line_picture_url || '';
+        const heroBlock = heroUrl ? { type: "image", url: heroUrl, size: "full", aspectRatio: "20:13", aspectMode: "cover" } : undefined;
+        const contents = {
             type: "bubble",
-            hero: heroBlock,
             body: { type: "box", layout: "vertical", contents: [
                 { type: "text", text: storeName, weight: "bold", size: "xl", wrap: true },
                 { type: "text", text: "เห็นร้านนี้แล้วน่าทานมาก เลยส่งมาให้ดู สั่งออนไลน์ได้เลยนะ!", size: "sm", color: "#666666", wrap: true, margin: "md" }
@@ -1304,54 +1295,44 @@ function shareNormalFlex() {
             footer: { type: "box", layout: "vertical", spacing: "sm", contents: [
                 { type: "button", style: "primary", color: "#06C755", action: { type: "uri", label: "👉 กดดูเมนูเลย", uri: url } }
             ]}
+        };
+        if (heroBlock) contents.hero = heroBlock;
+        const flexMessage = { type: "flex", altText: `แวะมาดูร้าน ${storeName} กัน!`, contents };
+
+        if (typeof liff !== 'undefined' && typeof liff.isApiAvailable === 'function' && liff.isApiAvailable('shareTargetPicker')) {
+            liff.shareTargetPicker([flexMessage])
+                .then(() => closeShareModal())
+                .catch((err) => { console.warn('shareTargetPicker failed, fallback:', err); fallbackToLineShareUrl(); });
+        } else {
+            fallbackToLineShareUrl();
         }
-    };
-    
-    if (liff.isApiAvailable('shareTargetPicker')) {
-        liff.shareTargetPicker([flexMessage]).then((res) => {
-            if (res) { alert('ส่งให้เพื่อนสำเร็จ!'); closeShareModal(); }
-        }).catch((err) => {
-             console.error(err);
-             alert("ไม่สามารถเปิดหน้าต่างแชร์ได้ ระบบจะคัดลอกลิงก์ให้แทนครับ");
-             copyNormalLink();
-        });
-    } else {
-        alert('อุปกรณ์ไม่รองรับการส่งข้อความผ่านแอป LINE\nระบบจะทำการคัดลอกลิงก์ให้แทนครับ');
-        copyNormalLink();
+    } catch (err) {
+        console.warn('Normal share failed, fallback:', err);
+        fallbackToLineShareUrl();
     }
 }
 
 // ---- แชร์รับค่าคอม (Influencer) ----
 async function handleInfluencerShare() {
     if (!vendorData || Number(vendorData.influencer_comm_value || 0) <= 0) {
-        alert("ขออภัยครับ ร้านค้านี้ยังไม่ได้เปิดใช้งานระบบให้ค่าคอมมิชชันพาร์ทเนอร์\nคุณสามารถใช้ปุ่ม 'แชร์บอกต่อ (ปกติ)' ได้ครับ");
+        alert("ขออภัยครับ ร้านค้านี้ยังไม่ได้เปิดใช้งานระบบให้ค่าคอมมิชชันพาร์ทเนอร์");
         return;
     }
-    try {
-        if (!userLineProfile && typeof liff !== 'undefined' && liff.isLoggedIn()) {
-            const decoded = liff.getDecodedIDToken();
-            if (decoded && decoded.sub) {
-                userLineProfile = { userId: decoded.sub, displayName: decoded.name || '', pictureUrl: decoded.picture || '' };
-            } else {
-                userLineProfile = await liff.getProfile();
-            }
-        }
-        if (!userLineProfile || !userLineProfile.userId) {
-            alert("กรุณาเปิดร้านนี้จากในแอป LINE เพื่อเข้าสู่ศูนย์พาร์ทเนอร์ครับ");
-            return;
-        }
-        closeShareModal();
-        const partnerLiffId = (CONFIG.liffIdDashboard || CONFIG.liffIdInfluencer || '').trim();
-        if (partnerLiffId) {
-            window.location.href = `https://liff.line.me/${encodeURIComponent(partnerLiffId)}?vid=${encodeURIComponent(vendorId)}`;
-            return;
-        }
-        const basePath = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
-        window.location.href = `${basePath}/influencer.html?vid=${encodeURIComponent(vendorId)}`;
-    } catch (err) {
-        console.error("Open Partner Dashboard Error:", err);
-        alert("ไม่สามารถเปิดศูนย์พาร์ทเนอร์ได้ กรุณาลองใหม่อีกครั้ง");
+
+    const partnerLiffId = String(CONFIG.liffIdInfluencer || '').trim();
+
+    if (!partnerLiffId) {
+        alert("ยังไม่ได้ตั้งค่า LIFF สำหรับศูนย์พาร์ทเนอร์\nกรุณาตั้งค่า CONFIG.liffIdInfluencer ก่อน");
+        return;
     }
+
+    closeShareModal();
+
+    const partnerUrl =
+        `https://liff.line.me/${encodeURIComponent(partnerLiffId)}` +
+        `?vid=${encodeURIComponent(vendorId)}`;
+
+    window.location.href = partnerUrl;
 }
 
         window.onload = initCustomerApp;
