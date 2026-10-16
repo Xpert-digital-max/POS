@@ -33,6 +33,29 @@
         .modal-overlay { display: none; background: rgba(0,0,0,0.6); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1000; justify-content: center; align-items: center; padding: 20px; }
         .modal-content { background: white; width: 100%; max-width: 400px; border-radius: 16px; padding: 20px; box-sizing: border-box; animation: fadeIn 0.2s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    
+        /* Influencer V2 */
+        .universal-link-box { background:#eefaf2; border:1px solid #b8e7c8; padding:16px; border-radius:12px; margin-top:15px; }
+        .universal-link-row { display:flex; gap:8px; align-items:center; }
+        .universal-link-row input { margin:0; flex:1; background:#fff; border-color:#06C755; color:#1b5e20; font-weight:bold; }
+        .recommend-card { background:#fff; padding:18px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.05); margin-bottom:20px; }
+        .recommend-item { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid #eee; }
+        .recommend-item:last-child { border-bottom:none; }
+        .recommend-rank { min-width:30px; height:30px; border-radius:50%; background:#ff9800; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:12px; }
+        .recommend-info { flex:1; min-width:0; }
+        .recommend-name { font-weight:bold; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .recommend-meta { font-size:11px; color:#888; margin-top:2px; }
+        .mini-btn { border:none; border-radius:8px; padding:7px 9px; cursor:pointer; font-weight:bold; font-size:12px; }
+        .mini-up { background:#e3f2fd; color:#1565c0; }
+        .mini-down { background:#ede7f6; color:#5e35b1; }
+        .mini-remove { background:#ffebee; color:#c62828; }
+        .vendor-option { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid #eee; }
+        .vendor-option:last-child { border-bottom:none; }
+        .vendor-option-name { font-weight:bold; font-size:14px; }
+        .vendor-option-comm { font-size:11px; color:#e65100; margin-top:3px; }
+        .add-recommend-btn { border:none; border-radius:8px; padding:8px 10px; background:#06C755; color:#fff; font-weight:bold; cursor:pointer; font-size:12px; }
+        .add-recommend-btn:disabled { background:#ccc; cursor:not-allowed; }
+
     </style>
 </head>
 <body>
@@ -84,23 +107,59 @@
                 </div>
             </div>
 
-            <!-- กล่องแสดงร้านค้าที่จะแชร์ (ถ้ามี vid ส่งมา) -->
-            <div id="targetVendorBox" class="card" style="display: none; border-left: 4px solid #06C755;">
-                <h3 style="margin-top: 0; color: #333;">🎯 ร้านที่คุณกำลังจะโปรโมท</h3>
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                    <div style="font-weight: bold; font-size: 16px;" id="targetVendorName">ชื่อร้าน...</div>
-                    <div id="targetVendorComm" style="background: #ffe0b2; color: #e65100; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: bold;">รับ 0%</div>
+            <!-- ลิงก์กลางของพาร์ทเนอร์ -->
+            <div class="card" style="border-left:4px solid #06C755;">
+                <h3 style="margin-top:0;">🔗 ลิงก์แนะนำส่วนตัวของฉัน</h3>
+                <p style="font-size:13px;color:#666;line-height:1.6;">
+                    ใช้ลิงก์นี้เพียงลิงก์เดียว แชร์ได้กับทุกร้านที่ร่วมโปรแกรมค่าคอมมิชชัน
+                </p>
+
+                <div class="universal-link-box">
+                    <div style="font-size:12px;color:#2e7d32;margin-bottom:8px;">
+                        Referral Code: <b id="refCodeLabel">-</b>
+                    </div>
+                    <div class="universal-link-row">
+                        <input type="text" id="universalAffiliateLink" readonly>
+                        <button onclick="copyUniversalLink()" style="background:#06C755;color:#fff;border:none;padding:12px;border-radius:8px;font-weight:bold;cursor:pointer;">คัดลอก</button>
+                    </div>
+                    <button class="btn-primary" onclick="shareUniversalFlex()" style="background:#00B900;margin-top:12px;">
+                        📲 แชร์ลิงก์ร้านแนะนำของฉัน
+                    </button>
+                    <button class="btn-secondary" onclick="openMyMarketplace()">🏠 เปิดหน้าร้านแนะนำของฉัน</button>
                 </div>
-                
-                <p style="font-size: 12px; color: #666; margin-bottom: 10px;">ลิงก์ส่วนตัวของคุณ (แชร์ลิงก์นี้เพื่อรับค่าคอมฯ)</p>
-                <div style="display: flex; gap: 8px; margin-bottom: 15px;">
-                    <input type="text" id="affiliateLink" readonly style="margin-bottom: 0; background: #fff; border-color: #06C755; color: #2e7d32; font-weight: bold;">
-                    <button onclick="copyAffiliateLink()" style="background: #06C755; color: white; border: none; padding: 0 15px; border-radius: 8px; font-weight: bold; cursor: pointer;">คัดลอก</button>
-                </div>
-                <button class="btn-primary" onclick="shareAffiliateFlex()" style="background: #00B900; box-shadow: 0 2px 4px rgba(0,185,0,0.3);">📲 ส่งในแชท LINE ให้เพื่อน</button>
-                <button class="btn-secondary" onclick="backToMarketplace()">🏠 กลับไปดูร้านค้าอื่นๆ</button>
             </div>
-            
+
+            <!-- ร้านแนะนำส่วนตัว -->
+            <div class="recommend-card">
+                <h3 style="margin-top:0;">⭐ ร้านแนะนำของฉัน</h3>
+                <p style="font-size:12px;color:#666;line-height:1.6;">
+                    เลือกได้สูงสุด 10 ร้าน และจัดลำดับได้ ร้านเหล่านี้จะขึ้นก่อนในลิงก์ Marketplace ของคุณ
+                </p>
+                <div id="recommendationList">
+                    <div style="text-align:center;color:#999;padding:15px;">กำลังโหลดร้านแนะนำ...</div>
+                </div>
+            </div>
+
+            <!-- ร้านที่ร่วมโปรแกรมค่าคอม -->
+            <div class="recommend-card">
+                <h3 style="margin-top:0;">🍽️ ร้านที่เปิดค่าคอมมิชชัน</h3>
+                <p style="font-size:12px;color:#666;">กดเพิ่มเพื่อจัดเป็นร้านแนะนำของคุณ</p>
+                <div id="eligibleVendorList">
+                    <div style="text-align:center;color:#999;padding:15px;">กำลังโหลดร้าน...</div>
+                </div>
+            </div>
+
+            <!-- ถ้าเข้ามาจากร้านใดร้านหนึ่ง จะแสดงร้านนั้นเพื่อเพิ่มได้เร็ว -->
+            <div id="targetVendorBox" class="card" style="display:none;border-left:4px solid #ff9800;">
+                <h3 style="margin-top:0;">🎯 ร้านที่เปิดเข้ามา</h3>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+                    <div>
+                        <div id="targetVendorName" style="font-weight:bold;font-size:16px;">ชื่อร้าน...</div>
+                        <div id="targetVendorComm" style="font-size:12px;color:#e65100;margin-top:4px;">รับ 0%</div>
+                    </div>
+                    <button id="targetAddBtn" class="add-recommend-btn" onclick="addTargetVendorRecommendation()">+ เพิ่มร้านแนะนำ</button>
+                </div>
+            </div>
         </div>
 
     </div>
@@ -132,6 +191,8 @@
         let influencerData = null;
         let targetVendorId = null;
         let targetVendorData = null;
+        let eligibleVendors = [];
+        let recommendations = [];
 
         // ดึงค่าพารามิเตอร์จาก URL
         function getUrlParameter(name) {
@@ -224,19 +285,38 @@
 
         async function showDashboard() {
             document.getElementById('dashboardState').style.display = 'block';
-            
-            // Set Profile Info
-            document.getElementById('profileName').innerText = influencerData.display_name || userLineProfile.displayName;
-            if (influencerData.picture_url) document.getElementById('profileImg').src = influencerData.picture_url;
-            document.getElementById('walletBalance').innerText = Number(influencerData.wallet_balance || 0).toFixed(2);
-            document.getElementById('displayBankInfo').innerText = influencerData.bank_info || '-';
 
-            // โหลดข้อมูลร้านค้าเป้าหมาย (ถ้ามี)
+            document.getElementById('profileName').innerText =
+                influencerData.display_name || userLineProfile.displayName;
+
+            if (influencerData.picture_url) {
+                document.getElementById('profileImg').src = influencerData.picture_url;
+            }
+
+            document.getElementById('walletBalance').innerText =
+                Number(influencerData.wallet_balance || 0).toFixed(2);
+
+            document.getElementById('displayBankInfo').innerText =
+                influencerData.bank_info || '-';
+
+            const refCode = influencerData.ref_code;
+            document.getElementById('refCodeLabel').innerText = refCode || '-';
+
+            const basePath = window.location.href.substring(
+                0,
+                window.location.href.lastIndexOf('/')
+            );
+
+            const universalLink = `${basePath}/marketplace.html?ref=${encodeURIComponent(refCode)}`;
+            document.getElementById('universalAffiliateLink').value = universalLink;
+
+            await loadRecommendationManager();
+
             if (targetVendorId) {
                 try {
                     const { data: vendor, error } = await supabaseClient
                         .from('vendors')
-                        .select('id, name, line_picture_url, influencer_comm_type, influencer_comm_value')
+                        .select('id, name, line_picture_url, marketplace_enabled, influencer_comm_type, influencer_comm_value')
                         .eq('id', targetVendorId)
                         .single();
 
@@ -244,15 +324,18 @@
                         targetVendorData = vendor;
                         document.getElementById('targetVendorBox').style.display = 'block';
                         document.getElementById('targetVendorName').innerText = vendor.name;
-                        
-                        const commVal = vendor.influencer_comm_value || 0;
-                        const commType = vendor.influencer_comm_type === 'percentage' ? '%' : ' บ.';
-                        document.getElementById('targetVendorComm').innerText = `รับ ${commVal}${commType}`;
 
-                        // สร้างลิงก์ Affiliate โดยแนบ &ref=LINE_UID
-                        const basePath = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
-                        const affLink = `${basePath}/customer.html?vid=${vendor.id}&ref=${userLineProfile.userId}`;
-                        document.getElementById('affiliateLink').value = affLink;
+                        const commVal = Number(vendor.influencer_comm_value || 0);
+                        const commType =
+                            vendor.influencer_comm_type === 'percentage' ? '%' : ' บ.';
+
+                        document.getElementById('targetVendorComm').innerText =
+                            `รับ ${commVal}${commType}`;
+
+                        const btn = document.getElementById('targetAddBtn');
+                        const eligible = vendor.marketplace_enabled === true && commVal > 0;
+                        btn.disabled = !eligible;
+                        btn.innerText = eligible ? '+ เพิ่มร้านแนะนำ' : 'ร้านนี้ยังไม่เปิดค่าคอม';
                     }
                 } catch (err) {
                     console.error("Error fetching target vendor:", err);
@@ -260,49 +343,260 @@
             }
         }
 
-        function copyAffiliateLink() {
-            const linkInput = document.getElementById('affiliateLink');
-            linkInput.select();
-            document.execCommand("copy");
-            alert("📋 คัดลอกลิงก์เรียบร้อยแล้ว!\nนำไปแปะในโพสต์ TikTok, Facebook หรือที่อื่นๆ ได้เลยครับ");
+        async function loadRecommendationManager() {
+            const [{ data: vendors, error: vendorErr }, { data: recs, error: recErr }] =
+                await Promise.all([
+                    supabaseClient
+                        .from('vendors')
+                        .select('id, name, line_picture_url, marketplace_enabled, influencer_comm_type, influencer_comm_value')
+                        .eq('marketplace_enabled', true)
+                        .gt('influencer_comm_value', 0)
+                        .order('name', { ascending: true }),
+
+                    supabaseClient
+                        .from('influencer_recommendations')
+                        .select('id, influencer_id, vendor_id, sort_order, created_at')
+                        .eq('influencer_id', influencerData.id)
+                        .order('sort_order', { ascending: true })
+                ]);
+
+            if (vendorErr) throw vendorErr;
+            if (recErr) throw recErr;
+
+            eligibleVendors = vendors || [];
+            recommendations = recs || [];
+
+            renderRecommendationManager();
         }
 
-        function shareAffiliateFlex() {
-            if (!liff.isLoggedIn()) return alert("กรุณาเปิดลิงก์นี้ในแอป LINE");
-            if (!targetVendorData) return alert("ไม่พบข้อมูลร้านค้า");
-            
-            const link = document.getElementById('affiliateLink').value;
-            const storeName = targetVendorData.name;
-            const storeImg = targetVendorData.line_picture_url || "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1024&q=80";
-            
+        function renderRecommendationManager() {
+            const recContainer = document.getElementById('recommendationList');
+            const vendorContainer = document.getElementById('eligibleVendorList');
+
+            if (recommendations.length === 0) {
+                recContainer.innerHTML =
+                    '<div style="text-align:center;color:#999;padding:15px;">ยังไม่ได้เลือกร้านแนะนำ</div>';
+            } else {
+                recContainer.innerHTML = recommendations.map((rec, index) => {
+                    const vendor = eligibleVendors.find(v => v.id === rec.vendor_id);
+                    const vendorName = vendor ? vendor.name : rec.vendor_id;
+                    return `
+                        <div class="recommend-item">
+                            <div class="recommend-rank">${index + 1}</div>
+                            <div class="recommend-info">
+                                <div class="recommend-name">${escapeHtml(vendorName)}</div>
+                                <div class="recommend-meta">ลำดับที่ ${rec.sort_order}</div>
+                            </div>
+                            <button class="mini-btn mini-up" onclick="moveRecommendation('${rec.id}', -1)" ${index === 0 ? 'disabled' : ''}>↑</button>
+                            <button class="mini-btn mini-down" onclick="moveRecommendation('${rec.id}', 1)" ${index === recommendations.length - 1 ? 'disabled' : ''}>↓</button>
+                            <button class="mini-btn mini-remove" onclick="removeRecommendation('${rec.id}')">ลบ</button>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            const selectedIds = new Set(recommendations.map(r => r.vendor_id));
+            vendorContainer.innerHTML = eligibleVendors.length === 0
+                ? '<div style="text-align:center;color:#999;padding:15px;">ยังไม่มีร้านที่เปิดค่าคอมมิชชัน</div>'
+                : eligibleVendors.map(v => {
+                    const selected = selectedIds.has(v.id);
+                    const commVal = Number(v.influencer_comm_value || 0);
+                    const commType = v.influencer_comm_type === 'percentage' ? '%' : ' บ.';
+                    return `
+                        <div class="vendor-option">
+                            <div style="min-width:0;">
+                                <div class="vendor-option-name">${escapeHtml(v.name)}</div>
+                                <div class="vendor-option-comm">ค่าคอม ${commVal}${commType}</div>
+                            </div>
+                            <button
+                                class="add-recommend-btn"
+                                onclick="addRecommendation('${v.id}')"
+                                ${selected || recommendations.length >= 10 ? 'disabled' : ''}
+                            >
+                                ${selected ? 'เพิ่มแล้ว' : '+ เพิ่ม'}
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        async function addRecommendation(vendorId) {
+            if (recommendations.length >= 10) {
+                return alert("เลือกได้สูงสุด 10 ร้านครับ");
+            }
+
+            if (recommendations.some(r => r.vendor_id === vendorId)) {
+                return alert("ร้านนี้อยู่ในรายการแนะนำแล้ว");
+            }
+
+            const nextOrder = recommendations.length + 1;
+
+            const { error } = await supabaseClient
+                .from('influencer_recommendations')
+                .insert([{
+                    influencer_id: influencerData.id,
+                    vendor_id: vendorId,
+                    sort_order: nextOrder
+                }]);
+
+            if (error) {
+                alert("เพิ่มร้านแนะนำไม่สำเร็จ: " + error.message);
+                return;
+            }
+
+            await loadRecommendationManager();
+        }
+
+        async function addTargetVendorRecommendation() {
+            if (!targetVendorData) return;
+            await addRecommendation(targetVendorData.id);
+        }
+
+        async function removeRecommendation(recId) {
+            const rec = recommendations.find(r => r.id === recId);
+            if (!rec) return;
+
+            if (!confirm("ต้องการลบร้านนี้ออกจากร้านแนะนำใช่หรือไม่?")) return;
+
+            const { error } = await supabaseClient
+                .from('influencer_recommendations')
+                .delete()
+                .eq('id', recId)
+                .eq('influencer_id', influencerData.id);
+
+            if (error) {
+                alert("ลบร้านไม่สำเร็จ: " + error.message);
+                return;
+            }
+
+            await normalizeRecommendationOrder();
+        }
+
+        async function moveRecommendation(recId, direction) {
+            const index = recommendations.findIndex(r => r.id === recId);
+            const targetIndex = index + direction;
+
+            if (index < 0 || targetIndex < 0 || targetIndex >= recommendations.length) return;
+
+            const current = recommendations[index];
+            const target = recommendations[targetIndex];
+
+            // สลับโดยใช้ค่าชั่วคราวเพื่อไม่ชน UNIQUE(influencer_id, sort_order)
+            const tempOrder = 99;
+
+            let { error } = await supabaseClient
+                .from('influencer_recommendations')
+                .update({ sort_order: tempOrder })
+                .eq('id', current.id);
+
+            if (error) return alert("จัดลำดับไม่สำเร็จ: " + error.message);
+
+            ({ error } = await supabaseClient
+                .from('influencer_recommendations')
+                .update({ sort_order: current.sort_order })
+                .eq('id', target.id));
+
+            if (error) return alert("จัดลำดับไม่สำเร็จ: " + error.message);
+
+            ({ error } = await supabaseClient
+                .from('influencer_recommendations')
+                .update({ sort_order: target.sort_order })
+                .eq('id', current.id));
+
+            if (error) return alert("จัดลำดับไม่สำเร็จ: " + error.message);
+
+            await loadRecommendationManager();
+        }
+
+        async function normalizeRecommendationOrder() {
+            const { data: recs, error } = await supabaseClient
+                .from('influencer_recommendations')
+                .select('id, sort_order')
+                .eq('influencer_id', influencerData.id)
+                .order('sort_order', { ascending: true });
+
+            if (error) return alert("โหลดรายการไม่สำเร็จ: " + error.message);
+
+            for (let i = 0; i < (recs || []).length; i++) {
+                const desired = i + 1;
+                if (recs[i].sort_order !== desired) {
+                    const { error: updateErr } = await supabaseClient
+                        .from('influencer_recommendations')
+                        .update({ sort_order: desired })
+                        .eq('id', recs[i].id);
+
+                    if (updateErr) {
+                        console.error("Normalize recommendation order failed:", updateErr);
+                        break;
+                    }
+                }
+            }
+
+            await loadRecommendationManager();
+        }
+
+        function copyUniversalLink() {
+            const input = document.getElementById('universalAffiliateLink');
+            input.select();
+            document.execCommand("copy");
+            alert("📋 คัดลอกลิงก์แนะนำส่วนตัวเรียบร้อยแล้ว");
+        }
+
+        function openMyMarketplace() {
+            window.location.href = document.getElementById('universalAffiliateLink').value;
+        }
+
+        function shareUniversalFlex() {
+            if (!liff.isLoggedIn()) {
+                return alert("กรุณาเปิดหน้าพาร์ทเนอร์นี้ในแอป LINE เพื่อใช้ปุ่มแชร์");
+            }
+
+            const link = document.getElementById('universalAffiliateLink').value;
+            const partnerName = influencerData.display_name || userLineProfile.displayName || "พาร์ทเนอร์ NPX";
+
             const flexMessage = {
                 type: "flex",
-                altText: `แวะมาดูร้าน ${storeName} กัน!`,
+                altText: `รวมร้านอร่อยแนะนำโดย ${partnerName}`,
                 contents: {
                     type: "bubble",
-                    hero: { type: "image", url: storeImg, size: "full", aspectRatio: "20:13", aspectMode: "cover" },
-                    body: { type: "box", layout: "vertical", contents: [
-                        { type: "text", text: storeName, weight: "bold", size: "xl", wrap: true },
-                        { type: "text", text: "ร้านนี้เด็ดมาก เลยเอามาฝาก! ลองกดเข้าไปดูเมนูสิ รับรองหิวแน่นอน 🤤", size: "sm", color: "#666666", wrap: true, margin: "md" }
-                    ]},
-                    footer: { type: "box", layout: "vertical", spacing: "sm", contents: [
-                        { type: "button", style: "primary", color: "#06C755", action: { type: "uri", label: "👉 สั่งอาหาร / ดูเมนู", uri: link } }
-                    ]}
+                    body: {
+                        type: "box",
+                        layout: "vertical",
+                        contents: [
+                            { type: "text", text: "⭐ ร้านอร่อยที่ฉันแนะนำ", weight: "bold", size: "xl", wrap: true },
+                            { type: "text", text: `แนะนำโดย ${partnerName}`, size: "sm", color: "#777777", margin: "md", wrap: true },
+                            { type: "text", text: "กดดูร้านที่ฉันคัดไว้ พร้อมค้นหาร้านอื่นๆ ใน NPX ได้ในลิงก์เดียว", size: "sm", color: "#555555", margin: "md", wrap: true }
+                        ]
+                    },
+                    footer: {
+                        type: "box",
+                        layout: "vertical",
+                        contents: [
+                            {
+                                type: "button",
+                                style: "primary",
+                                color: "#06C755",
+                                action: { type: "uri", label: "🍽️ ดูร้านแนะนำ", uri: link }
+                            }
+                        ]
+                    }
                 }
             };
-            
-            if (liff.isApiAvailable('shareTargetPicker')) {
-                liff.shareTargetPicker([flexMessage]).then((res) => {
-                    if (res) alert('ส่งให้เพื่อนสำเร็จ!');
-                }).catch(() => {});
-            } else {
-                alert('อุปกรณ์ไม่รองรับการส่งข้อความผ่านแอป LINE\nกรุณาใช้ปุ่มคัดลอกลิงก์แทนครับ');
-            }
-        }
 
-        function backToMarketplace() {
-            const basePath = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
-            window.location.href = `${basePath}/marketplace.html`;
+            if (liff.isApiAvailable('shareTargetPicker')) {
+                liff.shareTargetPicker([flexMessage]).catch(() => {});
+            } else {
+                alert("อุปกรณ์นี้ไม่รองรับการแชร์ผ่าน LINE กรุณาใช้ปุ่มคัดลอกลิงก์แทน");
+            }
         }
 
         // ================= ถอนเงิน =================
