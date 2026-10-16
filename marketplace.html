@@ -45,6 +45,10 @@
         .loading-state, .empty-state { text-align: center; padding: 40px 20px; color: #888; }
         .loader-spinner { width: 30px; height: 30px; border: 3px solid #f3f3f3; border-top: 3px solid #06C755; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 15px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    
+        .referral-banner { display:none; margin:15px 20px 0; background:#fff8e1; border:1px solid #ffe0b2; border-radius:12px; padding:12px 14px; color:#8d5a00; font-size:13px; line-height:1.5; }
+        .recommended-badge { background:#fff3cd; color:#a15c00; font-weight:bold; font-size:11px; padding:3px 8px; border-radius:12px; display:inline-block; margin-left:6px; }
+
     </style>
 </head>
 <body>
@@ -64,6 +68,10 @@
         <button class="filter-btn" onclick="setCategoryFilter('คาเฟ่', this)">คาเฟ่/เครื่องดื่ม</button>
         <button class="filter-btn" onclick="setCategoryFilter('ของหวาน', this)">ของหวาน</button>
         <button class="filter-btn" onclick="setCategoryFilter('ส้มตำ', this)">ส้มตำ/ยำ</button>
+    </div>
+
+    <div id="referralBanner" class="referral-banner">
+        ⭐ ร้านแนะนำโดย <b id="referralPartnerName">พาร์ทเนอร์ NPX</b>
     </div>
 
     <div class="store-container">
@@ -87,6 +95,9 @@
         let userLat = null;
         let userLng = null;
         let currentFilter = 'all';
+        let referralCode = null;
+        let referralInfluencer = null;
+        let recommendationMap = new Map();
 
         // ==================== Haversine Formula ====================
         function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
@@ -107,15 +118,75 @@
 
         // ==================== Init & Location ====================
         async function initMarketplace() {
-            // ดึง LIFF ID ของ Marketplace (ถ้าไม่มีใช้ของ Customer ชั่วคราว)
+            referralCode = new URLSearchParams(window.location.search).get('ref');
+
+            // จำ referral ไว้ใน browser เพื่อไม่ให้หายระหว่างเลือก/ค้นหาร้าน
+            if (referralCode) {
+                localStorage.setItem('npx_marketplace_ref', referralCode);
+            } else {
+                referralCode = localStorage.getItem('npx_marketplace_ref');
+            }
+
+            await resolveReferral();
+
             const liffId = CONFIG.liffIdMarketplace || CONFIG.liffIdCustomer;
-            
+
             try {
                 await liff.init({ liffId: liffId });
-                requestLocation(); // ขอพิกัดก่อนโหลดข้อมูล
+                requestLocation();
             } catch (err) {
                 console.warn("LIFF Init Failed:", err);
-                requestLocation(); // Fallback ลองขอ GPS ธรรมดาถ้าไม่ผ่าน LIFF
+                requestLocation();
+            }
+        }
+
+        async function resolveReferral() {
+            referralInfluencer = null;
+            recommendationMap = new Map();
+
+            if (!referralCode) return;
+
+            // รองรับทั้ง ref_code ใหม่ และ LINE UID แบบเก่า
+            let { data: influencer, error } = await supabaseClient
+                .from('influencers')
+                .select('id, line_uid, display_name, ref_code')
+                .eq('ref_code', referralCode)
+                .maybeSingle();
+
+            if ((!influencer || error) && referralCode.startsWith('U')) {
+                const legacy = await supabaseClient
+                    .from('influencers')
+                    .select('id, line_uid, display_name, ref_code')
+                    .eq('line_uid', referralCode)
+                    .maybeSingle();
+
+                influencer = legacy.data;
+                error = legacy.error;
+            }
+
+            if (error || !influencer) {
+                console.warn("Invalid referral code:", referralCode, error);
+                return;
+            }
+
+            referralInfluencer = influencer;
+
+            const { data: recs, error: recErr } = await supabaseClient
+                .from('influencer_recommendations')
+                .select('vendor_id, sort_order')
+                .eq('influencer_id', influencer.id)
+                .order('sort_order', { ascending: true });
+
+            if (!recErr && recs) {
+                recs.forEach(r => recommendationMap.set(r.vendor_id, Number(r.sort_order)));
+            }
+
+            const banner = document.getElementById('referralBanner');
+            const nameEl = document.getElementById('referralPartnerName');
+
+            if (banner && nameEl) {
+                nameEl.innerText = influencer.display_name || 'พาร์ทเนอร์ NPX';
+                banner.style.display = 'block';
             }
         }
 
@@ -150,7 +221,7 @@
             try {
                 // 1. ดึงร้านค้าหลักที่เปิด Marketplace
                 const { data: vendors, error: vErr } = await supabaseClient.from('vendors')
-                    .select('id, name, line_picture_url, is_open, latitude, longitude, address, food_category')
+                    .select('id, name, line_picture_url, is_open, latitude, longitude, address, food_category, influencer_comm_type, influencer_comm_value')
                     .eq('marketplace_enabled', true);
                 
                 if (vErr) throw vErr;
@@ -184,7 +255,9 @@
                         lat: v.latitude,
                         lng: v.longitude,
                         address: v.address || '',
-                        category: v.food_category || 'ทั่วไป'
+                        category: v.food_category || 'ทั่วไป',
+                        commissionEnabled: Number(v.influencer_comm_value || 0) > 0,
+                        recommendationRank: recommendationMap.has(v.id) ? recommendationMap.get(v.id) : null
                     });
 
                     // สาขาย่อย
@@ -202,7 +275,9 @@
                                 lat: b.latitude,
                                 lng: b.longitude,
                                 address: b.address || '',
-                                category: v.food_category || 'ทั่วไป'
+                                category: v.food_category || 'ทั่วไป',
+                                commissionEnabled: Number(v.influencer_comm_value || 0) > 0,
+                                recommendationRank: recommendationMap.has(v.id) ? recommendationMap.get(v.id) : null
                             });
                         }
                     });
@@ -214,8 +289,18 @@
                     return { ...store, distance: dist };
                 });
 
-                // 5. เรียงลำดับ (ใกล้สุดขึ้นก่อน ถ้าระยะทาง null ไปอยู่ท้ายสุด)
+                // 5. ถ้ามาจากลิงก์พาร์ทเนอร์: ร้านแนะนำ 1-10 ขึ้นก่อน แล้วค่อยเรียงร้านอื่นตามระยะทาง
                 combinedStores.sort((a, b) => {
+                    const aRank = a.commissionEnabled ? a.recommendationRank : null;
+                    const bRank = b.commissionEnabled ? b.recommendationRank : null;
+
+                    if (aRank !== null && bRank !== null && aRank !== bRank) {
+                        return aRank - bRank;
+                    }
+                    if (aRank !== null && bRank === null) return -1;
+                    if (aRank === null && bRank !== null) return 1;
+
+                    if (a.distance === null && b.distance === null) return 0;
                     if (a.distance === null) return 1;
                     if (b.distance === null) return -1;
                     return a.distance - b.distance;
@@ -295,7 +380,12 @@
                     <img src="${store.image}" class="store-img">
                     <div class="store-info">
                         <div>
-                            <h3 class="store-name">${store.name}</h3>
+                            <h3 class="store-name">
+                                ${store.name}
+                                ${store.commissionEnabled && store.recommendationRank !== null
+                                    ? `<span class="recommended-badge">⭐ แนะนำ #${store.recommendationRank}</span>`
+                                    : ''}
+                            </h3>
                             ${store.bid ? `<div style="font-size: 11px; color: #888; margin-bottom: 4px;">🏢 ${store.branchName}</div>` : ''}
                             <span class="store-cat">${store.category}</span>
                         </div>
@@ -321,10 +411,18 @@
         }
 
         function goToStore(vid, bid) {
-            let url = `customer.html?vid=${vid}`;
+            let url = `customer.html?vid=${encodeURIComponent(vid)}`;
+
             if (bid && bid !== 'null') {
-                url += `&bid=${bid}`;
+                url += `&bid=${encodeURIComponent(bid)}`;
             }
+
+            // customer.html เดิมยังรับ influencer_uid อยู่
+            // จึง resolve ref_code -> line_uid ที่ Marketplace ก่อน เพื่อไม่ต้องแตะระบบ Order ตอนนี้
+            if (referralInfluencer && referralInfluencer.line_uid) {
+                url += `&ref=${encodeURIComponent(referralInfluencer.line_uid)}`;
+            }
+
             window.location.href = url;
         }
 
