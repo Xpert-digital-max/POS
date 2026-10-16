@@ -405,9 +405,9 @@
             tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">กำลังโหลด...</td></tr>';
 
             try {
-                // 1) ระบบ Affiliate ร้านค้าเดิม
+                // 1) Affiliate ร้านค้า - Supabase Source of Truth
                 const legacyReq = supabaseClient
-                    .from('withdrawals')
+                    .from('affiliate_withdrawals')
                     .select('*')
                     .order('created_at', { ascending: false });
 
@@ -424,10 +424,10 @@
 
                 // ไม่ซ่อน Error อีกต่อไป
                 if (legacyRes.error) {
-                    console.error('withdrawals table error:', legacyRes.error);
+                    console.error('affiliate_withdrawals table error:', legacyRes.error);
                 }
                 if (influencerRes.error) {
-                    console.error('influencer_withdrawals table error:', influencerRes.error);
+                    console.error('influencer_affiliate_withdrawals table error:', influencerRes.error);
                 }
 
                 const legacyRows = legacyRes.error ? [] : (legacyRes.data || []);
@@ -463,10 +463,11 @@
                         source: 'vendor_affiliate',
                         id: w.id,
                         created_at: w.created_at,
-                        receiver_name: w.store_name || w.vendor_name || 'ร้านค้า Affiliate',
-                        receiver_account: w.promptpay || w.bank_info || '-',
+                        receiver_name: w.store_name || w.vendor_id || 'ร้านค้า Affiliate',
+                        receiver_account: w.payout_account || '-',
                         amount: Number(w.amount || 0),
                         status: w.status || 'pending',
+                        withdrawal_type: w.withdrawal_type || 'cash',
                         raw: w
                     });
                 });
@@ -506,7 +507,9 @@
                         : '-';
 
                     const typeText = w.source === 'vendor_affiliate'
-                        ? '🏪 Affiliate ร้านค้า'
+                        ? (w.withdrawal_type === 'package'
+                            ? '🏪 Affiliate • ชำระแพ็กเกจ'
+                            : '🏪 Affiliate • ถอนเงินสด')
                         : '🚀 Influencer';
 
                     let statusBadge = '';
@@ -560,17 +563,29 @@
             }
 
             try {
-                const tableName =
-                    source === 'vendor_affiliate'
-                        ? 'withdrawals'
-                        : 'influencer_withdrawals';
+                if (source === 'vendor_affiliate') {
+                    const { data, error } = await supabaseClient.rpc(
+                        'admin_complete_affiliate_withdrawal',
+                        {
+                            p_withdrawal_id: id,
+                            p_admin_pin: ADMIN_PIN
+                        }
+                    );
 
-                const { error } = await supabaseClient
-                    .from(tableName)
-                    .update({ status: 'completed' })
-                    .eq('id', id);
+                    if (error) throw error;
+                    if (!data || data.success !== true) {
+                        throw new Error('อัปเดตรายการ Affiliate ไม่สำเร็จ');
+                    }
+                } else {
+                    // Influencer wallet ถูกหักตอนส่งคำขอแล้ว
+                    // Admin เปลี่ยนเฉพาะสถานะ
+                    const { error } = await supabaseClient
+                        .from('influencer_withdrawals')
+                        .update({ status: 'completed' })
+                        .eq('id', id);
 
-                if (error) throw error;
+                    if (error) throw error;
+                }
 
                 alert('✅ อัปเดตรายการถอนเงินเป็นจ่ายแล้ว');
                 await loadWithdrawals();
