@@ -134,10 +134,10 @@
 
     </div>
 
-    <!-- Modal เติมเงินกระเป๋าการตลาด -->
+    <!-- Modal ปรับยอดกระเป๋าการตลาด -->
     <div id="topupWalletModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 2000; justify-content: center; align-items: center;">
         <div style="background: white; width: 90%; max-width: 400px; border-radius: 12px; padding: 20px; box-sizing: border-box;">
-            <h3 style="margin-top: 0; color: #ff9800;">💰 เติมเงินกระเป๋าการตลาด</h3>
+            <h3 style="margin-top: 0; color: #ff9800;">💰 ปรับยอด Marketing Wallet</h3>
             <p id="topupVendorName" style="font-weight: bold; color: #333; margin-bottom: 5px;">ร้าน: -</p>
             <p style="font-size: 13px; color: #666; margin-bottom: 15px;">(วางแผนอนาคต: พื้นที่สำหรับเชื่อมระบบตัดบัตร/พร้อมเพย์อัตโนมัติ)</p>
             
@@ -145,14 +145,14 @@
                 <p style="margin: 0; font-size: 13px; color: #e65100;">ยอดปัจจุบัน: ฿<span id="currentMarketingWallet">0</span></p>
             </div>
             
-            <label style="font-size: 13px; font-weight: bold; color: #555;">จำนวนเงินที่ต้องการเติมเพิ่ม (บาท)</label>
+            <label style="font-size: 13px; font-weight: bold; color: #555;">จำนวนเงินที่ต้องการปรับ (บาท) — เติมใช้เลขบวก / หักใช้เลขลบ</label>
             <input type="number" id="topupAmount" placeholder="เช่น 500" style="width: 100%; padding: 10px; margin-bottom: 15px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;">
             
             <input type="hidden" id="topupVendorId">
             
             <div style="display: flex; gap: 10px;">
                 <button onclick="closeTopupWalletModal()" style="flex: 1; padding: 12px; border: none; border-radius: 6px; background: #eee; font-weight: bold; cursor: pointer; color: #555;">ยกเลิก</button>
-                <button onclick="submitTopupWallet(this)" style="flex: 2; padding: 12px; border: none; border-radius: 6px; background: #ff9800; color: white; font-weight: bold; cursor: pointer;">ยืนยันการเติมเงิน</button>
+                <button onclick="submitTopupWallet(this)" style="flex: 2; padding: 12px; border: none; border-radius: 6px; background: #ff9800; color: white; font-weight: bold; cursor: pointer;">ยืนยันการปรับยอด</button>
             </div>
         </div>
     </div>
@@ -300,19 +300,20 @@
                 let expBadge = isExpired ? `<span class="badge danger">หมดอายุ</span>` : `<span class="badge success">ใช้งานได้</span>`;
                 
                 if (v.is_subscription_active === false) {
-                    expBadge = `<span class="badge warning" style="background:#fef08a; color:#854d0e;">รอชำระเงิน/รออนุมัติ</span>`;
+                    expBadge = `<span class="badge warning" style="background:#fef08a; color:#854d0e;">ปิดระบบสมาชิก</span>`;
                 }
 
                 let actionBtns = '';
-                // [NEW] เพิ่มการส่งค่า v.referrer_id ไปในฟังก์ชันอนุมัติด้วย
-                if (v.is_subscription_active === false) {
-                    actionBtns += `<button class="btn btn-success" style="margin-bottom:5px; width:100%;" onclick="approveVendor('${v.id}', '${v.name}', '${v.subscription_plan}', '${v.referrer_id || ''}')">✅ อนุมัติเปิดร้าน</button><br>`;
+
+                // เปิด/ปิดระบบสมาชิกโดยไม่ต่อวัน ไม่เพิ่มโควต้า และไม่จ่ายค่าคอมซ้ำ
+                if (v.is_subscription_active === true) {
+                    actionBtns += `<button class="btn btn-danger" style="margin-bottom:5px; width:100%;" onclick="setSubscriptionActive('${v.id}', '${String(v.name).replace(/'/g, "\\'")}', false)">🛑 ปิดระบบสมาชิก</button><br>`;
+                } else {
+                    actionBtns += `<button class="btn btn-success" style="margin-bottom:5px; width:100%;" onclick="setSubscriptionActive('${v.id}', '${String(v.name).replace(/'/g, "\\'")}', true)">▶️ เปิดระบบสมาชิก</button><br>`;
+                    actionBtns += `<button class="btn" style="background:#2563eb; color:white; margin-bottom:5px; width:100%;" onclick="approveVendor('${v.id}', '${String(v.name).replace(/'/g, "\\'")}', '${v.subscription_plan}', '${v.referrer_id || ''}')">✅ อนุมัติแพ็กเกจใหม่</button><br>`;
                 }
-                
-                // ปุ่มเติมเงินค่าการตลาด
-                actionBtns += `<button class="btn" style="background:#ff9800; color:white; margin-bottom:5px; width:100%;" onclick="openTopupWalletModal('${v.id}', '${v.name}', ${v.marketing_wallet || 0})">💰 เติมค่าการตลาด</button><br>`;
-                
-                actionBtns += `<button class="btn btn-danger" style="width:100%;" onclick="suspendVendor('${v.id}', '${v.name}')">🛑 ระงับการใช้งาน</button>`;
+
+                actionBtns += `<button class="btn" style="background:#ff9800; color:white; width:100%;" onclick="openTopupWalletModal('${v.id}', '${String(v.name).replace(/'/g, "\\'")}', ${Number(v.marketing_wallet || 0)})">💰 ปรับ Marketing Wallet</button>`;
 
                 html += `<tr>
                     <td><strong>${v.name}</strong><br><span style="font-size:11px; color:#888;">ID: ${v.id}</span></td>
@@ -329,8 +330,74 @@
             tbody.innerHTML = html;
         }
 
+
+        async function setSubscriptionActive(id, name, newStatus) {
+            const action = newStatus ? "เปิด" : "ปิด";
+            const detail = newStatus
+                ? "เปิดสถานะสมาชิกเดิม โดยไม่ต่อวัน ไม่เพิ่มโควต้า และไม่จ่ายค่าคอมซ้ำ"
+                : "ปิดสิทธิ์สมาชิกชั่วคราว โดยเก็บแพ็กเกจ วันหมดอายุ โควต้า และข้อมูลเดิมไว้";
+
+            if (!confirm(`ยืนยัน "${action}ระบบสมาชิก" ร้าน ${name} ใช่หรือไม่?\n\n${detail}`)) return;
+
+            try {
+                const { data: vendor, error: readError } = await supabaseClient
+                    .from('vendors')
+                    .select('id, is_subscription_active, subscription_expires_at')
+                    .eq('id', id)
+                    .single();
+
+                if (readError) throw readError;
+                if (!vendor) throw new Error("ไม่พบข้อมูลร้านค้า");
+
+                if (vendor.is_subscription_active === newStatus) {
+                    alert(newStatus ? "ร้านนี้เปิดระบบสมาชิกอยู่แล้ว" : "ร้านนี้ปิดระบบสมาชิกอยู่แล้ว");
+                    await loadAllVendors();
+                    return;
+                }
+
+                if (newStatus && vendor.subscription_expires_at) {
+                    const exp = new Date(vendor.subscription_expires_at);
+                    if (!isNaN(exp.getTime()) && exp < new Date()) {
+                        if (!confirm("⚠️ แพ็กเกจของร้านนี้หมดอายุแล้ว\nต้องการเปิดสถานะเดิมต่อโดยไม่ต่อวันใช่หรือไม่?")) {
+                            return;
+                        }
+                    }
+                }
+
+                const { error: updateError } = await supabaseClient
+                    .from('vendors')
+                    .update({ is_subscription_active: newStatus })
+                    .eq('id', id);
+
+                if (updateError) throw updateError;
+
+                alert(`✅ ${action}ระบบสมาชิกร้าน ${name} สำเร็จ`);
+                await loadAllVendors();
+
+            } catch (err) {
+                console.error("setSubscriptionActive error:", err);
+                alert("เกิดข้อผิดพลาดในการปรับสถานะสมาชิก: " + (err.message || err));
+            }
+        }
+
         async function approveVendor(id, name, planId, referrerId) {
-            if (!confirm(`ตรวจสอบยอดเงินถูกต้อง และต้องการ "อนุมัติเปิดใช้งาน" ให้ร้าน ${name} ใช่หรือไม่?`)) return;
+            const { data: currentVendor, error: currentVendorError } = await supabaseClient
+                .from('vendors')
+                .select('id, is_subscription_active')
+                .eq('id', id)
+                .single();
+
+            if (currentVendorError) {
+                alert("ตรวจสอบสถานะร้านไม่สำเร็จ: " + currentVendorError.message);
+                return;
+            }
+
+            if (currentVendor?.is_subscription_active === true) {
+                alert("ร้านนี้เปิดระบบสมาชิกอยู่แล้ว\nหากต้องการเพียงเปิด/ปิดสถานะ ให้ใช้ปุ่มเปิด/ปิดระบบสมาชิก");
+                return;
+            }
+
+            if (!confirm(`ยืนยัน "อนุมัติแพ็กเกจใหม่" ให้ร้าน ${name} ใช่หรือไม่?\n\nการทำรายการนี้จะตั้งวันหมดอายุใหม่และตั้งโควต้าตามแพ็กเกจ`)) return;
             
             // หาข้อมูลแพ็กเกจ (จำนวนวัน, โควต้า, ค่าคอมมิชชั่น)
             const confPlan = CONFIG.pricingPlans.find(p => p.id === planId);
@@ -387,39 +454,108 @@
 
         async function submitTopupWallet(btn) {
             const id = document.getElementById('topupVendorId').value;
-            const amount = parseFloat(document.getElementById('topupAmount').value);
-            const current = parseFloat(document.getElementById('currentMarketingWallet').innerText);
-            
-            // 1. อนุญาตให้ใส่ค่าลบได้ แต่ห้ามเว้นว่างหรือเป็น 0
-            if (isNaN(amount) || amount === 0) {
-                return alert('กรุณาระบุจำนวนเงิน\n(หากต้องการดึงเงินกลับ ให้ใส่เครื่องหมายลบด้านหน้า เช่น -100)');
-            }
-            
-            const newBalance = current + amount;
+            const amount = Number(document.getElementById('topupAmount').value);
 
-            // 2. ป้องกันไม่ให้แอดมินหักเงินจนยอดติดลบ
-            if (newBalance < 0) {
-                return alert(`ไม่สามารถทำรายการได้!\nยอดเงินปัจจุบันคือ ฿${current} หากหัก ฿${Math.abs(amount)} ยอดจะติดลบครับ`);
+            if (!id) return alert("ไม่พบ Vendor ID");
+            if (!Number.isFinite(amount) || amount === 0) {
+                return alert("กรุณาระบุจำนวนเงิน\nเติมเงิน: ใช้เลขบวก เช่น 100\nหักเงิน: ใช้เลขลบ เช่น -20");
             }
-            
-            // 3. ปรับข้อความแจ้งเตือนให้เข้ากับบริบท (บวก/ลบ)
-            const actionText = amount > 0 ? `เติมเงินเพิ่ม ฿${amount}` : `ดึงเงินกลับ ฿${Math.abs(amount)}`;
-            if (!confirm(`ยืนยันการ ${actionText} ให้ร้านนี้ใช่หรือไม่?\n(ยอดใหม่จะเป็น ฿${newBalance})`)) return;
-            
-            btn.innerText = "⏳ กำลังดำเนินการ..."; btn.disabled = true;
-            
+
+            btn.innerText = "⏳ กำลังดำเนินการ...";
+            btn.disabled = true;
+
+            let oldBalance = null;
+            let newBalance = null;
+
             try {
-                const { error } = await supabaseClient.from('vendors').update({ marketing_wallet: newBalance }).eq('id', id);
-                if (error) throw error;
-                
-                alert(`✅ ปรับยอดสำเร็จ! ยอดใหม่คือ ฿${newBalance}`);
+                const { data: vendor, error: readError } = await supabaseClient
+                    .from('vendors')
+                    .select('id, name, marketing_wallet')
+                    .eq('id', id)
+                    .single();
+
+                if (readError) throw readError;
+                if (!vendor) throw new Error("ไม่พบข้อมูลร้านค้า");
+
+                oldBalance = Number(vendor.marketing_wallet || 0);
+                newBalance = Number((oldBalance + amount).toFixed(2));
+
+                if (newBalance < 0) {
+                    throw new Error(
+                        `ไม่สามารถหักเงินได้\nยอดปัจจุบัน ฿${oldBalance.toFixed(2)}\nยอดที่จะหัก ฿${Math.abs(amount).toFixed(2)}\nยอดใหม่จะติดลบ`
+                    );
+                }
+
+                const actionText = amount > 0
+                    ? `เติม Marketing Wallet ฿${amount.toFixed(2)}`
+                    : `หัก Marketing Wallet ฿${Math.abs(amount).toFixed(2)}`;
+
+                if (!confirm(
+                    `${actionText}\nร้าน: ${vendor.name}\n\n` +
+                    `ก่อนทำรายการ: ฿${oldBalance.toFixed(2)}\n` +
+                    `หลังทำรายการ: ฿${newBalance.toFixed(2)}\n\n` +
+                    `ยืนยันทำรายการใช่หรือไม่?`
+                )) return;
+
+                const { error: updateError } = await supabaseClient
+                    .from('vendors')
+                    .update({ marketing_wallet: newBalance })
+                    .eq('id', id);
+
+                if (updateError) throw updateError;
+
+                const ledgerPayload = {
+                    vendor_id: id,
+                    transaction_type: amount > 0 ? 'admin_topup' : 'admin_deduction',
+                    amount: amount,
+                    balance_before: oldBalance,
+                    balance_after: newBalance,
+                    reference_no: null,
+                    note: amount > 0
+                        ? 'Admin เติม Marketing Wallet'
+                        : 'Admin หัก Marketing Wallet'
+                };
+
+                const { error: ledgerError } = await supabaseClient
+                    .from('marketing_wallet_transactions')
+                    .insert([ledgerPayload]);
+
+                if (ledgerError) {
+                    const { error: rollbackError } = await supabaseClient
+                        .from('vendors')
+                        .update({ marketing_wallet: oldBalance })
+                        .eq('id', id);
+
+                    if (rollbackError) {
+                        console.error("WALLET ROLLBACK FAILED:", rollbackError);
+                        throw new Error(
+                            `Ledger บันทึกไม่สำเร็จ และคืนยอดไม่สำเร็จ\n` +
+                            `กรุณาตรวจฐานข้อมูลร้านนี้ทันที\n` +
+                            `Ledger: ${ledgerError.message}\nRollback: ${rollbackError.message}`
+                        );
+                    }
+
+                    throw new Error(
+                        `บันทึก Ledger ไม่สำเร็จ ระบบคืนยอด Wallet กลับเป็น ฿${oldBalance.toFixed(2)} แล้ว\n` +
+                        ledgerError.message
+                    );
+                }
+
+                alert(
+                    `✅ ปรับ Marketing Wallet สำเร็จ\n` +
+                    `ยอดเดิม ฿${oldBalance.toFixed(2)} → ยอดใหม่ ฿${newBalance.toFixed(2)}`
+                );
+
                 closeTopupWalletModal();
-                loadAllVendors();
+                await loadAllVendors();
+
             } catch (err) {
-                alert('เกิดข้อผิดพลาด: ' + err.message);
+                console.error("submitTopupWallet error:", err);
+                alert("เกิดข้อผิดพลาด: " + (err.message || err));
+            } finally {
+                btn.innerText = "ยืนยันการปรับยอด";
+                btn.disabled = false;
             }
-            
-            btn.innerText = "ยืนยันการเติมเงิน"; btn.disabled = false;
         }
     </script>
 </body>
