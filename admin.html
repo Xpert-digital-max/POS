@@ -631,7 +631,7 @@
             try {
                 const { data: requests, error } = await supabaseClient
                     .from('marketing_wallet_topup_requests')
-                    .select('id, vendor_id, amount, slip_url, status, wallet_before, wallet_after, created_at')
+                    .select('id, vendor_id, amount, slip_url, status, wallet_before, wallet_after, verification_code, verification_message, amount_in_slip, receiver_verified, is_duplicate, auto_verified, created_at')
                     .order('created_at', { ascending: false })
                     .limit(100);
 
@@ -665,8 +665,17 @@
                     let status = '';
                     let action = '';
 
-                    if (r.status === 'pending') {
-                        status = '<span class="badge warning">รอตรวจสอบ</span>';
+                    if (r.status === 'pending' || r.status === 'manual_review') {
+                        const isManual = r.status === 'manual_review';
+
+                        status = isManual
+                            ? `<span class="badge warning">⚠️ ตรวจเอง</span><br>
+                               <span style="font-size:10px;color:#a15c00;">
+                                   ${r.verification_code || ''}<br>
+                                   ${r.verification_message || ''}
+                               </span>`
+                            : '<span class="badge warning">รอตรวจสอบ</span>';
+
                         action = `
                             <button class="btn btn-success"
                                 onclick="approveMarketingWalletTopup('${r.id}')">
@@ -677,14 +686,22 @@
                                 style="margin-left:4px;">
                                 ❌ ปฏิเสธ
                             </button>`;
+                    } else if (r.status === 'verifying') {
+                        status = '<span class="badge warning">🔎 กำลังตรวจอัตโนมัติ</span>';
+                        action = '-';
                     } else if (r.status === 'approved') {
-                        status = '<span class="badge success">อนุมัติแล้ว</span>';
+                        status = r.auto_verified
+                            ? '<span class="badge success">⚡ Auto Approved</span>'
+                            : '<span class="badge success">อนุมัติแล้ว</span>';
+
                         action = `<span style="font-size:11px;color:#666;">
                             ฿${Number(r.wallet_before || 0).toFixed(2)}
                             → ฿${Number(r.wallet_after || 0).toFixed(2)}
                         </span>`;
                     } else {
-                        status = '<span class="badge" style="background:#fee2e2;color:#b91c1c;">ปฏิเสธ</span>';
+                        status = `<span class="badge" style="background:#fee2e2;color:#b91c1c;">
+                            ปฏิเสธ ${r.verification_code ? '(' + r.verification_code + ')' : ''}
+                        </span>`;
                         action = '-';
                     }
 
