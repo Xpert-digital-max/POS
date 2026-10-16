@@ -231,35 +231,44 @@
 
         async function initApp() {
             targetVendorId = getUrlParameter('vid');
+
             try {
-                const partnerLiffId = (CONFIG.liffIdDashboard || CONFIG.liffIdInfluencer || CONFIG.liffIdCustomer || '').trim();
-                if (!partnerLiffId) throw new Error("ยังไม่ได้ตั้งค่า LIFF ID สำหรับ Partner Dashboard");
+                const partnerLiffId = String(CONFIG.liffIdInfluencer || '').trim();
+
+                if (!partnerLiffId) {
+                    throw new Error("ยังไม่ได้ตั้งค่า CONFIG.liffIdInfluencer");
+                }
 
                 await liff.init({ liffId: partnerLiffId });
 
                 if (!liff.isLoggedIn()) {
-                    const cleanUrl = window.location.origin + window.location.pathname + (targetVendorId ? `?vid=${encodeURIComponent(targetVendorId)}` : '');
-                    const guardKey = 'npx_partner_login_redirecting';
-                    if (sessionStorage.getItem(guardKey) === '1') {
-                        sessionStorage.removeItem(guardKey);
-                        throw new Error("LINE Login ยังไม่สำเร็จ กรุณาปิดหน้านี้แล้วเปิดจาก LINE อีกครั้ง");
-                    }
-                    sessionStorage.setItem(guardKey, '1');
-                    liff.login({ redirectUri: cleanUrl });
+                    liff.login();
                     return;
                 }
 
-                sessionStorage.removeItem('npx_partner_login_redirecting');
                 const decoded = liff.getDecodedIDToken();
+
                 if (decoded && decoded.sub) {
-                    userLineProfile = { userId: decoded.sub, displayName: decoded.name || '', pictureUrl: decoded.picture || '' };
+                    userLineProfile = {
+                        userId: decoded.sub,
+                        displayName: decoded.name || '',
+                        pictureUrl: decoded.picture || ''
+                    };
                 } else {
-                    userLineProfile = await liff.getProfile();
+                    const profile = await liff.getProfile();
+                    userLineProfile = {
+                        userId: profile.userId,
+                        displayName: profile.displayName || '',
+                        pictureUrl: profile.pictureUrl || ''
+                    };
                 }
+
                 await checkInfluencerStatus();
+
             } catch (err) {
                 console.error("Partner LIFF Init Error:", err);
-                document.getElementById('loadingState').innerHTML = `<p style="color:red;line-height:1.6;">เกิดข้อผิดพลาดในการเปิดศูนย์พาร์ทเนอร์<br>${String(err.message || err)}</p>`;
+                document.getElementById('loadingState').innerHTML =
+                    `<p style="color:red;line-height:1.6;">เกิดข้อผิดพลาดในการเปิดศูนย์พาร์ทเนอร์<br>${escapeHtml(err.message || err)}</p>`;
             }
         }
 
