@@ -308,7 +308,17 @@
                     return { ...store, distance: dist };
                 });
 
-                // 5. ถ้ามาจากลิงก์พาร์ทเนอร์: ร้านแนะนำ 1-10 ขึ้นก่อน แล้วค่อยเรียงร้านอื่นตามระยะทาง
+                // 5. ถ้าเข้าผ่านลิงก์พาร์ทเนอร์ที่ตรวจสอบแล้ว
+                // แสดงเฉพาะร้านที่เปิดรับ Influencer จริงเท่านั้น
+                // (เปิดค่าคอม + เปิดโปรแกรม + Available > 10 + influencer_visible = true)
+                // Marketplace ปกติที่ไม่มี referral ยังเห็นร้านทั้งหมดเหมือนเดิม
+                if (referralInfluencer && referralInfluencer.line_uid) {
+                    combinedStores = combinedStores.filter(
+                        store => store.influencerVisible === true
+                    );
+                }
+
+                // 6. ร้านแนะนำ 1-10 ขึ้นก่อน แล้วค่อยเรียงร้านอื่นตามระยะทาง
                 combinedStores.sort((a, b) => {
                     const aRank = a.influencerVisible ? a.recommendationRank : null;
                     const bRank = b.influencerVisible ? b.recommendationRank : null;
@@ -373,7 +383,11 @@
             const container = document.getElementById('storeListContainer');
             
             if (stores.length === 0) {
-                renderEmpty("ไม่พบร้านอาหารที่คุณค้นหา");
+                if (referralInfluencer && referralInfluencer.line_uid) {
+                    renderEmpty("ขณะนี้ยังไม่มีร้านที่เปิดรับการแนะนำและมีเครดิตค่าคอมพร้อมใช้งาน");
+                } else {
+                    renderEmpty("ไม่พบร้านอาหารที่คุณค้นหา");
+                }
                 return;
             }
 
