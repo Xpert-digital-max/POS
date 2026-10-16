@@ -167,6 +167,28 @@
         <!-- 3. หน้าจัดการร้านค้า (ระงับร้าน) -->
         <div id="vendors" class="tab-content">
             <h2 style="margin-top: 0;">รายชื่อร้านค้าทั้งหมด</h2>
+            <div class="table-container" style="margin-bottom:20px;border-left:4px solid #ff9800;">
+                <h3 style="margin-top:0;color:#e65100;">💰 คำขอเติม Marketing Wallet</h3>
+                <p style="font-size:12px;color:#777;margin-top:-5px;">
+                    ตรวจสลิปก่อนกดอนุมัติ เมื่ออนุมัติแล้ว Wallet และ Ledger จะอัปเดตอัตโนมัติ
+                </p>
+                <table id="marketingWalletTopupRequestsTable">
+                    <thead>
+                        <tr>
+                            <th>วันที่</th>
+                            <th>ร้านค้า</th>
+                            <th>ยอดเติม</th>
+                            <th>สลิป</th>
+                            <th>สถานะ</th>
+                            <th>จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="6" style="text-align:center;">กำลังโหลด...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
             <div class="table-container">
                 <table id="allVendorsTable">
                     <thead><tr><th>ชื่อร้าน</th><th>แพ็กเกจ</th><th>วันหมดอายุ</th><th>โควต้าสลิป</th><th>กระเป๋าเงิน (Aff / Mkt)</th><th>จัดการร้าน</th></tr></thead>
@@ -223,6 +245,7 @@
             setReportThisMonth(false);
             await loadBillingAnalytics();
             await loadWithdrawals();
+            await loadMarketingWalletTopupRequests();
             await loadAllVendors();
         }
 
@@ -593,6 +616,165 @@
             } catch (err) {
                 console.error('approve withdrawal error:', err);
                 alert('อัปเดตรายการถอนเงินไม่สำเร็จ: ' + (err.message || err));
+            }
+        }
+
+
+        // ================= Marketing Wallet Top-up Requests =================
+        async function loadMarketingWalletTopupRequests() {
+            const table = document.getElementById('marketingWalletTopupRequestsTable');
+            if (!table) return;
+
+            const tbody = table.querySelector('tbody');
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">กำลังโหลด...</td></tr>';
+
+            try {
+                const { data: requests, error } = await supabaseClient
+                    .from('marketing_wallet_topup_requests')
+                    .select('id, vendor_id, amount, slip_url, status, wallet_before, wallet_after, created_at')
+                    .order('created_at', { ascending: false })
+                    .limit(100);
+
+                if (error) throw error;
+
+                const vendorIds = [...new Set((requests || []).map(r => r.vendor_id).filter(Boolean))];
+                const vendorMap = new Map();
+
+                if (vendorIds.length > 0) {
+                    const { data: vendors, error: vError } = await supabaseClient
+                        .from('vendors')
+                        .select('id, name, marketing_wallet')
+                        .in('id', vendorIds);
+
+                    if (vError) throw vError;
+                    (vendors || []).forEach(v => vendorMap.set(v.id, v));
+                }
+
+                if (!requests || requests.length === 0) {
+                    tbody.innerHTML =
+                        '<tr><td colspan="6" style="text-align:center;">ยังไม่มีคำขอเติม Marketing Wallet</td></tr>';
+                    return;
+                }
+
+                let html = '';
+
+                requests.forEach(r => {
+                    const vendor = vendorMap.get(r.vendor_id) || {};
+                    const date = new Date(r.created_at).toLocaleString('th-TH');
+
+                    let status = '';
+                    let action = '';
+
+                    if (r.status === 'pending') {
+                        status = '<span class="badge warning">รอตรวจสอบ</span>';
+                        action = `
+                            <button class="btn btn-success"
+                                onclick="approveMarketingWalletTopup('${r.id}')">
+                                ✅ อนุมัติ
+                            </button>
+                            <button class="btn btn-danger"
+                                onclick="rejectMarketingWalletTopup('${r.id}')"
+                                style="margin-left:4px;">
+                                ❌ ปฏิเสธ
+                            </button>`;
+                    } else if (r.status === 'approved') {
+                        status = '<span class="badge success">อนุมัติแล้ว</span>';
+                        action = `<span style="font-size:11px;color:#666;">
+                            ฿${Number(r.wallet_before || 0).toFixed(2)}
+                            → ฿${Number(r.wallet_after || 0).toFixed(2)}
+                        </span>`;
+                    } else {
+                        status = '<span class="badge" style="background:#fee2e2;color:#b91c1c;">ปฏิเสธ</span>';
+                        action = '-';
+                    }
+
+                    html += `<tr>
+                        <td>${date}</td>
+                        <td><strong>${vendor.name || r.vendor_id}</strong><br>
+                            <span style="font-size:11px;color:#888;">${r.vendor_id}</span>
+                        </td>
+                        <td style="font-weight:bold;color:#e65100;">฿${Number(r.amount || 0).toFixed(2)}</td>
+                        <td>
+                            <a href="${r.slip_url}" target="_blank" rel="noopener">
+                                <img src="${r.slip_url}"
+                                     style="width:70px;height:90px;object-fit:cover;border-radius:6px;border:1px solid #ddd;">
+                            </a>
+                        </td>
+                        <td>${status}</td>
+                        <td>${action}</td>
+                    </tr>`;
+                });
+
+                tbody.innerHTML = html;
+
+            } catch (err) {
+                console.error('loadMarketingWalletTopupRequests error:', err);
+                tbody.innerHTML =
+                    `<tr><td colspan="6" style="text-align:center;color:#b91c1c;">
+                        โหลดคำขอเติม Wallet ไม่สำเร็จ<br>${err.message || err}
+                    </td></tr>`;
+            }
+        }
+
+        async function approveMarketingWalletTopup(id) {
+            if (!confirm('ตรวจสอบสลิปถูกต้องแล้ว และต้องการเพิ่ม Marketing Wallet ให้ร้านนี้ใช่หรือไม่?')) {
+                return;
+            }
+
+            try {
+                const { data, error } = await supabaseClient.rpc(
+                    'admin_approve_marketing_wallet_topup',
+                    {
+                        p_request_id: id,
+                        p_admin_pin: ADMIN_PIN
+                    }
+                );
+
+                if (error) throw error;
+                if (!data || data.success !== true) {
+                    throw new Error('อนุมัติไม่สำเร็จ');
+                }
+
+                alert(
+                    `✅ อนุมัติเรียบร้อย\n` +
+                    `ยอดเดิม ฿${Number(data.wallet_before || 0).toFixed(2)}\n` +
+                    `ยอดใหม่ ฿${Number(data.wallet_after || 0).toFixed(2)}`
+                );
+
+                await loadMarketingWalletTopupRequests();
+                await loadAllVendors();
+
+            } catch (err) {
+                console.error('approveMarketingWalletTopup error:', err);
+                alert('อนุมัติไม่สำเร็จ: ' + (err.message || err));
+            }
+        }
+
+        async function rejectMarketingWalletTopup(id) {
+            if (!confirm('ปฏิเสธคำขอเติม Marketing Wallet รายการนี้ใช่หรือไม่?')) {
+                return;
+            }
+
+            try {
+                const { data, error } = await supabaseClient.rpc(
+                    'admin_reject_marketing_wallet_topup',
+                    {
+                        p_request_id: id,
+                        p_admin_pin: ADMIN_PIN
+                    }
+                );
+
+                if (error) throw error;
+                if (!data || data.success !== true) {
+                    throw new Error('ปฏิเสธไม่สำเร็จ');
+                }
+
+                alert('✅ ปฏิเสธรายการแล้ว');
+                await loadMarketingWalletTopupRequests();
+
+            } catch (err) {
+                console.error('rejectMarketingWalletTopup error:', err);
+                alert('ปฏิเสธไม่สำเร็จ: ' + (err.message || err));
             }
         }
 
