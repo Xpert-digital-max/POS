@@ -98,6 +98,7 @@
         let referralCode = null;
         let referralInfluencer = null;
         let recommendationMap = new Map();
+        let influencerWalletMap = new Map();
 
         // ==================== Haversine Formula ====================
         function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
@@ -232,6 +233,18 @@
 
                 const vendorIds = vendors.map(v => v.id);
 
+                // Rule กลาง: Marketplace ยังเห็นร้านทั้งหมด แต่ referral ใช้ได้เฉพาะ influencer_visible = true
+                const { data: walletRows, error: walletErr } = await supabaseClient
+                    .from('vendor_influencer_wallet_status')
+                    .select('vendor_id, influencer_program_status, influencer_visible, available_balance')
+                    .in('vendor_id', vendorIds);
+                if (walletErr) {
+                    console.warn('Wallet status load failed:', walletErr);
+                    influencerWalletMap = new Map();
+                } else {
+                    influencerWalletMap = new Map((walletRows || []).map(row => [row.vendor_id, row]));
+                }
+
                 // 2. ดึงสาขาที่ Active ภายใต้ร้านค้าเหล่านั้น
                 const { data: branches, error: bErr } = await supabaseClient.from('branches')
                     .select('id, merchant_id, branch_name, latitude, longitude, address, is_active')
@@ -257,7 +270,9 @@
                         address: v.address || '',
                         category: v.food_category || 'ทั่วไป',
                         commissionEnabled: Number(v.influencer_comm_value || 0) > 0,
-                        recommendationRank: recommendationMap.has(v.id) ? recommendationMap.get(v.id) : null
+                        influencerVisible: influencerWalletMap.get(v.id)?.influencer_visible === true,
+                        influencerProgramStatus: influencerWalletMap.get(v.id)?.influencer_program_status || 'disabled',
+                        recommendationRank: influencerWalletMap.get(v.id)?.influencer_visible === true && recommendationMap.has(v.id) ? recommendationMap.get(v.id) : null
                     });
 
                     // สาขาย่อย
@@ -291,8 +306,8 @@
 
                 // 5. ถ้ามาจากลิงก์พาร์ทเนอร์: ร้านแนะนำ 1-10 ขึ้นก่อน แล้วค่อยเรียงร้านอื่นตามระยะทาง
                 combinedStores.sort((a, b) => {
-                    const aRank = a.commissionEnabled ? a.recommendationRank : null;
-                    const bRank = b.commissionEnabled ? b.recommendationRank : null;
+                    const aRank = a.influencerVisible ? a.recommendationRank : null;
+                    const bRank = b.influencerVisible ? b.recommendationRank : null;
 
                     if (aRank !== null && bRank !== null && aRank !== bRank) {
                         return aRank - bRank;
@@ -376,13 +391,13 @@
                 // ถ้าระยะทางไกลกว่า 20km อาจจะหรี่สีป้าย หรือไม่ก็ปล่อยไว้
                 
                 html += `
-                <div class="store-card" onclick="goToStore('${store.vid}', '${store.bid}')">
+                <div class="store-card" onclick="goToStore('${store.vid}', '${store.bid}', ${store.influencerVisible === true})">
                     <img src="${store.image}" class="store-img">
                     <div class="store-info">
                         <div>
                             <h3 class="store-name">
                                 ${store.name}
-                                ${store.commissionEnabled && store.recommendationRank !== null
+                                ${store.influencerVisible && store.recommendationRank !== null
                                     ? `<span class="recommended-badge">⭐ แนะนำ #${store.recommendationRank}</span>`
                                     : ''}
                             </h3>
@@ -410,19 +425,15 @@
             `;
         }
 
-        function goToStore(vid, bid) {
+        function goToStore(vid, bid, influencerVisible) {
             let url = `customer.html?vid=${encodeURIComponent(vid)}`;
-
             if (bid && bid !== 'null') {
                 url += `&bid=${encodeURIComponent(bid)}`;
             }
-
-            // customer.html เดิมยังรับ influencer_uid อยู่
-            // จึง resolve ref_code -> line_uid ที่ Marketplace ก่อน เพื่อไม่ต้องแตะระบบ Order ตอนนี้
-            if (referralInfluencer && referralInfluencer.line_uid) {
+            // ร้าน Pause ยังขายใน Marketplace ได้ แต่ห้ามสร้าง Referral ใหม่
+            if (influencerVisible === true && referralInfluencer && referralInfluencer.line_uid) {
                 url += `&ref=${encodeURIComponent(referralInfluencer.line_uid)}`;
             }
-
             window.location.href = url;
         }
 
