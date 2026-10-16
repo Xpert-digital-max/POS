@@ -158,7 +158,7 @@
             <h2 style="margin-top: 0;">จัดการการถอนเงิน Affiliate</h2>
             <div class="table-container">
                 <table id="withdrawalsTable">
-                    <thead><tr><th>วันที่แจ้ง</th><th>ผู้แนะนำ</th><th>บัญชีรับเงิน</th><th>จำนวนเงิน</th><th>สถานะ</th><th>จัดการ</th></tr></thead>
+                    <thead><tr><th>วันที่แจ้ง</th><th>ประเภท</th><th>ผู้รับเงิน</th><th>บัญชีรับเงิน</th><th>จำนวนเงิน</th><th>สถานะ</th><th>จัดการ</th></tr></thead>
                     <tbody></tbody>
                 </table>
             </div>
@@ -275,137 +275,254 @@
             document.getElementById('reportPeriodText').innerText =
                 `ช่วงรายงาน: ${new Date(startValue + 'T00:00:00').toLocaleDateString('th-TH')} - ${new Date(endValue + 'T00:00:00').toLocaleDateString('th-TH')}`;
 
-            const [resVendors, resBranches, resSlipLogs, resPlans] = await Promise.all([
+            // รายงานตาม "ธุรกรรมจริง" ในช่วงวันที่
+            const [resVendors, resBranches, resPayments] = await Promise.all([
                 supabaseClient.from('vendors').select('*'),
                 supabaseClient.from('branches').select('*').eq('is_active', true),
-                supabaseClient.from('slip_logs')
-                    .select('merchant_id, status, created_at')
+                supabaseClient.from('payment_transactions')
+                    .select('vendor_id, payment_context, amount_expected, amount_in_slip, verification_status, is_duplicate, created_at')
                     .gte('created_at', startISO)
-                    .lt('created_at', endISO),
-                supabaseClient.from('plans').select('*')
+                    .lt('created_at', endISO)
             ]);
 
-            const billingErrors = [resVendors.error, resBranches.error, resSlipLogs.error, resPlans.error].filter(Boolean);
-            if (billingErrors.length) {
-                console.error('Billing load error:', billingErrors);
-                alert('โหลดข้อมูลรายงานไม่สำเร็จ: ' + billingErrors[0].message);
+            const errors = [resVendors.error, resBranches.error, resPayments.error].filter(Boolean);
+            if (errors.length) {
+                console.error('Billing load error:', errors);
+                alert('โหลดรายงานไม่สำเร็จ: ' + errors[0].message);
                 return;
             }
 
             const vendors = resVendors.data || [];
             const branches = resBranches.data || [];
-            const slipLogs = resSlipLogs.data || [];
-            const plans = resPlans.data || [];
+            const payments = resPayments.data || [];
 
-            let totalRevenue = 0;
-            let totalApiCalls = 0; // นับรวม error ด้วยเพราะบางที provider ก็คิดเงิน (แต่ถ้ายึดตามจริง Thunder คิดเฉพาะ 200 OK) เราจะนับเฉพาะ success, duplicate, failed
+            // บริบทที่นับเป็นรายได้ระบบ NPX
+            const revenueContexts = new Set([
+                'SUBSCRIPTION_PAYMENT',
+                'BRANCH_SUBSCRIPTION',
+                'QUOTA_TOPUP'
+            ]);
+
+            // ธุรกรรมจ่ายสำเร็จและไม่ใช่สลิปซ้ำ
+            const successfulRevenuePayments = payments.filter(p =>
+                p.verification_status === 'success' &&
+                p.is_duplicate !== true &&
+                revenueContexts.has(p.payment_context)
+            );
+
+            // รายได้จริงตามช่วงวันที่
+            const totalRevenue = successfulRevenuePayments.reduce((sum, p) => {
+                const amount = Number(p.amount_in_slip ?? p.amount_expected ?? 0);
+                return sum + (Number.isFinite(amount) ? amount : 0);
+            }, 0);
+
+            // ทุกแถวใน payment_transactions = การเรียกตรวจสลิป 1 ครั้งโดยประมาณ
+            const totalApiCalls = payments.length;
+            const totalCost = totalApiCalls * COST_PER_API_CALL;
+            const grossMargin = totalRevenue - totalCost;
+
+            // รายได้จริงต่อร้านในช่วงวันที่
+            const revenueByVendor = new Map();
+            successfulRevenuePayments.forEach(p => {
+                const amount = Number(p.amount_in_slip ?? p.amount_expected ?? 0) || 0;
+                revenueByVendor.set(
+                    p.vendor_id,
+                    (revenueByVendor.get(p.vendor_id) || 0) + amount
+                );
+            });
+
+            // จำนวนการตรวจสลิปต่อร้านในช่วงวันที่
+            const usageByVendor = new Map();
+            payments.forEach(p => {
+                usageByVendor.set(
+                    p.vendor_id,
+                    (usageByVendor.get(p.vendor_id) || 0) + 1
+                );
+            });
+
             let html = '';
 
             vendors.forEach(v => {
-                // หาจำนวนสาขา
-                const vendorBranches = branches.filter(b => b.merchant_id === v.id).length + 1; // +1 คือสาขาหลัก
-                
-                // หายอดการตรวจสลิป (ไม่นับ error)
-                const vendorSlips = slipLogs.filter(s => s.merchant_id === v.id && s.status !== 'error').length;
-                totalApiCalls += vendorSlips;
+                const planObj =
+                    (Array.isArray(CONFIG.pricingPlans) ? CONFIG.pricingPlans : [])
+                        .find(p => String(p.id) === String(v.subscription_plan));
 
-                // หา Plan Info
-                let planObj = plans.find(p => p.plan_id === v.subscription_plan);
-                if (!planObj) {
-                    const confPlan = CONFIG.pricingPlans.find(p => p.id === v.subscription_plan);
-                    if (confPlan) planObj = { plan_name: confPlan.name, monthly_price: confPlan.price, included_branches: 1, included_slips: confPlan.quota || 0, extra_branch_price: 300, extra_slip_unit: 100, extra_slip_price: 100 };
-                    else planObj = { plan_name: 'ทดลองใช้/ฟรี', monthly_price: 0, included_branches: 1, included_slips: 0, extra_branch_price: 0, extra_slip_unit: 1, extra_slip_price: 0 };
-                }
+                const planName = planObj ? planObj.name : (v.subscription_plan || 'ทดลองใช้ฟรี');
 
-                // คำนวณรายได้ (Revenue)
-                let extraBranchCount = Math.max(0, vendorBranches - planObj.included_branches);
-                let extraBranchCost = extraBranchCount * planObj.extra_branch_price;
+                const vendorBranches =
+                    1 + branches.filter(b => String(b.vendor_id) === String(v.id)).length;
 
-                let extraSlipCount = Math.max(0, vendorSlips - planObj.included_slips);
-                let extraSlipCost = Math.ceil(extraSlipCount / planObj.extra_slip_unit) * planObj.extra_slip_price;
+                const includedBranches = planObj?.type === 'restaurant' ? 1 : 1;
+                const vendorUsage = usageByVendor.get(v.id) || 0;
+                const quota = Number(v.slip_quota || 0);
+                const actualRevenue = revenueByVendor.get(v.id) || 0;
 
-                let estRevenue = parseFloat(planObj.monthly_price) + extraBranchCost + extraSlipCost;
-                totalRevenue += estRevenue;
-
-                // วิเคราะห์ AI (Insights) แนะนำการอัปเกรด
                 let insightBadge = '<span class="badge success">ปกติ</span>';
-                if (vendorSlips >= planObj.included_slips && planObj.included_slips > 0) {
-                    insightBadge = '<span class="badge danger">เกิน Quota สลิป (ควร Upsell)</span>';
-                } else if (vendorSlips >= planObj.included_slips * 0.8 && planObj.included_slips > 0) {
+
+                if (quota > 0 && vendorUsage >= quota * 0.8) {
                     insightBadge = '<span class="badge warning">สลิปใกล้หมด (80%)</span>';
                 }
-                if (extraBranchCount > 0) {
-                    insightBadge += '<br><span class="badge warning" style="margin-top:4px; display:inline-block;">เปิดสาขาเกิน (เก็บเงินเพิ่ม)</span>';
+
+                if (vendorBranches > includedBranches) {
+                    insightBadge += '<br><span class="badge warning" style="margin-top:4px; display:inline-block;">มีสาขาเพิ่ม</span>';
                 }
 
                 html += `<tr>
-                    <td><strong>${v.name}</strong><br><span style="font-size:11px; color:#888;">โทร: ${v.phone || '-'}</span></td>
-                    <td>${planObj.plan_name}</td>
-                    <td>${vendorBranches} / ${planObj.included_branches}</td>
-                    <td>${vendorSlips} / ${planObj.included_slips}</td>
-                    <td style="color:#0d47a1; font-weight:bold;">฿${estRevenue.toLocaleString()}</td>
+                    <td>
+                        <strong>${v.name}</strong><br>
+                        <span style="font-size:11px; color:#888;">โทร: ${v.phone || '-'}</span>
+                    </td>
+                    <td>${planName}</td>
+                    <td>${vendorBranches}</td>
+                    <td>${vendorUsage} / ${quota}</td>
+                    <td style="color:#0d47a1; font-weight:bold;">฿${actualRevenue.toLocaleString()}</td>
                     <td>${insightBadge}</td>
                 </tr>`;
             });
 
-            document.getElementById('billingTable').querySelector('tbody').innerHTML = html;
+            document.getElementById('billingTable').querySelector('tbody').innerHTML =
+                html || '<tr><td colspan="6" style="text-align:center;">ไม่มีข้อมูลในช่วงวันที่ที่เลือก</td></tr>';
 
-            // สรุปยอดรวม
-            const totalCost = totalApiCalls * COST_PER_API_CALL;
-            const grossMargin = totalRevenue - totalCost;
+            document.getElementById('statTotalVendors').innerText =
+                vendors.filter(v => v.is_subscription_active === true).length;
 
-            document.getElementById('statTotalVendors').innerText = vendors.length;
-            document.getElementById('statTotalBranches').innerText = branches.length + vendors.length;
-            document.getElementById('statRevenue').innerText = `฿${totalRevenue.toLocaleString()}`;
-            document.getElementById('statCost').innerText = `฿${totalCost.toLocaleString()}`;
-            document.getElementById('statMargin').innerText = `฿${grossMargin.toLocaleString()}`;
+            document.getElementById('statTotalBranches').innerText =
+                branches.length + vendors.length;
+
+            document.getElementById('statRevenue').innerText =
+                `฿${totalRevenue.toLocaleString()}`;
+
+            document.getElementById('statCost').innerText =
+                `฿${totalCost.toLocaleString()}`;
+
+            document.getElementById('statMargin').innerText =
+                `฿${grossMargin.toLocaleString()}`;
         }
 
-        // ================= 2. จัดการถอนเงิน Influencer =================
+        // ================= 2. จัดการถอนเงิน: Affiliate ร้านค้า + Influencer =================
         async function loadWithdrawals() {
             const tbody = document.getElementById('withdrawalsTable').querySelector('tbody');
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">กำลังโหลด...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">กำลังโหลด...</td></tr>';
 
             try {
-                const { data: withdrawals, error: wError } = await supabaseClient
+                // 1) ระบบ Affiliate ร้านค้าเดิม
+                const legacyReq = supabaseClient
+                    .from('withdrawals')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                // 2) ระบบ Influencer ใหม่
+                const influencerReq = supabaseClient
                     .from('influencer_withdrawals')
                     .select('*')
                     .order('created_at', { ascending: false });
 
-                if (wError) throw wError;
+                const [legacyRes, influencerRes] = await Promise.all([
+                    legacyReq,
+                    influencerReq
+                ]);
 
-                const uidList = [...new Set((withdrawals || []).map(w => w.influencer_uid).filter(Boolean))];
-                const influencerMap = new Map();
-
-                if (uidList.length > 0) {
-                    const { data: influencers, error: iError } = await supabaseClient
-                        .from('influencers')
-                        .select('line_uid, display_name, phone, bank_info')
-                        .in('line_uid', uidList);
-
-                    if (iError) throw iError;
-                    (influencers || []).forEach(i => influencerMap.set(i.line_uid, i));
+                // ไม่ซ่อน Error อีกต่อไป
+                if (legacyRes.error) {
+                    console.error('withdrawals table error:', legacyRes.error);
+                }
+                if (influencerRes.error) {
+                    console.error('influencer_withdrawals table error:', influencerRes.error);
                 }
 
-                if (!withdrawals || withdrawals.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">ยังไม่มีรายการขอถอนเงินจากผู้แนะนำ</td></tr>';
+                const legacyRows = legacyRes.error ? [] : (legacyRes.data || []);
+                const influencerRows = influencerRes.error ? [] : (influencerRes.data || []);
+
+                // โหลดชื่อ Influencer
+                const influencerUids = [...new Set(
+                    influencerRows.map(w => w.influencer_uid).filter(Boolean)
+                )];
+
+                const influencerMap = new Map();
+
+                if (influencerUids.length > 0) {
+                    const { data: influencers, error: influencerInfoError } =
+                        await supabaseClient
+                            .from('influencers')
+                            .select('line_uid, display_name, phone, bank_info')
+                            .in('line_uid', influencerUids);
+
+                    if (influencerInfoError) {
+                        console.error('influencer info error:', influencerInfoError);
+                    } else {
+                        (influencers || []).forEach(i =>
+                            influencerMap.set(i.line_uid, i)
+                        );
+                    }
+                }
+
+                const combined = [];
+
+                legacyRows.forEach(w => {
+                    combined.push({
+                        source: 'vendor_affiliate',
+                        id: w.id,
+                        created_at: w.created_at,
+                        receiver_name: w.store_name || w.vendor_name || 'ร้านค้า Affiliate',
+                        receiver_account: w.promptpay || w.bank_info || '-',
+                        amount: Number(w.amount || 0),
+                        status: w.status || 'pending',
+                        raw: w
+                    });
+                });
+
+                influencerRows.forEach(w => {
+                    const influencer = influencerMap.get(w.influencer_uid) || {};
+                    combined.push({
+                        source: 'influencer',
+                        id: w.id,
+                        created_at: w.created_at,
+                        receiver_name: influencer.display_name || w.influencer_uid || 'Influencer',
+                        receiver_account: w.bank_info || influencer.bank_info || '-',
+                        amount: Number(w.amount || 0),
+                        status: w.status || 'pending',
+                        raw: w
+                    });
+                });
+
+                combined.sort((a, b) =>
+                    new Date(b.created_at || 0) - new Date(a.created_at || 0)
+                );
+
+                if (combined.length === 0) {
+                    let msg = 'ยังไม่มีรายการขอถอนเงิน';
+                    if (legacyRes.error || influencerRes.error) {
+                        msg += '<br><span style="font-size:11px;color:#b91c1c;">มีบางตารางที่โหลดไม่สำเร็จ กรุณาดู Console</span>';
+                    }
+                    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">${msg}</td></tr>`;
                     return;
                 }
 
                 let html = '';
-                withdrawals.forEach(w => {
-                    const influencer = influencerMap.get(w.influencer_uid) || {};
-                    const date = new Date(w.created_at).toLocaleString('th-TH');
-                    const displayName = influencer.display_name || w.influencer_uid || '-';
-                    const bankInfo = w.bank_info || influencer.bank_info || '-';
+
+                combined.forEach(w => {
+                    const date = w.created_at
+                        ? new Date(w.created_at).toLocaleString('th-TH')
+                        : '-';
+
+                    const typeText = w.source === 'vendor_affiliate'
+                        ? '🏪 Affiliate ร้านค้า'
+                        : '🚀 Influencer';
 
                     let statusBadge = '';
                     let actionBtn = '';
 
                     if (w.status === 'pending') {
                         statusBadge = '<span class="badge warning">รอโอน</span>';
-                        actionBtn = `<button class="btn btn-success" onclick="approveInfluencerWithdrawal('${w.id}')">✔️ โอนแล้ว</button>`;
-                    } else if (w.status === 'completed' || w.status === 'paid') {
+                        actionBtn = `<button class="btn btn-success"
+                            onclick="approveAnyWithdrawal('${w.source}','${w.id}')">
+                            ✔️ โอนแล้ว
+                        </button>`;
+                    } else if (
+                        w.status === 'completed' ||
+                        w.status === 'paid' ||
+                        w.status === 'approved'
+                    ) {
                         statusBadge = '<span class="badge success">จ่ายแล้ว</span>';
                         actionBtn = '<span style="color:#888; font-size:12px;">✅ เรียบร้อย</span>';
                     } else {
@@ -415,9 +532,10 @@
 
                     html += `<tr>
                         <td>${date}</td>
-                        <td><strong>${displayName}</strong><br><span style="font-size:11px;color:#888;">${w.influencer_uid || ''}</span></td>
-                        <td style="white-space:pre-wrap;">${bankInfo}</td>
-                        <td style="font-weight:bold; color:#0f766e;">฿${Number(w.amount || 0).toLocaleString()}</td>
+                        <td>${typeText}</td>
+                        <td><strong>${w.receiver_name}</strong></td>
+                        <td style="white-space:pre-wrap;">${w.receiver_account}</td>
+                        <td style="font-weight:bold;color:#0f766e;">฿${w.amount.toLocaleString()}</td>
                         <td>${statusBadge}</td>
                         <td>${actionBtn}</td>
                     </tr>`;
@@ -426,19 +544,29 @@
                 tbody.innerHTML = html;
 
             } catch (err) {
-                console.error('loadWithdrawals error:', err);
-                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#b91c1c;">
-                    โหลดรายการถอนเงินไม่สำเร็จ<br><span style="font-size:11px;">${err.message || err}</span>
-                </td></tr>`;
+                console.error('loadWithdrawals fatal error:', err);
+                tbody.innerHTML = `<tr>
+                    <td colspan="7" style="text-align:center;color:#b91c1c;">
+                        โหลดรายการถอนเงินไม่สำเร็จ<br>
+                        <span style="font-size:11px;">${err.message || err}</span>
+                    </td>
+                </tr>`;
             }
         }
 
-        async function approveInfluencerWithdrawal(id) {
-            if (!confirm('ยืนยันว่าคุณโอนเงินให้ผู้แนะนำเรียบร้อยแล้วใช่หรือไม่?')) return;
+        async function approveAnyWithdrawal(source, id) {
+            if (!confirm('ยืนยันว่าคุณโอนเงินให้ผู้รับเรียบร้อยแล้วใช่หรือไม่?')) {
+                return;
+            }
 
             try {
+                const tableName =
+                    source === 'vendor_affiliate'
+                        ? 'withdrawals'
+                        : 'influencer_withdrawals';
+
                 const { error } = await supabaseClient
-                    .from('influencer_withdrawals')
+                    .from(tableName)
                     .update({ status: 'completed' })
                     .eq('id', id);
 
@@ -448,7 +576,7 @@
                 await loadWithdrawals();
 
             } catch (err) {
-                console.error('approveInfluencerWithdrawal error:', err);
+                console.error('approve withdrawal error:', err);
                 alert('อัปเดตรายการถอนเงินไม่สำเร็จ: ' + (err.message || err));
             }
         }
