@@ -486,18 +486,7 @@
                 let ticketHeaderStyle = allItemsDone ? 'background: #e8f5e9; border-bottom: 1px dashed #06C755;' : 'border-bottom: 1px dashed #ccc;';
                 const safeOrderData = encodeURIComponent(JSON.stringify(order));
                 
-                let btnText = '✅ เสิร์ฟแล้ว';
-
-                if (order.source === 'prepaid') {
-                    if (
-                        order.unified_status === 'new' ||
-                        order.unified_status === 'pending'
-                    ) {
-                        btnText = '👨‍🍳 รับออเดอร์';
-                    } else {
-                        btnText = '🏁 อาหารเสร็จแล้ว';
-                    }
-                }
+                let btnText = order.source === 'dine_in' ? '✅ เสิร์ฟแล้ว' : '✅ ส่งมอบแล้ว';
 
                 html += `
                 <div class="ticket" style="${allItemsDone ? 'border-left: 5px solid #06C755; background: #fafffa;' : ''}">
@@ -515,189 +504,29 @@
                     <div class="ticket-actions">
                         <button class="ticket-btn btn-print" onclick="printKitchenTicket('${safeOrderData}', false)">🖨 พิมพ์</button>
                         <button class="ticket-btn btn-cancel" onclick="cancelOrder('${order.id}', '${safeOrderData}', '${order.source}')">❌ ยกเลิก</button>
-                        <button class="ticket-btn btn-accept" onclick="advanceOrderStatus('${order.id}', '${order.source}', this)" style="${allItemsDone ? 'box-shadow: 0 0 10px rgba(6,199,85,0.5);' : ''}">${btnText}</button>
+                        <button class="ticket-btn btn-accept" onclick="markOrderServed('${order.id}', '${order.source}')" style="${allItemsDone ? 'box-shadow: 0 0 10px rgba(6,199,85,0.5);' : ''}">${btnText}</button>
                     </div>
                 </div>`;
             });
             container.innerHTML = html;
         }
 
-        async function notifyTakeawayCustomer(order, newStatus) {
-            if (!order || order.source !== 'prepaid') return;
-            if (!order.customer_uid) return;
-            if (!['processing', 'completed'].includes(newStatus)) return;
-            if (!CONFIG.gasWebhookUrl) {
-                console.warn('[CUSTOMER NOTIFY] ไม่พบ CONFIG.gasWebhookUrl');
-                return;
-            }
-
+        async function markOrderServed(orderId, source) {
             try {
-                const response = await fetch(CONFIG.gasWebhookUrl, {
-                    method: 'POST',
-                    redirect: 'follow',
-                    headers: {
-                        "Content-Type": "text/plain;charset=utf-8"
-                    },
-                    body: JSON.stringify({
-                        action: 'notify_customer',
-                        vendor_id: VENDOR_ID,
-                        uid: order.customer_uid,
-                        order_status: newStatus,
-                        store_name: order.store_name || "ร้านอาหาร",
-                        order_ref: order.reference_no || order.id || '-',
-                        queue_num: order.queue_no || '-'
-                    })
-                });
-
-                const responseText =
-                    await response.text();
-
-                console.log(
-                    `[CUSTOMER NOTIFY] ${newStatus}:`,
-                    responseText
-                );
-
-            } catch (err) {
-                // LINE ส่งไม่สำเร็จ ไม่ควรทำให้สถานะออเดอร์ย้อนกลับ
-                console.error(
-                    '[CUSTOMER NOTIFY ERROR]',
-                    err
-                );
-            }
-        }
-
-        async function advanceOrderStatus(orderId, source, btnElement) {
-            try {
-                if (btnElement) {
-                    btnElement.disabled = true;
-                    btnElement.innerText = '⏳ กำลังอัปเดต...';
-                }
-
                 if (source === 'dine_in') {
-                    const { data: statusResult, error: statusRpcError } =
-                        await supabaseClient.rpc('update_table_order_status', {
-                            p_order_id: orderId,
-                            p_new_status: 'served'
-                        });
-
-                    if (statusRpcError) throw statusRpcError;
-                    if (!statusResult || statusResult.success !== true) {
-                        throw new Error(statusResult?.message || 'อัปเดตสถานะ Dine-in ไม่สำเร็จ');
-                    }
-
-                    await fetchData();
-                    return;
-                }
-
-                // Takeaway / Prepaid
-                const order =
-                    newOrders.find(
-                        o => o.id === orderId
-                    );
-
-                if (!order) {
-                    throw new Error(
-                        'ไม่พบออเดอร์นี้ในหน้าจอแคชเชียร์'
-                    );
-                }
-
-                const currentStatus =
-                    order.status ||
-                    order.unified_status ||
-                    'pending';
-
-                const nextStatus =
-                    (
-                        currentStatus === 'pending' ||
-                        currentStatus === 'new'
-                    )
-                        ? 'processing'
-                        : 'completed';
-
-                // อัปเดตเฉพาะถ้าสถานะเดิมยังตรงกับที่หน้าจอเห็น
-                // ช่วยลดโอกาสกดซ้ำจากหลายอุปกรณ์
-                let query =
-                    supabaseClient
-                        .from('orders')
-                        .update({
-                            status: nextStatus
-                        })
-                        .eq('id', orderId);
-
-                if (
-                    currentStatus === 'pending' ||
-                    currentStatus === 'processing' ||
-                    currentStatus === 'ready'
-                ) {
-                    query =
-                        query.eq(
-                            'status',
-                            currentStatus
-                        );
-                }
-
-                const { data, error } =
-                    await query.select(
-                        'id, customer_uid, reference_no, queue_no, status'
-                    );
-
-                if (error) throw error;
-
-                if (
-                    data &&
-                    data.length > 0
-                ) {
-                    const updatedOrder = {
-                        ...order,
-                        ...data[0],
-                        source: 'prepaid'
-                    };
-
-                    await notifyTakeawayCustomer(
-                        updatedOrder,
-                        nextStatus
-                    );
+                    await supabaseClient.from('table_orders').update({ order_status: 'served' }).eq('id', orderId);
                 } else {
-                    console.warn(
-                        '[ORDER STATUS] ไม่มีรายการถูกอัปเดต อาจถูกเปลี่ยนสถานะจากอุปกรณ์อื่นแล้ว',
-                        orderId
-                    );
+                    await supabaseClient.from('orders').update({ status: 'completed' }).eq('id', orderId);
                 }
-
-                await fetchData();
-
-            } catch (err) {
-                console.error(
-                    '[ADVANCE ORDER STATUS ERROR]',
-                    err
-                );
-
-                alert(
-                    "อัปเดตไม่สำเร็จ กรุณาลองใหม่\n" +
-                    (err?.message || err)
-                );
-
-                if (btnElement) {
-                    btnElement.disabled = false;
-                }
-
                 fetchData();
-            }
+            } catch (err) { alert("อัปเดตไม่สำเร็จ กรุณาลองใหม่"); console.error(err); }
         }
 
         async function cancelOrder(orderId, encodedOrder, source) {
             if(!confirm("ต้องการยกเลิกออเดอร์นี้ใช่หรือไม่? (ยอดเงินจะไม่ถูกนำไปรวมในบิล)")) return;
             try {
                 if (source === 'dine_in') {
-                    const { data: cancelResult, error: cancelRpcError } =
-                        await supabaseClient.rpc('cancel_table_order', {
-                            p_order_id: orderId
-                        });
-
-                    if (cancelRpcError) throw cancelRpcError;
-                    if (!cancelResult || cancelResult.success !== true) {
-                        throw new Error(cancelResult?.message || 'ยกเลิกออเดอร์ไม่สำเร็จ');
-                    }
+                    await supabaseClient.from('table_orders').update({ order_status: 'cancelled' }).eq('id', orderId);
                 } else {
                     await supabaseClient.from('orders').update({ status: 'cancelled' }).eq('id', orderId);
                 }
@@ -843,8 +672,8 @@
             html += `</div>`;
 
             html += `<div style="display: flex; gap: 10px; margin-top: 5px; padding-top: 15px; border-top: 1px dashed #ddd;">
-                        <button onclick="forceCloseTable('cash')" class="btn-large" style="background: #06C755; color: white; font-size: 14px;">💵 รับเงินสด (ปิดโต๊ะ)</button>
-                        <button onclick="forceCloseTable('transfer')" class="btn-large" style="background: #00BCD4; color: white; font-size: 14px;">📲 ยืนยันเงินโอนแบบ Manual</button>
+                        <button onclick="forceCloseTable('paid_cash', ${totalAmt})" class="btn-large" style="background: #06C755; color: white; font-size: 14px;">💵 รับเงินสด (ปิดโต๊ะ)</button>
+                        <button onclick="forceCloseTable('paid_transfer', ${totalAmt})" class="btn-large" style="background: #00BCD4; color: white; font-size: 14px;">📲 รับเงินโอน (ปิดโต๊ะ)</button>
                      </div>`;
             html += `</div>`;
 
@@ -868,56 +697,38 @@
             fetchData();
         }
 
-        async function forceCloseTable(method) {
-            if (!currentViewingSession) return;
-
-            const methodText = method === 'cash' ? 'เงินสด' : 'เงินโอน';
-
-            // เงินโอนปกติจะถูกปิดโต๊ะโดย Edge Function หลังตรวจสลิปผ่าน
-            // ปุ่มนี้อนุญาตเฉพาะ Manual Review เท่านั้น
-            if (method === 'transfer' && currentViewingSession.payment_status !== 'pending_review') {
-                return alert("การชำระเงินโอนต้องให้ลูกค้าแนบสลิปและผ่านการตรวจอัตโนมัติก่อน\nหากระบบตรวจไม่ได้ จึงค่อยใช้ Manual Review");
-            }
-
-            const amount = Number(currentViewingSession.bill_amount || 0);
+        async function forceCloseTable(method, amount) {
+            const methodText = method === 'paid_cash' ? 'เงินสด' : 'เงินโอน';
             if(!confirm(`ยืนยันการรับเงิน ${methodText} ยอด ${amount} บาท และต้องการ [ปิดโต๊ะ] ใช่หรือไม่?`)) return;
-
-            const { data: closeResult, error: closeRpcError } =
-                await supabaseClient.rpc('close_table_session', {
-                    p_session_id: currentViewingSession.id,
-                    p_payment_method: method
-                });
-
-            if (closeRpcError) {
-                alert("ปิดโต๊ะไม่สำเร็จ: " + closeRpcError.message);
-                return;
-            }
-
-            if (!closeResult || closeResult.success !== true) {
-                alert("ปิดโต๊ะไม่สำเร็จ: " + (closeResult?.message || "Unknown error"));
-                return;
-            }
-
-            closeTableModal();
+            
+            await supabaseClient.from('table_sessions').update({ 
+                session_status: 'closed', 
+                payment_status: method, 
+                payment_method: method === 'paid_cash' ? 'cash' : 'transfer',
+                bill_amount: amount,
+                closed_at: new Date().toISOString()
+            }).eq('id', currentViewingSession.id);
+            
+            closeTableModal(); 
             fetchData();
         }
 
         async function openNewTableAndPrintQR() {
             if(!confirm(`ต้องการเปิดโต๊ะ ${currentViewingTable.table_name} และพิมพ์ QR Code ใช่หรือไม่?`)) return;
-
+            
             try {
-                const { data: sessionResult, error: sessionRpcError } =
-                    await supabaseClient.rpc('open_or_get_table_session', {
-                        p_table_token: currentViewingTable.table_token
-                    });
-
-                if (sessionRpcError) throw sessionRpcError;
-                if (!sessionResult || sessionResult.success !== true) {
-                    throw new Error(sessionResult?.message || "ไม่สามารถเปิดโต๊ะได้");
-                }
-
+                const { data: newSess, error: createError } = await supabaseClient.from('table_sessions').insert([{ 
+                    vendor_id: VENDOR_ID, 
+                    branch_id: currentViewingTable.branch_id, 
+                    table_id: currentViewingTable.id, 
+                    session_status: 'open', 
+                    payment_status: 'unpaid' 
+                }]).select().single();
+                
+                if (createError) throw createError;
+                
                 printTableQRCode(currentViewingTable);
-
+                
                 closeTableModal();
                 fetchData();
             } catch(e) {
