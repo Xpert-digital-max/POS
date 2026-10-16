@@ -56,6 +56,20 @@
         .add-recommend-btn { border:none; border-radius:8px; padding:8px 10px; background:#06C755; color:#fff; font-weight:bold; cursor:pointer; font-size:12px; }
         .add-recommend-btn:disabled { background:#ccc; cursor:not-allowed; }
 
+    
+        /* Income history */
+        .income-card { background:#fff; padding:18px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.05); margin-bottom:20px; }
+        .income-summary { display:flex; gap:10px; margin:12px 0 16px; }
+        .income-summary-box { flex:1; background:#fff8e1; border:1px solid #ffe0b2; border-radius:10px; padding:10px; text-align:center; }
+        .income-summary-label { font-size:11px; color:#777; }
+        .income-summary-value { margin-top:4px; font-size:18px; font-weight:bold; color:#e65100; }
+        .income-row { display:flex; justify-content:space-between; gap:12px; padding:12px 0; border-bottom:1px solid #eee; }
+        .income-row:last-child { border-bottom:none; }
+        .income-main { min-width:0; flex:1; }
+        .income-store { font-weight:bold; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .income-meta { margin-top:4px; font-size:11px; color:#888; line-height:1.5; }
+        .income-amount { white-space:nowrap; font-size:16px; font-weight:bold; color:#06C755; }
+
     </style>
 </head>
 <body>
@@ -105,6 +119,17 @@
                     <h1>฿<span id="walletBalance">0.00</span></h1>
                     <button onclick="openWithdrawModal()" style="background: #e65100; color: white; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 13px;">💸 แจ้งถอนเงิน</button>
                 </div>
+            </div>
+
+            <!-- ประวัติรายได้ค่าคอม -->
+            <div class="income-card">
+                <h3 style="margin:0;">💰 รายได้ค่าคอมของฉัน</h3>
+                <p style="font-size:12px;color:#666;line-height:1.6;margin:8px 0 0;">แสดงเฉพาะออเดอร์ที่ร้านทำรายการเสร็จและจ่ายค่าคอมเข้ากระเป๋าแล้ว</p>
+                <div class="income-summary">
+                    <div class="income-summary-box"><div class="income-summary-label">รายได้ทั้งหมด</div><div class="income-summary-value">฿<span id="incomeTotalPaid">0.00</span></div></div>
+                    <div class="income-summary-box"><div class="income-summary-label">จำนวนออเดอร์</div><div class="income-summary-value"><span id="incomeOrderCount">0</span></div></div>
+                </div>
+                <div id="incomeHistoryList"><div style="text-align:center;color:#999;padding:15px;">กำลังโหลดประวัติรายได้...</div></div>
             </div>
 
             <!-- ลิงก์กลางของพาร์ทเนอร์ -->
@@ -206,21 +231,35 @@
 
         async function initApp() {
             targetVendorId = getUrlParameter('vid');
-            
             try {
-                // Initialize LIFF
-                await liff.init({ liffId: CONFIG.liffIdCustomer || CONFIG.liffIdDashboard }); // ใช้ LIFF ID ตัวไหนก็ได้ที่มี
+                const partnerLiffId = (CONFIG.liffIdDashboard || CONFIG.liffIdInfluencer || CONFIG.liffIdCustomer || '').trim();
+                if (!partnerLiffId) throw new Error("ยังไม่ได้ตั้งค่า LIFF ID สำหรับ Partner Dashboard");
+
+                await liff.init({ liffId: partnerLiffId });
+
                 if (!liff.isLoggedIn()) {
-                    liff.login({ redirectUri: window.location.href });
+                    const cleanUrl = window.location.origin + window.location.pathname + (targetVendorId ? `?vid=${encodeURIComponent(targetVendorId)}` : '');
+                    const guardKey = 'npx_partner_login_redirecting';
+                    if (sessionStorage.getItem(guardKey) === '1') {
+                        sessionStorage.removeItem(guardKey);
+                        throw new Error("LINE Login ยังไม่สำเร็จ กรุณาปิดหน้านี้แล้วเปิดจาก LINE อีกครั้ง");
+                    }
+                    sessionStorage.setItem(guardKey, '1');
+                    liff.login({ redirectUri: cleanUrl });
                     return;
                 }
-                
-                userLineProfile = await liff.getProfile();
+
+                sessionStorage.removeItem('npx_partner_login_redirecting');
+                const decoded = liff.getDecodedIDToken();
+                if (decoded && decoded.sub) {
+                    userLineProfile = { userId: decoded.sub, displayName: decoded.name || '', pictureUrl: decoded.picture || '' };
+                } else {
+                    userLineProfile = await liff.getProfile();
+                }
                 await checkInfluencerStatus();
-                
             } catch (err) {
-                console.error("LIFF Init Error:", err);
-                document.getElementById('loadingState').innerHTML = `<p style="color:red;">เกิดข้อผิดพลาดในการโหลดระบบ LINE<br>${err.message}</p>`;
+                console.error("Partner LIFF Init Error:", err);
+                document.getElementById('loadingState').innerHTML = `<p style="color:red;line-height:1.6;">เกิดข้อผิดพลาดในการเปิดศูนย์พาร์ทเนอร์<br>${String(err.message || err)}</p>`;
             }
         }
 
@@ -310,7 +349,7 @@
             const universalLink = `${basePath}/marketplace.html?ref=${encodeURIComponent(refCode)}`;
             document.getElementById('universalAffiliateLink').value = universalLink;
 
-            await loadRecommendationManager();
+            await Promise.all([loadIncomeHistory(), loadRecommendationManager()]);
 
             if (targetVendorId) {
                 try {
@@ -340,6 +379,44 @@
                 } catch (err) {
                     console.error("Error fetching target vendor:", err);
                 }
+            }
+        }
+
+        async function loadIncomeHistory() {
+            const listEl = document.getElementById('incomeHistoryList');
+            const totalEl = document.getElementById('incomeTotalPaid');
+            const countEl = document.getElementById('incomeOrderCount');
+            if (!listEl || !influencerData || !influencerData.line_uid) return;
+            try {
+                const { data: orders, error } = await supabaseClient
+                    .from('orders')
+                    .select('reference_no, vendor_id, total_price, influencer_commission, is_commission_paid, status, created_at')
+                    .eq('influencer_uid', influencerData.line_uid)
+                    .eq('is_commission_paid', true)
+                    .order('created_at', { ascending: false })
+                    .limit(30);
+                if (error) throw error;
+                const rows = orders || [];
+                totalEl.innerText = rows.reduce((s,r)=>s+Number(r.influencer_commission||0),0).toFixed(2);
+                countEl.innerText = String(rows.length);
+                if (!rows.length) {
+                    listEl.innerHTML = '<div style="text-align:center;color:#999;padding:18px;">ยังไม่มีรายได้ค่าคอมที่จ่ายแล้ว</div>';
+                    return;
+                }
+                const vendorIds=[...new Set(rows.map(r=>r.vendor_id).filter(Boolean))];
+                let vendorMap=new Map();
+                if(vendorIds.length){
+                    const {data:vendors,error:vendorErr}=await supabaseClient.from('vendors').select('id, name').in('id',vendorIds);
+                    if(!vendorErr&&vendors) vendorMap=new Map(vendors.map(v=>[v.id,v.name]));
+                }
+                listEl.innerHTML=rows.map(row=>{
+                    const storeName=vendorMap.get(row.vendor_id)||row.vendor_id||'ร้านค้า';
+                    const dt=row.created_at?new Date(row.created_at).toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'}):'-';
+                    return `<div class="income-row"><div class="income-main"><div class="income-store">${escapeHtml(storeName)}</div><div class="income-meta">ออเดอร์ ${escapeHtml(row.reference_no||'-')}<br>ยอดบิล ฿${Number(row.total_price||0).toFixed(2)} · ${escapeHtml(dt)}</div></div><div class="income-amount">+฿${Number(row.influencer_commission||0).toFixed(2)}</div></div>`;
+                }).join('');
+            } catch(err) {
+                console.error('Load income history failed:',err);
+                listEl.innerHTML='<div style="text-align:center;color:#d32f2f;padding:15px;">โหลดประวัติรายได้ไม่สำเร็จ</div>';
             }
         }
 
