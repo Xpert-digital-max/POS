@@ -3703,23 +3703,302 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
         
         // ==================== ระบบเติมเงินการตลาด ====================
         function openTopupModal() {
-            // ในเฟสแรก ใช้เป็น Alert แจ้งช่องทางโอนเงินให้ติดต่อแอดมิน
-            // คุณสามารถเปลี่ยน Link LINE ด้านล่างเป็นลิงก์ LINE OA ของคุณได้เลยครับ
-            const lineOaLink = "https://line.me/R/ti/p/@143iruhg"; // <-- เปลี่ยนเป็นลิงก์ LINE OA ของคุณ
-            
-            const msg = "📥 การเติมเงินค่าการตลาด (พาร์ทเนอร์)\n\n" +
-                        "เพื่อความปลอดภัย กรุณาเติมเงินผ่าน LINE แอดมินครับ\n" +
-                        "1. โอนเงินเข้าบัญชี: กสิกรไทย 148-1-65097-2 (ชื่อบัญชี NPX Digital)\n" +
-                        "2. ส่งสลิปให้แอดมินทาง LINE\n\n" +
-                        "แอดมินจะปรับยอดเครดิตให้คุณทันทีครับ!";
-            
-            if(confirm(msg + "\n\nกด 'ตกลง' เพื่อไปที่แชท LINE แอดมิน")) {
-                window.location.href = lineOaLink;
+            if (!vendorData) {
+                alert('ไม่พบข้อมูลร้านค้า');
+                return;
+            }
+
+            const activated = !!vendorData.influencer_program_activated_at;
+            const minimum = activated ? 10 : 100;
+
+            const modal = document.getElementById('marketingWalletTopupModal');
+            const amountInput = document.getElementById('marketingWalletTopupAmount');
+
+            document.getElementById('walletTopupMinimumText').innerText =
+                activated
+                    ? 'เติมครั้งต่อไปขั้นต่ำ 10 บาท'
+                    : 'เติมครั้งแรกขั้นต่ำ 100 บาท เพื่อเปิดระบบพาร์ทเนอร์';
+
+            amountInput.min = minimum;
+            amountInput.value = minimum;
+
+            document.getElementById('marketingWalletSlipArea').style.display = 'none';
+            document.getElementById('marketingWalletSlipImage').value = '';
+            document.getElementById('marketingWalletSlipPreviewWrap').style.display = 'none';
+
+            modal.style.display = 'flex';
+            refreshMarketingWalletPayment();
+        }
+
+        function closeMarketingWalletTopupModal() {
+            document.getElementById('marketingWalletTopupModal').style.display = 'none';
+        }
+
+        function getMarketingWalletMinimum() {
+            return vendorData?.influencer_program_activated_at ? 10 : 100;
+        }
+
+        function refreshMarketingWalletPayment() {
+            const amount = Number(document.getElementById('marketingWalletTopupAmount').value || 0);
+            const minimum = getMarketingWalletMinimum();
+            const paymentArea = document.getElementById('marketingWalletPaymentArea');
+
+            if (!Number.isFinite(amount) || amount < minimum) {
+                paymentArea.style.display = 'none';
+                return;
+            }
+
+            const promptpay = String(CONFIG.adminPromptpay || '').replace(/\s+/g, '');
+            const bankInfo = CONFIG.adminBankInfo || 'บัญชีแอดมิน NPX';
+
+            document.getElementById('marketingWalletAdminBank').innerText = bankInfo;
+            document.getElementById('marketingWalletAdminPromptpay').innerText = promptpay || '-';
+            document.getElementById('marketingWalletPayAmount').innerText = amount.toFixed(2);
+
+            // QR สำหรับชำระเงิน: มีเลขบัญชีแสดงเป็น fallback เสมอ
+            document.getElementById('marketingWalletQrImage').src =
+                `https://promptpay.io/${encodeURIComponent(promptpay)}/${encodeURIComponent(amount.toFixed(2))}.png`;
+
+            paymentArea.style.display = 'block';
+        }
+
+        async function copyMarketingWalletAccount() {
+            const account = String(CONFIG.adminPromptpay || '');
+            try {
+                await navigator.clipboard.writeText(account);
+                alert('คัดลอกเลขพร้อมเพย์แล้ว');
+            } catch (err) {
+                alert('เลขพร้อมเพย์: ' + account);
+            }
+        }
+
+        function showMarketingWalletSlipStep() {
+            const amount = Number(document.getElementById('marketingWalletTopupAmount').value || 0);
+            const minimum = getMarketingWalletMinimum();
+
+            if (!Number.isFinite(amount) || amount < minimum) {
+                alert(`ยอดขั้นต่ำครั้งนี้ ${minimum} บาท`);
+                return;
+            }
+
+            document.getElementById('marketingWalletSlipArea').style.display = 'block';
+            document.getElementById('marketingWalletSlipArea').scrollIntoView({
+                behavior: 'smooth',
+                block: 'nearest'
+            });
+        }
+
+        function previewMarketingWalletSlip(input) {
+            const file = input.files && input.files[0];
+            const wrap = document.getElementById('marketingWalletSlipPreviewWrap');
+            const img = document.getElementById('marketingWalletSlipPreview');
+            const fileName = document.getElementById('marketingWalletSlipFileName');
+
+            if (!file) {
+                wrap.style.display = 'none';
+                img.src = '';
+                fileName.innerText = '';
+                return;
+            }
+
+            if (!file.type.startsWith('image/')) {
+                input.value = '';
+                wrap.style.display = 'none';
+                alert('กรุณาเลือกไฟล์รูปภาพสลิป');
+                return;
+            }
+
+            const url = URL.createObjectURL(file);
+            img.onload = () => URL.revokeObjectURL(url);
+            img.src = url;
+            fileName.innerText = file.name;
+            wrap.style.display = 'block';
+        }
+
+        async function submitMarketingWalletTopupRequest(btn) {
+            const amount = Number(document.getElementById('marketingWalletTopupAmount').value || 0);
+            const minimum = getMarketingWalletMinimum();
+            const fileInput = document.getElementById('marketingWalletSlipImage');
+
+            if (!Number.isFinite(amount) || amount < minimum) {
+                alert(`ยอดขั้นต่ำครั้งนี้ ${minimum} บาท`);
+                return;
+            }
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alert('กรุณาอัพโหลดสลิปก่อนส่ง');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerText = '⏳ กำลังส่งสลิป...';
+
+            try {
+                const file = fileInput.files[0];
+                const ext = (file.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '');
+                const fileName =
+                    `marketing-wallet-${vendorData.id}-${Date.now()}.${ext}`;
+
+                const { error: uploadError } = await supabaseClient.storage
+                    .from('slip-images')
+                    .upload(fileName, file);
+
+                if (uploadError) throw uploadError;
+
+                const { data: publicData } = supabaseClient.storage
+                    .from('slip-images')
+                    .getPublicUrl(fileName);
+
+                const slipUrl = publicData?.publicUrl;
+                if (!slipUrl) throw new Error('ไม่สามารถสร้าง URL สลิปได้');
+
+                const { data: request, error: requestError } = await supabaseClient
+                    .from('marketing_wallet_topup_requests')
+                    .insert([{
+                        vendor_id: vendorData.id,
+                        amount: amount,
+                        slip_url: slipUrl,
+                        status: 'pending',
+                        note: 'ร้านค้าส่งสลิปเติม Marketing Wallet'
+                    }])
+                    .select('id, status')
+                    .single();
+
+                if (requestError) throw requestError;
+
+                // แจ้งแอดมินผ่าน GAS แบบ best-effort
+                fetch(CONFIG.gasWebhookUrl, {
+                    method: 'POST',
+                    redirect: 'follow',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({
+                        action: 'notify_admin_payment',
+                        type: 'marketing_wallet_topup',
+                        vendor_id: vendorData.id,
+                        store_name: vendorData.name,
+                        amount: amount,
+                        slip_url: slipUrl,
+                        request_id: request?.id || null
+                    })
+                }).catch(err => console.log('notify admin wallet topup:', err));
+
+                alert(
+                    `✅ ส่งสลิปเรียบร้อยแล้ว\n` +
+                    `ยอดเติม ฿${amount.toFixed(2)}\n\n` +
+                    `สถานะ: รอแอดมินตรวจสอบ\n` +
+                    `เมื่ออนุมัติ Wallet จะเพิ่มอัตโนมัติ`
+                );
+
+                closeMarketingWalletTopupModal();
+
+            } catch (err) {
+                console.error('Marketing Wallet topup request error:', err);
+                alert('ส่งสลิปไม่สำเร็จ: ' + (err.message || err));
+            } finally {
+                btn.disabled = false;
+                btn.innerText = '📩 ส่งสลิปเติม Wallet';
             }
         }
         // ====================
 
         window.onload = initDashboard;
     </script>
+
+<!-- =====================================================
+     Marketing Wallet Top-up Modal
+===================================================== -->
+<div id="marketingWalletTopupModal"
+     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:99999;
+            align-items:center;justify-content:center;padding:14px;box-sizing:border-box;">
+    <div style="background:#fff;width:100%;max-width:440px;max-height:92vh;overflow-y:auto;
+                border-radius:20px;padding:20px;box-sizing:border-box;box-shadow:0 18px 50px rgba(0,0,0,.25);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+            <div>
+                <div style="font-size:21px;font-weight:800;color:#e65100;">💰 เติม Marketing Wallet</div>
+                <div id="walletTopupMinimumText" style="font-size:12px;color:#777;margin-top:4px;"></div>
+            </div>
+            <button type="button" onclick="closeMarketingWalletTopupModal()"
+                    style="border:none;background:#f1f3f5;width:36px;height:36px;border-radius:50%;
+                           font-size:20px;cursor:pointer;">✕</button>
+        </div>
+
+        <div style="margin-top:16px;background:#fff8e1;border:1px solid #ffe0b2;border-radius:14px;padding:14px;">
+            <label style="font-size:12px;font-weight:bold;color:#6d4c41;">จำนวนเงินที่ต้องการเติม (บาท)</label>
+            <input id="marketingWalletTopupAmount" type="number" inputmode="decimal"
+                   oninput="refreshMarketingWalletPayment()"
+                   style="width:100%;box-sizing:border-box;margin-top:7px;padding:13px;border:1px solid #ffcc80;
+                          border-radius:10px;font-size:20px;font-weight:bold;"
+                   placeholder="เช่น 100">
+        </div>
+
+        <div id="marketingWalletPaymentArea"
+             style="display:none;margin-top:14px;border:1px solid #e5e7eb;border-radius:16px;padding:16px;text-align:center;">
+            <div style="font-size:15px;font-weight:800;color:#333;">สแกน QR หรือโอนเข้าบัญชีนี้</div>
+
+            <img id="marketingWalletQrImage" alt="PromptPay QR"
+                 style="display:block;width:230px;max-width:82%;margin:12px auto;border:1px solid #eee;
+                        border-radius:12px;background:#fff;padding:6px;box-sizing:border-box;">
+
+            <div style="background:#f8fafc;border-radius:12px;padding:12px;text-align:left;">
+                <div style="font-size:12px;color:#777;">บัญชีรับเงิน</div>
+                <div id="marketingWalletAdminBank" style="font-weight:bold;color:#222;margin-top:4px;"></div>
+
+                <div style="font-size:12px;color:#777;margin-top:9px;">พร้อมเพย์ / เลขบัญชี</div>
+                <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+                    <div id="marketingWalletAdminPromptpay"
+                         style="font-size:18px;font-weight:800;color:#0f766e;letter-spacing:.5px;flex:1;"></div>
+                    <button type="button" onclick="copyMarketingWalletAccount()"
+                            style="border:none;background:#e0f2f1;color:#00695c;padding:8px 10px;border-radius:8px;font-weight:bold;">
+                        คัดลอก
+                    </button>
+                </div>
+
+                <div style="font-size:12px;color:#777;margin-top:9px;">ยอดที่ต้องโอน</div>
+                <div style="font-size:24px;font-weight:900;color:#e65100;">
+                    ฿<span id="marketingWalletPayAmount">0.00</span>
+                </div>
+            </div>
+
+            <button type="button" onclick="showMarketingWalletSlipStep()"
+                    style="width:100%;margin-top:14px;padding:13px;border:none;border-radius:11px;
+                           background:#06C755;color:white;font-weight:800;font-size:16px;cursor:pointer;">
+                ✅ โอนแล้ว — ไปแนบสลิป
+            </button>
+        </div>
+
+        <div id="marketingWalletSlipArea"
+             style="display:none;margin-top:14px;border:2px dashed #26c6da;border-radius:16px;padding:16px;background:#f3fdff;">
+            <div style="font-weight:800;color:#00838f;text-align:center;">📎 แนบสลิปเติม Wallet</div>
+
+            <label for="marketingWalletSlipImage"
+                   style="display:block;margin-top:12px;background:#fff;border:1px solid #b2ebf2;border-radius:11px;
+                          padding:12px;text-align:center;font-weight:bold;color:#007c91;cursor:pointer;">
+                📤 อัพโหลดสลิป
+            </label>
+            <input id="marketingWalletSlipImage" type="file" accept="image/*"
+                   onchange="previewMarketingWalletSlip(this)"
+                   style="display:none;">
+
+            <div id="marketingWalletSlipPreviewWrap" style="display:none;margin-top:12px;text-align:center;">
+                <img id="marketingWalletSlipPreview"
+                     style="max-width:100%;max-height:330px;border-radius:12px;border:1px solid #ddd;object-fit:contain;">
+                <div id="marketingWalletSlipFileName" style="font-size:11px;color:#777;margin-top:6px;"></div>
+            </div>
+
+            <button id="submitMarketingWalletSlipBtn" type="button"
+                    onclick="submitMarketingWalletTopupRequest(this)"
+                    style="width:100%;margin-top:14px;padding:13px;border:none;border-radius:11px;
+                           background:#ff9800;color:white;font-weight:800;font-size:16px;cursor:pointer;">
+                📩 ส่งสลิปเติม Wallet
+            </button>
+
+            <div style="font-size:11px;color:#777;line-height:1.5;margin-top:10px;text-align:center;">
+                หลังส่งสลิป สถานะจะเป็น “รอตรวจสอบ”<br>
+                เมื่อแอดมินอนุมัติ ยอด Marketing Wallet จะเพิ่มอัตโนมัติ
+            </div>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>
