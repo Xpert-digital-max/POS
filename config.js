@@ -23,15 +23,19 @@ const CONFIG = {
 
 
     // ---------------------------------------------------------
-    // 4. ตั้งค่าระบบทั่วไป และบัญชีรับเงินของแอดมิน
-    // ---------------------------------------------------------
-    trialDaysDefault: 10,
+// 4. ตั้งค่าระบบทั่วไป และบัญชีรับเงินของแอดมิน
+// ---------------------------------------------------------
+trialDaysDefault: 10,
 
-    adminPaymentType: 'promptpay',
+// บัญชีหลักของระบบ ใช้รับค่าแพ็กเกจ / ต่ออายุ / เติมโควต้า
+adminPaymentType: 'promptpay',
+adminPromptpay: '3220300357527',
+adminBankInfo: 'ธ.กสิกรไทย บจก.NPX Digital Marketing',
 
-    adminPromptpay: '3220300357527',
-
-    adminBankInfo: 'ธ.กสิกรไทย บจก.NPX Digital Marketing',
+// บัญชีแยก ใช้รับฝากเงินเข้า Marketing Wallet เท่านั้น
+marketingWalletPaymentType: 'promptpay',
+marketingWalletPromptpay: '3220300357527',
+marketingWalletBankInfo: 'ใส่ชื่อธนาคาร ชื่อบัญชี และเลขบัญชีใหม่ตรงนี้',
 
 
     // =========================================================
