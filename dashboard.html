@@ -3518,6 +3518,44 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             orderListDiv.innerHTML = html;
         }
 
+        async function getOrderBranchNameForNotify(orderId) {
+            try {
+                const { data: orderRow, error } = await supabaseClient
+                    .from('orders')
+                    .select('branch_id')
+                    .eq('id', orderId)
+                    .single();
+
+                if (error) throw error;
+
+                if (!orderRow?.branch_id) {
+                    return 'สาขาหลัก';
+                }
+
+                const localBranch = branchListData.find(
+                    b => String(b.id) === String(orderRow.branch_id)
+                );
+
+                if (localBranch?.branch_name) {
+                    return localBranch.branch_name;
+                }
+
+                const { data: branchRow, error: branchError } = await supabaseClient
+                    .from('branches')
+                    .select('branch_name')
+                    .eq('id', orderRow.branch_id)
+                    .single();
+
+                if (branchError) throw branchError;
+
+                return branchRow?.branch_name || 'สาขาย่อย';
+
+            } catch (err) {
+                console.warn('[ORDER BRANCH NAME]', err);
+                return '';
+            }
+        }
+
         async function updateOrderStatus(orderId, newStatus, customerUid, orderRef, queueNum, btnElement, paymentType = 'transfer') {
             let confirmMsg = "";
             if (newStatus === 'processing') {
@@ -3562,7 +3600,11 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
                     throw new Error("รับออเดอร์สำเร็จแต่ระบบไม่ได้คืนเลขคิว");
                 }
 
-                // 5. ส่ง LINE แจ้งลูกค้าด้วยข้อมูลจริงที่ได้จาก Edge Function / Database
+                // 5. หา "ชื่อสาขาจริง" ของออเดอร์ก่อนแจ้ง LINE
+                const notifyBranchName =
+                    await getOrderBranchNameForNotify(orderId);
+
+                // 6. ส่ง LINE แจ้งลูกค้าด้วยข้อมูลจริงที่ได้จาก Edge Function / Database
                 if (data.customer_uid && data.customer_uid !== '') { 
                     fetch(CONFIG.gasWebhookUrl, { 
                         method: 'POST', 
@@ -3573,7 +3615,8 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
                             vendor_id: vendorData.id, 
                             uid: data.customer_uid, 
                             order_status: data.status, 
-                            store_name: vendorData.name, 
+                            store_name: vendorData.name,
+                            branch_name: notifyBranchName,
                             order_ref: data.reference_no, 
                             queue_num: data.queue_no 
                         }) 
