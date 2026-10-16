@@ -39,6 +39,76 @@
         .qty-btn { background: #f0f0f0; border: none; width: 32px; height: 32px; border-radius: 50%; font-size: 18px; font-weight: bold; cursor: pointer; color: #333; }
         .qty-btn.add { background: #06C755; color: white; }
         .copy-bank-btn { background: #e0f7fa; color: #00838f; border: 1px solid #b2ebf2; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; margin-bottom: 10px; }
+    
+        /* ===== Slip Upload Preview ===== */
+        .slip-upload-card {
+            margin-bottom: 15px;
+            padding: 14px;
+            border: 1px dashed #1e88e5;
+            border-radius: 12px;
+            background: #f7fbff;
+            text-align: center;
+        }
+
+        .slip-upload-btn {
+            width: 100%;
+            padding: 13px 16px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #1da1f2, #1e3c78);
+            color: #fff;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .slip-upload-hint {
+            margin: 0 0 10px 0;
+            color: #456;
+            font-size: 13px;
+        }
+
+        .slip-preview-box {
+            display: none;
+            position: relative;
+            margin-top: 12px;
+            padding: 10px;
+            background: #fff;
+            border: 1px solid #dfe7ef;
+            border-radius: 12px;
+        }
+
+        .slip-preview-box img {
+            width: 100%;
+            max-height: 420px;
+            object-fit: contain;
+            display: block;
+            border-radius: 8px;
+            background: #f5f5f5;
+        }
+
+        .slip-preview-remove {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            width: 36px;
+            height: 36px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.96);
+            color: #d32f2f;
+            font-size: 18px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+        }
+
+        .slip-preview-name {
+            margin-top: 8px;
+            font-size: 12px;
+            color: #777;
+            word-break: break-all;
+        }
+
     </style>
 </head>
 <body>
@@ -93,7 +163,39 @@
                 <p style="margin: 0; font-size: 12px; color: #555;">กรุณาแนบสลิปหลังชำระเงินเพื่อยืนยันออเดอร์</p>
             </div>
 
-            <input type="file" id="slipImage" accept="image/*" style="width: 100%; margin-bottom: 15px; padding: 10px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box;">
+            <div class="slip-upload-card">
+                <p class="slip-upload-hint">แนบรูปสลิปที่ชำระแล้ว เพื่อให้ระบบตรวจสอบก่อนยืนยันออเดอร์</p>
+
+                <input
+                    type="file"
+                    id="slipImage"
+                    accept="image/*"
+                    style="display:none;"
+                    onchange="previewSlipImage(this)"
+                >
+
+                <button
+                    type="button"
+                    class="slip-upload-btn"
+                    onclick="document.getElementById('slipImage').click()"
+                >
+                    📤 อัพโหลดสลิป
+                </button>
+
+                <div id="slipPreviewBox" class="slip-preview-box">
+                    <button
+                        type="button"
+                        class="slip-preview-remove"
+                        onclick="clearSlipPreview()"
+                        aria-label="ลบรูปสลิป"
+                    >
+                        🗑
+                    </button>
+
+                    <img id="slipPreviewImage" alt="ตัวอย่างสลิปที่เลือก">
+                    <div id="slipPreviewName" class="slip-preview-name"></div>
+                </div>
+            </div>
             
             <div style="display: flex; flex-direction: column; gap: 10px;">
                 <div style="display: flex; gap: 10px;">
@@ -843,7 +945,57 @@
         
         function closeCheckout() { 
             localStorage.removeItem(`checkoutState_${vendorId}`);
+            clearSlipPreview();
             document.getElementById('checkoutModal').style.display = 'none'; 
+        }
+
+
+        function previewSlipImage(input) {
+            const previewBox = document.getElementById('slipPreviewBox');
+            const previewImage = document.getElementById('slipPreviewImage');
+            const previewName = document.getElementById('slipPreviewName');
+
+            if (!input || !input.files || input.files.length === 0) {
+                clearSlipPreview();
+                return;
+            }
+
+            const file = input.files[0];
+
+            if (!file.type || !file.type.startsWith('image/')) {
+                alert("กรุณาเลือกไฟล์รูปภาพสลิปเท่านั้น");
+                input.value = "";
+                clearSlipPreview();
+                return;
+            }
+
+            if (previewImage.dataset.objectUrl) {
+                URL.revokeObjectURL(previewImage.dataset.objectUrl);
+            }
+
+            const objectUrl = URL.createObjectURL(file);
+            previewImage.src = objectUrl;
+            previewImage.dataset.objectUrl = objectUrl;
+            previewName.innerText = file.name || "";
+            previewBox.style.display = "block";
+        }
+
+        function clearSlipPreview() {
+            const fileInput = document.getElementById('slipImage');
+            const previewBox = document.getElementById('slipPreviewBox');
+            const previewImage = document.getElementById('slipPreviewImage');
+            const previewName = document.getElementById('slipPreviewName');
+
+            if (fileInput) fileInput.value = "";
+
+            if (previewImage && previewImage.dataset.objectUrl) {
+                URL.revokeObjectURL(previewImage.dataset.objectUrl);
+                delete previewImage.dataset.objectUrl;
+            }
+
+            if (previewImage) previewImage.removeAttribute('src');
+            if (previewName) previewName.innerText = "";
+            if (previewBox) previewBox.style.display = "none";
         }
 
         // ==================== ระบบส่งออเดอร์และตรวจสลิป ====================
@@ -855,7 +1007,7 @@
 
             if (paymentMethod === 'transfer') {
                 if (fileInput.files.length === 0) { alert("กรุณาแนบสลิปโอนเงินก่อนยืนยันออเดอร์"); return; }
-                btn.innerText = "⏳ กำลังอัปโหลดสลิป...";
+                btn.innerText = "⏳ กำลังอัพโหลดสลิป...";
             } else {
                 if (cashBtn) cashBtn.innerText = "⏳ กำลังดำเนินการ...";
             }
@@ -1054,6 +1206,7 @@
                 }).catch(e => console.log("Notify Vendor Error:", e));
             }
 
+            clearSlipPreview();
             clearSavedCart();
             if (liff.isInClient()) { 
                 liff.closeWindow(); 
