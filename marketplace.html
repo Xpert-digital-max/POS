@@ -222,7 +222,7 @@
             try {
                 // 1. ดึงร้านค้าหลักที่เปิด Marketplace
                 const { data: vendors, error: vErr } = await supabaseClient.from('vendors')
-                    .select('id, name, line_picture_url, is_open, latitude, longitude, address, food_category, influencer_comm_type, influencer_comm_value')
+                    .select('id, name, line_picture_url, is_open, latitude, longitude, address, food_category, influencer_comm_type, influencer_comm_value, liff_customer_id')
                     .eq('marketplace_enabled', true);
                 
                 if (vErr) throw vErr;
@@ -270,6 +270,7 @@
                         address: v.address || '',
                         category: v.food_category || 'ทั่วไป',
                         commissionEnabled: Number(v.influencer_comm_value || 0) > 0,
+                        customerLiffId: (v.liff_customer_id || CONFIG.liffIdCustomer || '').trim(),
                         influencerVisible: influencerWalletMap.get(v.id)?.influencer_visible === true,
                         influencerProgramStatus: influencerWalletMap.get(v.id)?.influencer_program_status || 'disabled',
                         recommendationRank: influencerWalletMap.get(v.id)?.influencer_visible === true && recommendationMap.has(v.id) ? recommendationMap.get(v.id) : null
@@ -292,7 +293,10 @@
                                 address: b.address || '',
                                 category: v.food_category || 'ทั่วไป',
                                 commissionEnabled: Number(v.influencer_comm_value || 0) > 0,
-                                recommendationRank: recommendationMap.has(v.id) ? recommendationMap.get(v.id) : null
+                                customerLiffId: (v.liff_customer_id || CONFIG.liffIdCustomer || '').trim(),
+                                influencerVisible: influencerWalletMap.get(v.id)?.influencer_visible === true,
+                                influencerProgramStatus: influencerWalletMap.get(v.id)?.influencer_program_status || 'disabled',
+                                recommendationRank: influencerWalletMap.get(v.id)?.influencer_visible === true && recommendationMap.has(v.id) ? recommendationMap.get(v.id) : null
                             });
                         }
                     });
@@ -391,7 +395,7 @@
                 // ถ้าระยะทางไกลกว่า 20km อาจจะหรี่สีป้าย หรือไม่ก็ปล่อยไว้
                 
                 html += `
-                <div class="store-card" onclick="goToStore('${store.vid}', '${store.bid}', ${store.influencerVisible === true})">
+                <div class="store-card" onclick="goToStore('${store.vid}', '${store.bid}', ${store.influencerVisible === true}, '${(store.customerLiffId || '').replace(/'/g, "\\'")}')">
                     <img src="${store.image}" class="store-img">
                     <div class="store-info">
                         <div>
@@ -425,16 +429,66 @@
             `;
         }
 
-        function goToStore(vid, bid, influencerVisible) {
-            let url = `customer.html?vid=${encodeURIComponent(vid)}`;
+        function goToStore(vid, bid, influencerVisible, customerLiffId) {
+            // URL เว็บปกติ: ต้องใช้งานได้เสมอ แม้ไม่มี LINE
+            let webUrl = `customer.html?vid=${encodeURIComponent(vid)}`;
+
             if (bid && bid !== 'null') {
-                url += `&bid=${encodeURIComponent(bid)}`;
+                webUrl += `&bid=${encodeURIComponent(bid)}`;
             }
-            // ร้าน Pause ยังขายใน Marketplace ได้ แต่ห้ามสร้าง Referral ใหม่
-            if (influencerVisible === true && referralInfluencer && referralInfluencer.line_uid) {
-                url += `&ref=${encodeURIComponent(referralInfluencer.line_uid)}`;
+
+            const hasReferral =
+                influencerVisible === true &&
+                referralInfluencer &&
+                referralInfluencer.line_uid;
+
+            if (hasReferral) {
+                webUrl += `&ref=${encodeURIComponent(referralInfluencer.line_uid)}`;
             }
-            window.location.href = url;
+
+            // ไม่มี referral หรือร้านถูก Pause -> เข้าเว็บปกติ
+            if (!hasReferral) {
+                window.location.href = webUrl;
+                return;
+            }
+
+            // Referral:
+            // ถ้าเปิดอยู่ใน LINE ให้เข้า Customer LIFF เพื่อเก็บ customer_uid
+            // ถ้าเปิดจาก Chrome/Safari/กล้อง และไม่มี LINE session ให้เว็บปกติสั่งได้ต่อ
+            const ua = navigator.userAgent || '';
+            const looksLikeLineClient = /Line\//i.test(ua);
+
+            let isLiffInClient = false;
+            try {
+                isLiffInClient =
+                    typeof liff !== 'undefined' &&
+                    typeof liff.isInClient === 'function' &&
+                    liff.isInClient();
+            } catch (e) {
+                isLiffInClient = false;
+            }
+
+            const insideLine = looksLikeLineClient || isLiffInClient;
+            const liffId = String(customerLiffId || CONFIG.liffIdCustomer || '').trim();
+
+            if (insideLine && liffId) {
+                let liffUrl =
+                    `https://liff.line.me/${encodeURIComponent(liffId)}` +
+                    `?vid=${encodeURIComponent(vid)}`;
+
+                if (bid && bid !== 'null') {
+                    liffUrl += `&bid=${encodeURIComponent(bid)}`;
+                }
+
+                liffUrl += `&ref=${encodeURIComponent(referralInfluencer.line_uid)}`;
+
+                window.location.href = liffUrl;
+                return;
+            }
+
+            // Browser / ไม่มี LINE:
+            // ไม่บังคับ Login และยังเก็บ ref เพื่อให้ค่าคอมทำงาน
+            window.location.href = webUrl;
         }
 
         // ==================== Start ====================
