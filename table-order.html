@@ -206,9 +206,7 @@
         
         async function initApp() { 
             try {
-                // ต้อง init LIFF ก่อนอ่าน table_token เพราะ LIFF URL อาจส่งค่าผ่าน liff.state
-                await liff.init({ liffId: CONFIG.liffIdCustomer });
-
+                // 1) โต๊ะต้องเปิดใช้งานได้จาก QR ปกติ แม้ผู้ใช้จะไม่ได้ Login LINE
                 const urlParams = new URLSearchParams(window.location.search);
                 tableToken = urlParams.get('table_token');
 
@@ -217,31 +215,42 @@
                     return;
                 }
 
-                // ถ้าเปิดจาก browser ภายนอกและยังไม่ login ให้ login ด้วย URL สะอาด
-                // ห้ามใช้ window.location.href เพราะอาจติด code/state/liff.state เก่าจน LINE Login 400
-                if (!liff.isLoggedIn()) {
-                    const cleanRedirect =
-                        window.location.origin +
-                        window.location.pathname +
-                        '?table_token=' +
-                        encodeURIComponent(tableToken);
+                // 2) LINE/LIFF เป็น Optional เท่านั้น
+                //    - เปิดจากกล้อง/Browser: ใช้งานต่อได้โดยไม่ Login
+                //    - เปิดจาก LINE และมี session อยู่แล้ว: อ่าน userId ได้
+                //    - token หมดอายุ / LIFF error: ข้าม LINE แล้วใช้งานแบบ Browser ต่อ
+                customerUid = null;
 
-                    liff.login({ redirectUri: cleanRedirect });
-                    return;
+                try {
+                    await liff.init({ liffId: CONFIG.liffIdCustomer });
+
+                    if (liff.isLoggedIn()) {
+                        try {
+                            const decoded = liff.getDecodedIDToken();
+                            if (decoded && decoded.sub) {
+                                customerUid = decoded.sub;
+                            }
+
+                            if (!customerUid) {
+                                const profile = await liff.getProfile();
+                                customerUid = profile.userId;
+                            }
+                        } catch (profileError) {
+                            console.warn("LINE profile unavailable; continue as guest:", profileError);
+                            customerUid = null;
+                        }
+                    } else {
+                        console.log("LINE not logged in; continue as guest browser user.");
+                    }
+                } catch (liffError) {
+                    console.warn("LIFF unavailable; continue as guest browser user:", liffError);
+                    customerUid = null;
                 }
 
-                // ใช้ ID token ที่ LIFF SDK จัดการให้ก่อน เพื่อลดปัญหา access token หมดอายุจาก getProfile()
-                const decoded = liff.getDecodedIDToken();
-                customerUid = decoded && decoded.sub ? decoded.sub : null;
-
-                // fallback เฉพาะกรณีไม่มี openid/sub
-                if (!customerUid) {
-                    const profile = await liff.getProfile();
-                    customerUid = profile.userId;
-                }
-
+                // 3) ไม่ว่า LINE จะพร้อมหรือไม่ ต้องเข้าโต๊ะเดิม/สั่งเพิ่ม/ชำระเงินต่อได้
                 await loadTableAndSession();
                 pollingInterval = setInterval(pollSessionStatus, 3000);
+
             } catch (err) {
                 showError("เกิดข้อผิดพลาดในการเปิดระบบ: " + (err?.message || err));
             } 
