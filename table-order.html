@@ -65,6 +65,113 @@
         .qty-btn { background: #eee; border: none; width: 25px; height: 25px; border-radius: 4px; font-weight: bold; cursor: pointer; }
 
         .full-screen-loader { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.9); z-index: 999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    
+        /* Optional LINE friend prompt: only for external browser/camera scans */
+        #lineFriendPrompt {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .line-friend-card {
+            width: 100%;
+            max-width: 390px;
+            background: #fff;
+            border-radius: 20px;
+            padding: 24px;
+            box-sizing: border-box;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+        }
+        .line-friend-card h3 {
+            margin: 0 0 10px;
+            font-size: 24px;
+            color: #222;
+        }
+        .line-friend-card p {
+            margin: 0 0 20px;
+            color: #666;
+            line-height: 1.6;
+            font-size: 15px;
+        }
+        .line-friend-btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-size: 17px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .line-friend-add { background: #06C755; color: #fff; }
+        .line-friend-skip { background: #f1f1f1; color: #444; }
+
+    
+        /* Slip upload / preview */
+        .slip-upload-box {
+            text-align: center;
+            margin-top: 25px;
+            background: #e0f7fa;
+            padding: 16px;
+            border-radius: 14px;
+            border: 1px dashed #00BCD4;
+        }
+        .slip-upload-btn {
+            width: 100%;
+            padding: 14px 16px;
+            background: #1598d5;
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            font-size: 17px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .slip-preview-wrap {
+            display: none;
+            position: relative;
+            margin-top: 14px;
+            background: #fff;
+            border: 1px solid #d7e3e8;
+            border-radius: 14px;
+            padding: 10px;
+        }
+        .slip-preview-wrap img {
+            display: block;
+            width: 100%;
+            max-height: 420px;
+            object-fit: contain;
+            border-radius: 10px;
+            background: #f7f7f7;
+        }
+        .slip-preview-remove {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255,255,255,0.95);
+            color: #d32f2f;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+        }
+        .slip-file-name {
+            margin-top: 8px;
+            font-size: 12px;
+            color: #777;
+            word-break: break-all;
+        }
+
     </style>
 </head>
 <body>
@@ -115,10 +222,40 @@
             <img id="promptpayQrImage" src="" style="width: 200px; height: 200px; margin: 0 auto 10px auto; border: 1px solid #ddd; padding: 10px; border-radius: 8px; display: none;">
             <a id="downloadQrBtn" href="#" download="promptpay-qr.png" class="btn-status-dl" style="display: none;">📥 บันทึกภาพ QR Code</a>
             <div id="bankInfoText" style="display: none; background: #f5f5f5; padding: 15px; border-radius: 8px; font-size: 14px; text-align: left; margin-bottom: 15px;"></div>
-            <div style="text-align: left; margin-top: 25px; background: #e0f7fa; padding: 15px; border-radius: 12px; border: 1px dashed #00BCD4;">
-                <p style="margin: 0 0 10px 0; color: #00838F; font-size: 14px; font-weight: bold; text-align: center;">กรุณาแนบสลิปโอนเงินที่นี่ ⬇</p>
-                <input type="file" id="slipImageInput" accept="image/*" style="width: 100%; padding: 10px; border: 1px solid #00BCD4; border-radius: 8px; background: white; box-sizing: border-box;">
-                <button id="verifySlipBtn" onclick="verifyTableSlip()" style="width: 100%; padding: 15px; background: #06C755; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 16px; margin-top: 15px; cursor: pointer;">✅ ส่งสลิปโอนเงิน</button>
+            <div class="slip-upload-box">
+                <p style="margin: 0 0 12px 0; color: #00838F; font-size: 16px; font-weight: bold;">
+                    กรุณาแนบสลิปโอนเงินที่นี่ ↓
+                </p>
+
+                <input
+                    type="file"
+                    id="slipImageInput"
+                    accept="image/*"
+                    style="display:none;"
+                    onchange="previewSelectedSlip(this)"
+                >
+
+                <button
+                    type="button"
+                    class="slip-upload-btn"
+                    onclick="document.getElementById('slipImageInput').click()"
+                >
+                    📤 อัพโหลดสลิป
+                </button>
+
+                <div id="slipPreviewWrap" class="slip-preview-wrap">
+                    <button type="button" class="slip-preview-remove" onclick="clearSelectedSlip()" aria-label="ลบรูป">🗑</button>
+                    <img id="slipPreviewImage" alt="ตัวอย่างสลิปที่เลือก">
+                    <div id="slipFileName" class="slip-file-name"></div>
+                </div>
+
+                <button
+                    id="verifySlipBtn"
+                    onclick="verifyTableSlip()"
+                    style="width: 100%; padding: 15px; background: #06C755; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 16px; margin-top: 15px; cursor: pointer;"
+                >
+                    ✅ ตรวจสอบสลิป
+                </button>
             </div>
             <button onclick="cancelBillCustomer()" style="width: 100%; padding: 12px; background: transparent; color: #c62828; border: none; font-weight: bold; font-size: 14px; margin-top: 15px; cursor: pointer; text-decoration: underline;">❌ ยกเลิกการชำระเงิน (สั่งต่อ)</button>
         </div>
@@ -187,6 +324,25 @@
         </div>
     </div>
 
+    
+    <!-- Optional: ถามเพิ่มเพื่อน LINE เฉพาะกรณีเปิดจาก Browser/กล้อง -->
+    <div id="lineFriendPrompt">
+        <div class="line-friend-card">
+            <div style="font-size:44px; margin-bottom:8px;">💚</div>
+            <h3>เพิ่มเพื่อน LINE ไหม?</h3>
+            <p>
+                เพิ่มเพื่อนไว้เพื่อรับข่าวสารหรือกลับมาที่ร้านได้ง่ายขึ้น<br>
+                <b>ไม่บังคับ</b> — กดข้ามแล้วสั่งอาหารต่อได้ทันที
+            </p>
+            <button class="line-friend-btn line-friend-add" onclick="acceptLineFriend()">
+                ➕ เพิ่มเพื่อน LINE
+            </button>
+            <button class="line-friend-btn line-friend-skip" onclick="skipLineFriend()">
+                ข้ามก่อน / สั่งอาหารต่อ
+            </button>
+        </div>
+    </div>
+
     <script>
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey); 
         let tableToken = null; let tableData = null; let sessionData = null; let vendorData = null; let customerUid = null; let menuItems = []; let categories = []; let cart = []; let currentModalItem = null; let currentModalQty = 1; let pollingInterval = null; let currentServiceRequestId = null; 
@@ -204,6 +360,74 @@
             return payload + crc.toString(16).toUpperCase().padStart(4, '0'); 
         } 
         
+
+        function getLineFriendUrl() {
+            // แนะนำให้ใส่ใน config.js:
+            // lineOaAddFriendUrl: "https://lin.ee/XXXXXXX"
+            const directUrl = String(
+                CONFIG.lineOaAddFriendUrl ||
+                CONFIG.lineAddFriendUrl ||
+                ""
+            ).trim();
+
+            if (directUrl) return directUrl;
+
+            // รองรับกรณีเก็บเป็น LINE OA ID เช่น @yourshop
+            const oaId = String(CONFIG.lineOaId || "").trim();
+            if (oaId) {
+                const normalizedId = oaId.startsWith("@") ? oaId : "@" + oaId;
+                return "https://line.me/R/ti/p/" + encodeURIComponent(normalizedId);
+            }
+
+            return "";
+        }
+
+        function isInsideLineClientSafe() {
+            try {
+                return !!(window.liff && liff.isInClient());
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function maybeShowLineFriendPrompt() {
+            // ถ้าเปิดอยู่ใน LINE อยู่แล้ว ไม่ต้องถามเพิ่มเพื่อนซ้ำ
+            if (isInsideLineClientSafe()) return;
+
+            const friendUrl = getLineFriendUrl();
+            if (!friendUrl) {
+                console.log("LINE friend prompt skipped: no LINE OA add-friend URL configured.");
+                return;
+            }
+
+            // 1 ครั้งต่อ browser session เพื่อลดความรำคาญ
+            if (sessionStorage.getItem("npx_line_friend_prompt_shown") === "1") return;
+            sessionStorage.setItem("npx_line_friend_prompt_shown", "1");
+
+            const modal = document.getElementById("lineFriendPrompt");
+            if (modal) modal.style.display = "flex";
+        }
+
+        function skipLineFriend() {
+            const modal = document.getElementById("lineFriendPrompt");
+            if (modal) modal.style.display = "none";
+            // ไม่ทำอะไรต่อ: หน้าเมนูโหลดอยู่ด้านหลังและใช้งานได้ทันที
+        }
+
+        function acceptLineFriend() {
+            const friendUrl = getLineFriendUrl();
+            const modal = document.getElementById("lineFriendPrompt");
+            if (modal) modal.style.display = "none";
+
+            if (!friendUrl) return;
+
+            // เปิด LINE Add Friend แยกออกไป โดยหน้าเมนูเดิมยังคงอยู่
+            const opened = window.open(friendUrl, "_blank", "noopener");
+            if (!opened) {
+                window.location.href = friendUrl;
+            }
+        }
+
         async function initApp() { 
             try {
                 // 1) โต๊ะต้องเปิดใช้งานได้จาก QR ปกติ แม้ผู้ใช้จะไม่ได้ Login LINE
@@ -249,6 +473,10 @@
 
                 // 3) ไม่ว่า LINE จะพร้อมหรือไม่ ต้องเข้าโต๊ะเดิม/สั่งเพิ่ม/ชำระเงินต่อได้
                 await loadTableAndSession();
+
+                // หน้าอาหารใช้งานได้ก่อน แล้วค่อยถามเพิ่มเพื่อนแบบ Optional
+                setTimeout(maybeShowLineFriendPrompt, 350);
+
                 pollingInterval = setInterval(pollSessionStatus, 3000);
 
             } catch (err) {
@@ -289,7 +517,18 @@
         async function pollSessionStatus() { 
             if (!sessionData || !sessionData.id) return; 
             const { data: sess } = await supabaseClient.from('table_sessions').select('*').eq('id', sessionData.id).single(); 
-            if (sess) { if (sess.session_status !== sessionData.session_status || sess.payment_status !== sessionData.payment_status) { sessionData = sess; renderUIBasedOnStatus(); } } 
+            if (sess) {
+                const changed =
+                    sess.session_status !== sessionData.session_status ||
+                    sess.payment_status !== sessionData.payment_status ||
+                    sess.payment_method !== sessionData.payment_method ||
+                    Number(sess.bill_amount || 0) !== Number(sessionData.bill_amount || 0);
+
+                if (changed) {
+                    sessionData = sess;
+                    renderUIBasedOnStatus();
+                }
+            } 
             const { data: req } = await supabaseClient.from('table_service_requests').select('id, status').eq('table_session_id', sessionData.id).eq('status', 'pending').maybeSingle(); 
             const btnCall = document.getElementById('btnCallStaff'); 
             if (req) { currentServiceRequestId = req.id; btnCall.style.display = 'none'; } else { currentServiceRequestId = null; btnCall.style.display = 'flex'; btnCall.disabled = false; } 
@@ -305,6 +544,105 @@
             } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); } btn.disabled = false; 
         } 
         
+
+        function previewSelectedSlip(input) {
+            const wrap = document.getElementById('slipPreviewWrap');
+            const img = document.getElementById('slipPreviewImage');
+            const fileName = document.getElementById('slipFileName');
+
+            if (!input || !input.files || input.files.length === 0) {
+                clearSelectedSlip();
+                return;
+            }
+
+            const file = input.files[0];
+            if (!file.type || !file.type.startsWith('image/')) {
+                alert("กรุณาเลือกไฟล์รูปภาพสลิปเท่านั้น");
+                input.value = "";
+                clearSelectedSlip();
+                return;
+            }
+
+            if (img.dataset.objectUrl) {
+                URL.revokeObjectURL(img.dataset.objectUrl);
+            }
+
+            const objectUrl = URL.createObjectURL(file);
+            img.src = objectUrl;
+            img.dataset.objectUrl = objectUrl;
+            fileName.innerText = file.name || "";
+            wrap.style.display = "block";
+        }
+
+        function clearSelectedSlip() {
+            const input = document.getElementById('slipImageInput');
+            const wrap = document.getElementById('slipPreviewWrap');
+            const img = document.getElementById('slipPreviewImage');
+            const fileName = document.getElementById('slipFileName');
+
+            if (input) input.value = "";
+            if (img && img.dataset.objectUrl) {
+                URL.revokeObjectURL(img.dataset.objectUrl);
+                delete img.dataset.objectUrl;
+            }
+            if (img) img.removeAttribute("src");
+            if (fileName) fileName.innerText = "";
+            if (wrap) wrap.style.display = "none";
+        }
+
+        function syncTransferPaymentUI() {
+            if (!sessionData || !vendorData || !tableData) return;
+
+            const amount = Number(sessionData.bill_amount || 0);
+            document.getElementById('qrAmountDisplay').innerText = amount.toFixed(2);
+
+            const branchPayType =
+                tableData.branches && tableData.branches.payment_type
+                    ? tableData.branches.payment_type
+                    : vendorData.payment_type;
+
+            const branchPrompt =
+                tableData.branches && tableData.branches.promptpay_number
+                    ? tableData.branches.promptpay_number
+                    : vendorData.promptpay_number;
+
+            const branchBankInfo =
+                tableData.branches && tableData.branches.bank_info
+                    ? tableData.branches.bank_info
+                    : vendorData.bank_info;
+
+            const qrImage = document.getElementById('promptpayQrImage');
+            const downloadBtn = document.getElementById('downloadQrBtn');
+            const bankInfoText = document.getElementById('bankInfoText');
+
+            if (branchPayType === 'bank' || !branchPrompt) {
+                qrImage.style.display = 'none';
+                downloadBtn.style.display = 'none';
+                bankInfoText.style.display = 'block';
+                bankInfoText.innerHTML =
+                    `<b>โอนเข้าบัญชี:</b><br>${String(branchBankInfo || "-").replace(/\n/g, '<br>')}`;
+                return;
+            }
+
+            bankInfoText.style.display = 'none';
+
+            if (amount <= 0) {
+                qrImage.style.display = 'none';
+                downloadBtn.style.display = 'none';
+                return;
+            }
+
+            const payload = generatePromptPayPayloadSafe(branchPrompt, amount);
+            if (payload) {
+                const qr = new QRious({ value: payload, size: 250, level: 'L' });
+                const dataUrl = qr.toDataURL();
+                qrImage.src = dataUrl;
+                qrImage.style.display = 'block';
+                downloadBtn.href = dataUrl;
+                downloadBtn.style.display = 'inline-flex';
+            }
+        }
+
         function renderUIBasedOnStatus() { 
             const orderSec = document.getElementById('orderingSection'); const statusSec = document.getElementById('statusSection'); 
             const msgCard = document.getElementById('statusMessageCard'); const qrCard = document.getElementById('qrPaymentCard'); 
@@ -323,6 +661,7 @@
                 orderSec.style.display = 'none'; statusSec.style.display = 'block'; 
                 if (pStat === 'waiting_transfer') {
                     qrCard.style.display = 'block';
+                    syncTransferPaymentUI();
                     document.getElementById('verifySlipBtn').innerText = "กำลังตรวจสอบสลิป ⏳";
                     document.getElementById('verifySlipBtn').disabled = true;
                 } 
@@ -342,7 +681,8 @@
                 } 
                 else if (sessionData.payment_method === 'transfer') {
                     qrCard.style.display = 'block';
-                    document.getElementById('verifySlipBtn').innerText = "✅ ส่งสลิปโอนเงิน";
+                    syncTransferPaymentUI();
+                    document.getElementById('verifySlipBtn').innerText = "✅ ตรวจสอบสลิป";
                     document.getElementById('verifySlipBtn').disabled = false;
                 } 
             } 
@@ -419,17 +759,7 @@
             } else if (method === 'transfer') { 
                 await supabaseClient.from('table_sessions').update({ payment_method: 'transfer', payment_status: 'unpaid', session_status: 'payment_pending' }).eq('id', sessionData.id); 
                 sessionData.payment_method = 'transfer'; sessionData.payment_status = 'unpaid'; sessionData.session_status = 'payment_pending'; 
-                document.getElementById('qrAmountDisplay').innerText = finalAmount.toFixed(2); 
-                const branchPayType = tableData.branches ? tableData.branches.payment_type : vendorData.payment_type; 
-                const branchPrompt = tableData.branches ? tableData.branches.promptpay_number : vendorData.promptpay_number; 
-                const branchBankInfo = tableData.branches ? tableData.branches.bank_info : vendorData.bank_info; 
-                if (branchPayType === 'bank' || !branchPrompt) { 
-                    document.getElementById('promptpayQrImage').style.display = 'none'; document.getElementById('downloadQrBtn').style.display = 'none'; document.getElementById('bankInfoText').style.display = 'block'; document.getElementById('bankInfoText').innerHTML = `<b>โอนเข้าบัญชี:</b><br>${branchBankInfo.replace(/\n/g, '<br>')}`; 
-                } else { 
-                    document.getElementById('bankInfoText').style.display = 'none'; 
-                    const payload = generatePromptPayPayloadSafe(branchPrompt, finalAmount); 
-                    if (payload) { const qr = new QRious({ value: payload, size: 250, level: 'L' }); const dataUrl = qr.toDataURL(); document.getElementById('promptpayQrImage').src = dataUrl; document.getElementById('promptpayQrImage').style.display = 'block'; const downloadBtn = document.getElementById('downloadQrBtn'); downloadBtn.href = dataUrl; downloadBtn.style.display = 'inline-flex'; } 
-                } 
+                syncTransferPaymentUI(); 
             } 
             renderUIBasedOnStatus(); 
         } 
@@ -440,7 +770,7 @@
             try { 
                 await supabaseClient.from('table_sessions').update({ session_status: 'open', payment_status: 'unpaid', payment_method: null }).eq('id', sessionData.id); 
                 sessionData.session_status = 'open'; sessionData.payment_status = 'unpaid'; sessionData.payment_method = null; 
-                document.getElementById('verifySlipBtn').innerText = "✅ ส่งสลิปโอนเงิน"; document.getElementById('verifySlipBtn').disabled = false; document.getElementById('slipImageInput').value = ""; 
+                document.getElementById('verifySlipBtn').innerText = "✅ ส่งสลิปโอนเงิน"; document.getElementById('verifySlipBtn').disabled = false; clearSelectedSlip(); 
                 renderUIBasedOnStatus(); 
             } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); } btn.innerText = originalText; btn.disabled = false; 
         } 
@@ -514,6 +844,7 @@
                     }
 
                     sessionData = closedSession;
+                    clearSelectedSlip();
                     alert("✅ ตรวจสลิปสำเร็จ ชำระเงินเรียบร้อยแล้ว");
                 } else {
                     // สลิปผิด = ไม่ปิดโต๊ะ และเปิดให้ลูกค้าแนบสลิปใหม่
@@ -522,8 +853,8 @@
                         .eq('id', sessionData.id);
 
                     sessionData.payment_status = 'unpaid';
-                    fileInput.value = "";
-                    btn.innerText = "✅ ส่งสลิปโอนเงิน";
+                    clearSelectedSlip();
+                    btn.innerText = "✅ ตรวจสอบสลิป";
                     btn.disabled = false;
 
                     alert(`❌ ตรวจสลิปไม่ผ่าน:\n${verifyResult.msg || "กรุณาแนบสลิปที่ถูกต้องใหม่"}`);
