@@ -55,7 +55,30 @@
             #printArea * { visibility: visible; }
             .no-print { display: none !important; }
         }
-    </style>
+    
+        /* =========================================================
+           Saved form values
+           ค่าที่บันทึกแล้ว = สีจาง / กำลังแก้ไข = สีเข้ม
+           ========================================================= */
+        .npx-saved-value {
+            color: #9ca3af !important;
+            background: #f8fafc !important;
+            transition: color .18s ease, background .18s ease, border-color .18s ease;
+        }
+
+        .npx-saved-value:focus {
+            color: #222 !important;
+            background: #fff !important;
+            border-color: #90caf9 !important;
+            outline: none;
+        }
+
+        .npx-saved-readonly {
+            color: #9ca3af !important;
+            background: #f8fafc !important;
+        }
+
+</style>
 </head>
 <body>
 
@@ -875,7 +898,9 @@
     </div>
 
     <div style="margin-top:12px;padding:10px 12px;border-radius:8px;background:#eef7ff;border:1px solid #cfe6ff;color:#315b7d;font-size:11px;line-height:1.55;">
-        
+        📍 พิกัดร้านถูกย้ายไปจัดการแยกตามสาขาแล้ว กรุณากำหนดในหัวข้อ <b>จัดการสาขาย่อย (Branches)</b>
+    </div>
+
 </div>
 <!-- สิ้นสุด: ส่วนตั้งค่า Marketplace -->
 
@@ -1806,13 +1831,17 @@ async function loadVendorData(uid) {
                         <div style="background:#eef7ff; padding:10px; border-radius:6px; margin-bottom:10px; border:1px dashed #2196F3;">
                             <label style="font-size:12px;font-weight:bold;color:#1565c0;">📍 2. ตำแหน่งของสาขานี้</label>
                             <input type="text" id="branchAddress_${b.id}"
+                                   class="npx-saved-value"
                                    value="${(b.address || '').replace(/"/g, '&quot;')}"
                                    placeholder="ที่อยู่สาขา"
+                                   oninput="this.style.color='#222';this.style.background='#fff';"
                                    style="width:100%;box-sizing:border-box;margin-top:7px;padding:8px;border:1px solid #cbd5e1;border-radius:5px;font-size:12px;">
                             <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;">
-                                <input type="text" id="branchLat_${b.id}" value="${b.latitude ?? ''}" placeholder="Latitude" readonly
+                                <input type="text" id="branchLat_${b.id}" class="npx-saved-readonly"
+                                       value="${b.latitude ?? ''}" placeholder="Latitude" readonly
                                        style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #cbd5e1;border-radius:5px;font-size:12px;">
-                                <input type="text" id="branchLng_${b.id}" value="${b.longitude ?? ''}" placeholder="Longitude" readonly
+                                <input type="text" id="branchLng_${b.id}" class="npx-saved-readonly"
+                                       value="${b.longitude ?? ''}" placeholder="Longitude" readonly
                                        style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #cbd5e1;border-radius:5px;font-size:12px;">
                             </div>
                             <div style="display:flex;gap:6px;margin-top:7px;">
@@ -1869,6 +1898,13 @@ async function loadVendorData(uid) {
             renderBranchOrderTabs();
         }
 
+        function markSavedValue(el) {
+            if (!el) return;
+            el.style.color = '#9ca3af';
+            el.style.background = '#f8fafc';
+            el.style.borderColor = '#cbd5e1';
+        }
+
         function getBrowserPosition() {
             return new Promise((resolve, reject) => {
                 if (!navigator.geolocation) return reject(new Error('อุปกรณ์นี้ไม่รองรับ GPS'));
@@ -1893,8 +1929,18 @@ async function loadVendorData(uid) {
         async function getBranchGPS(branchId) {
             try {
                 const pos = await getBrowserPosition();
-                document.getElementById(`branchLat_${branchId}`).value = Number(pos.coords.latitude).toFixed(7);
-                document.getElementById(`branchLng_${branchId}`).value = Number(pos.coords.longitude).toFixed(7);
+                const latEl = document.getElementById(`branchLat_${branchId}`);
+                const lngEl = document.getElementById(`branchLng_${branchId}`);
+
+                latEl.value = Number(pos.coords.latitude).toFixed(7);
+                lngEl.value = Number(pos.coords.longitude).toFixed(7);
+
+                // ค่าที่เพิ่งดึงมาใหม่ = ยังไม่บันทึก ให้เห็นชัด
+                [latEl, lngEl].forEach(el => {
+                    el.style.color = '#222';
+                    el.style.background = '#fff';
+                    el.style.borderColor = '#90caf9';
+                });
             } catch (err) {
                 alert('ดึงพิกัดไม่สำเร็จ: ' + (err.message || err));
             }
@@ -1929,6 +1975,11 @@ async function loadVendorData(uid) {
                     vendorData.latitude = latitude;
                     vendorData.longitude = longitude;
                 }
+
+                // บันทึกแล้ว = ทำข้อความให้จางทันที
+                markSavedValue(document.getElementById(`branchAddress_${branchId}`));
+                markSavedValue(document.getElementById(`branchLat_${branchId}`));
+                markSavedValue(document.getElementById(`branchLng_${branchId}`));
 
                 alert(isMainBranch
                     ? '✅ บันทึกพิกัดสาขาหลักและ Marketplace แล้ว'
