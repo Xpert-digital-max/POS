@@ -874,23 +874,9 @@
         <input type="number" id="settingInfluValue" placeholder="ระบุจำนวน (เช่น 5 หรือ 10)" style="width: 100%; padding: 10px; border: 1px solid #eee; border-radius: 6px; box-sizing: border-box; background: #fafafa;">
     </div>
 
-    <!-- [แก้ไขใหม่] ปรับ Layout GPS ให้อยู่คนละบรรทัด -->
-    <label style="font-size: 13px; font-weight: bold; color: #555;">
-        พิกัดร้าน (Latitude / Longitude)
-    </label>
-    <p style="font-size: 11px; color: #888; margin: 3px 0 8px 0;">
-        (จำเป็นต้องมีพิกัดเพื่อให้ระบบคำนวณระยะทางได้ถูกต้อง)
-    </p>
-    <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px;">
-        <input type="text" id="settingLat" placeholder="Latitude (ละติจูด)" readonly style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;">
-        <input type="text" id="settingLng" placeholder="Longitude (ลองจิจูด)" readonly style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;">
+    <div style="margin-top:12px;padding:10px 12px;border-radius:8px;background:#eef7ff;border:1px solid #cfe6ff;color:#315b7d;font-size:11px;line-height:1.55;">
+        📍 พิกัดร้านถูกย้ายไปจัดการแยกตามสาขาแล้ว กรุณากำหนดในหัวข้อ <b>จัดการสาขาย่อย (Branches)</b>
     </div>
-
-    <button type="button"
-            onclick="getCurrentGPS()"
-            style="background: #2196F3; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 5px;">
-        <span id="gpsIcon">📍</span> ดึงพิกัดร้านจากมือถือเครื่องนี้อัตโนมัติ
-    </button>
 
 </div>
 <!-- สิ้นสุด: ส่วนตั้งค่า Marketplace -->
@@ -992,6 +978,22 @@
                         <label style="font-size: 13px; font-weight: bold; color: #555;">รายละเอียดบัญชีธนาคาร</label>
                         <textarea id="newBranchBankInfo" placeholder="เช่น ธ.กสิกร เลขบัญชี 123-4-56789-0 ชื่อ นายใจดี" style="width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px; resize: none;" rows="2"></textarea>
                     </div>
+                    <div style="margin-top:8px;padding:12px;border-radius:8px;background:#f3f9ff;border:1px solid #cfe6ff;">
+                        <label style="font-size:13px;font-weight:bold;color:#245b85;">📍 ตำแหน่งสาขานี้</label>
+                        <input type="text" id="newBranchAddress" placeholder="ที่อยู่สาขา"
+                               style="width:100%;padding:9px;margin-top:8px;box-sizing:border-box;border:1px solid #ddd;border-radius:6px;">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px;">
+                            <input type="text" id="newBranchLat" placeholder="Latitude" readonly
+                                   style="width:100%;padding:9px;box-sizing:border-box;border:1px solid #ddd;border-radius:6px;">
+                            <input type="text" id="newBranchLng" placeholder="Longitude" readonly
+                                   style="width:100%;padding:9px;box-sizing:border-box;border:1px solid #ddd;border-radius:6px;">
+                        </div>
+                        <button type="button" onclick="getNewBranchGPS()"
+                                style="width:100%;margin-top:8px;background:#2196F3;color:white;border:none;padding:9px;border-radius:6px;font-weight:bold;">
+                            📍 ดึงพิกัดสาขานี้จากมือถือ
+                        </button>
+                    </div>
+
                     
                     <button onclick="addBranch()" style="background: #9c27b0; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%;">+ บันทึกสาขาใหม่</button>
                 </div>
@@ -1774,7 +1776,7 @@ async function loadVendorData(uid) {
 
                         branchSubscriptionUI = `
                             <div style="background:#f3e5f5; padding:10px; border-radius:6px; margin-bottom:10px; border: 1px dashed #ab47bc;">
-                                <label style="font-size:12px; font-weight:bold; color:#6a1b9a;">💳 3. ต่ออายุสาขาย่อย (Branch Add-on)</label>
+                                <label style="font-size:12px; font-weight:bold; color:#6a1b9a;">💳 4. ต่ออายุสาขาย่อย (Branch Add-on)</label>
                                 <p style="font-size:11px; margin: 3px 0 8px 0; color:#555;">สถานะ: <span style="font-weight:bold; color:${expColor};">${expStatus}</span></p>
                                 
                                 <div style="display:flex; flex-direction:column; gap:5px;">
@@ -1803,8 +1805,33 @@ async function loadVendorData(uid) {
                             </div>
                         </div>
                         
+                        <div style="background:#eef7ff; padding:10px; border-radius:6px; margin-bottom:10px; border:1px dashed #2196F3;">
+                            <label style="font-size:12px;font-weight:bold;color:#1565c0;">📍 2. ตำแหน่งของสาขานี้</label>
+                            <input type="text" id="branchAddress_${b.id}"
+                                   value="${(b.address || '').replace(/"/g, '&quot;')}"
+                                   placeholder="ที่อยู่สาขา"
+                                   style="width:100%;box-sizing:border-box;margin-top:7px;padding:8px;border:1px solid #cbd5e1;border-radius:5px;font-size:12px;">
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;">
+                                <input type="text" id="branchLat_${b.id}" value="${b.latitude ?? ''}" placeholder="Latitude" readonly
+                                       style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #cbd5e1;border-radius:5px;font-size:12px;">
+                                <input type="text" id="branchLng_${b.id}" value="${b.longitude ?? ''}" placeholder="Longitude" readonly
+                                       style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #cbd5e1;border-radius:5px;font-size:12px;">
+                            </div>
+                            <div style="display:flex;gap:6px;margin-top:7px;">
+                                <button type="button" onclick="getBranchGPS('${b.id}')"
+                                        style="flex:1;background:#2196F3;color:#fff;border:none;padding:8px;border-radius:5px;font-size:12px;font-weight:bold;">
+                                    📍 ดึงพิกัด
+                                </button>
+                                <button type="button" onclick="saveBranchLocation('${b.id}', ${isMainBranch ? 'true' : 'false'})"
+                                        style="flex:1;background:#1565c0;color:#fff;border:none;padding:8px;border-radius:5px;font-size:12px;font-weight:bold;">
+                                    💾 บันทึกตำแหน่ง
+                                </button>
+                            </div>
+                            ${isMainBranch ? `<div style="font-size:10px;color:#5c6f82;margin-top:6px;">สาขาหลักจะซิงก์พิกัดนี้ไปใช้กับ Marketplace ด้วย</div>` : ''}
+                        </div>
+
                         <div style="background:#fff8e1; padding:10px; border-radius:6px; margin-bottom:10px; border: 1px dashed #ff9800;">
-                            <label style="font-size:12px; font-weight:bold; color:#e65100;">👨‍🍳 2. หน้ารับออเดอร์ของพนักงาน (Staff Access)</label>
+                            <label style="font-size:12px; font-weight:bold; color:#e65100;">👨‍🍳 3. หน้ารับออเดอร์ของพนักงาน (Staff Access)</label>
                             <p style="font-size:11px; margin: 3px 0 8px 0; color:#555;">สถานะ: ${isPasswordSet}</p>
                             <div style="display:flex; gap:5px;">
                                 <input type="password" id="pw_${b.id}" placeholder="ตั้งรหัสผ่านสาขา" style="flex:1; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:12px;">
@@ -1826,6 +1853,15 @@ async function loadVendorData(uid) {
                     }
                 });
 
+                const mainBranchObj =
+                    branchListData.find(b => b.branch_name === 'สาขาหลัก') ||
+                    branchListData.find(b => String(b.id) === String(mainBranchId));
+
+                const customerLinkText = document.getElementById('customerLinkText');
+                if (customerLinkText && mainBranchObj?.id) {
+                    customerLinkText.value = `${mainCustomerLink}&bid=${mainBranchObj.id}`;
+                }
+
                 html = mainBranchHtml;
                 if (subBranchesHtml !== '') {
                     html += `<h4 style="margin:20px 0 10px 0; color:#555;">รายการสาขาย่อย:</h4>` + subBranchesHtml;
@@ -1833,6 +1869,78 @@ async function loadVendorData(uid) {
             }
             if(container) container.innerHTML = html;
             renderBranchOrderTabs();
+        }
+
+        function getBrowserPosition() {
+            return new Promise((resolve, reject) => {
+                if (!navigator.geolocation) return reject(new Error('อุปกรณ์นี้ไม่รองรับ GPS'));
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    enableHighAccuracy: true,
+                    timeout: 15000,
+                    maximumAge: 0
+                });
+            });
+        }
+
+        async function getNewBranchGPS() {
+            try {
+                const pos = await getBrowserPosition();
+                document.getElementById('newBranchLat').value = Number(pos.coords.latitude).toFixed(7);
+                document.getElementById('newBranchLng').value = Number(pos.coords.longitude).toFixed(7);
+            } catch (err) {
+                alert('ดึงพิกัดไม่สำเร็จ: ' + (err.message || err));
+            }
+        }
+
+        async function getBranchGPS(branchId) {
+            try {
+                const pos = await getBrowserPosition();
+                document.getElementById(`branchLat_${branchId}`).value = Number(pos.coords.latitude).toFixed(7);
+                document.getElementById(`branchLng_${branchId}`).value = Number(pos.coords.longitude).toFixed(7);
+            } catch (err) {
+                alert('ดึงพิกัดไม่สำเร็จ: ' + (err.message || err));
+            }
+        }
+
+        async function saveBranchLocation(branchId, isMainBranch) {
+            const address = document.getElementById(`branchAddress_${branchId}`)?.value.trim() || '';
+            const latRaw = document.getElementById(`branchLat_${branchId}`)?.value.trim() || '';
+            const lngRaw = document.getElementById(`branchLng_${branchId}`)?.value.trim() || '';
+
+            if (!latRaw || !lngRaw) return alert('กรุณากดดึงพิกัดก่อนบันทึก');
+
+            const latitude = Number(latRaw);
+            const longitude = Number(lngRaw);
+
+            try {
+                const { error } = await supabaseClient
+                    .from('branches')
+                    .update({ address, latitude, longitude })
+                    .eq('id', branchId);
+
+                if (error) throw error;
+
+                if (isMainBranch) {
+                    const { error: vendorError } = await supabaseClient
+                        .from('vendors')
+                        .update({ address, latitude, longitude })
+                        .eq('id', vendorData.id);
+
+                    if (vendorError) throw vendorError;
+                    vendorData.address = address;
+                    vendorData.latitude = latitude;
+                    vendorData.longitude = longitude;
+                }
+
+                alert(isMainBranch
+                    ? '✅ บันทึกพิกัดสาขาหลักและ Marketplace แล้ว'
+                    : '✅ บันทึกพิกัดสาขานี้แล้ว');
+
+                await loadBranches();
+
+            } catch (err) {
+                alert('บันทึกพิกัดไม่สำเร็จ: ' + (err.message || err));
+            }
         }
 
         async function setBranchPassword(branchId) {
@@ -1893,25 +2001,47 @@ async function loadVendorData(uid) {
         async function addBranch() {
             const bName = document.getElementById('newBranchName').value.trim();
             const payType = document.getElementById('newBranchPaymentType').value;
-            const bPrompt = document.getElementById('newBranchPromptpay').value.trim();
-            const bBank = document.getElementById('newBranchBankInfo').value.trim();
-            
-            if(!bName) return alert("กรุณาใส่ชื่อสาขา");
-            if(payType === 'promptpay' && !bPrompt) return alert("กรุณาระบุเบอร์พร้อมเพย์");
-            if(payType === 'bank' && !bBank) return alert("กรุณาระบุรายละเอียดบัญชีธนาคาร");
-            
-            try {
-                const cleanPromptpay = bPrompt ? bPrompt.replace(/\D/g, '') : null;
-                const { error } = await supabaseClient.from('branches').insert([{ 
-                    merchant_id: vendorData.id, branch_name: bName, payment_type: payType,
-                    promptpay_number: cleanPromptpay, bank_info: bBank, promptpay: bPrompt, is_active: true 
-                }]);
-                if (error) throw error; 
+            const pp = document.getElementById('newBranchPromptpay').value.trim().replace(/\D/g, '');
+            const bank = document.getElementById('newBranchBankInfo').value.trim();
+            const address = document.getElementById('newBranchAddress').value.trim();
+            const latRaw = document.getElementById('newBranchLat').value.trim();
+            const lngRaw = document.getElementById('newBranchLng').value.trim();
 
-                document.getElementById('newBranchName').value = ''; document.getElementById('newBranchPromptpay').value = ''; document.getElementById('newBranchBankInfo').value = '';
-                alert(`🎉 บันทึกสาขา "${bName}" เรียบร้อยแล้ว!`);
-                await loadBranches(); await loadBillingInfo(); 
-            } catch (err) { alert(`❌ เกิดข้อผิดพลาด:\n${err.message}`); }
+            if (!bName) return alert("กรุณากรอกชื่อสาขา");
+            if (!latRaw || !lngRaw) return alert("กรุณาดึงพิกัดของสาขานี้ก่อนบันทึก");
+            if (payType === 'promptpay' && !pp) return alert("กรุณากรอกเบอร์พร้อมเพย์ของสาขา");
+            if (payType === 'bank' && !bank) return alert("กรุณากรอกรายละเอียดบัญชีธนาคารของสาขา");
+
+            const latitude = Number(latRaw);
+            const longitude = Number(lngRaw);
+
+            try {
+                const { error } = await supabaseClient.from('branches').insert([{
+                    merchant_id: vendorData.id,
+                    branch_name: bName,
+                    payment_type: payType,
+                    promptpay_number: payType === 'promptpay' ? pp : null,
+                    bank_info: payType === 'bank' ? bank : null,
+                    address,
+                    latitude,
+                    longitude,
+                    is_active: true
+                }]);
+
+                if (error) throw error;
+
+                ['newBranchName','newBranchPromptpay','newBranchBankInfo','newBranchAddress','newBranchLat','newBranchLng']
+                    .forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.value = '';
+                    });
+
+                alert("เพิ่มสาขาใหม่เรียบร้อยแล้ว");
+                await loadBranches();
+
+            } catch (err) {
+                alert("เพิ่มสาขาไม่สำเร็จ: " + (err.message || err));
+            }
         }
 
         async function deleteBranch(id) {
@@ -2143,17 +2273,39 @@ async function loadVendorData(uid) {
         }
 
         // ==================== ระบบ QR Code สำหรับลูกค้า (Takeaway) ====================
+        function getMainBranchCustomerLink() {
+            const baseLink = document.getElementById('customerLinkText')?.value || '';
+            if (!baseLink) return '';
+
+            const mainBranch =
+                branchListData.find(b => b.branch_name === 'สาขาหลัก') ||
+                branchListData.find(b => String(b.id) === String(mainBranchId));
+
+            if (!mainBranch?.id) return baseLink;
+
+            if (baseLink.includes('bid=')) {
+                return baseLink.replace(/([?&])bid=[^&]*/i, `$1bid=${mainBranch.id}`);
+            }
+
+            return `${baseLink}${baseLink.includes('?') ? '&' : '?'}bid=${mainBranch.id}`;
+        }
+
         function copyCustomerLink() {
-            const linkInput = document.getElementById('customerLinkText'); linkInput.select(); document.execCommand("copy"); alert("คัดลอกลิงก์ร้านค้าเรียบร้อยแล้ว!\nสามารถนำไปแปะในหน้าเพจ หรือส่งให้ลูกค้าได้เลยครับ");
+            const link = getMainBranchCustomerLink();
+            if (!link) return alert("กำลังสร้างลิงก์ กรุณารอสักครู่...");
+            navigator.clipboard.writeText(link)
+                .then(() => alert("คัดลอกลิงก์สาขาหลักเรียบร้อยแล้ว!"))
+                .catch(() => alert(link));
         }
         function showCustomerQr() {
-            const customerLink = document.getElementById('customerLinkText').value; if(!customerLink) return alert("กำลังสร้างลิงก์ กรุณารอสักครู่...");
+            const customerLink = getMainBranchCustomerLink();
+            if (!customerLink) return alert("กำลังสร้างลิงก์ กรุณารอสักครู่...");
             showBranchQr(customerLink, 'สาขาหลัก (Takeaway)');
         }
         function closeCustomerQrModal() { document.getElementById('customerQrModal').style.display = 'none'; }
         function shareCustomerFlex() {
             if (!liff.isLoggedIn()) return;
-            const refLink = document.getElementById('customerLinkText').value; const storeName = vendorData.name || "ร้านของเรา";
+            const refLink = getMainBranchCustomerLink(); const storeName = vendorData.name || "ร้านของเรา";
             const flexMsg = {
               "type": "flex", "altText": `สั่งอาหารจากร้าน ${storeName}`,
               "contents": {
