@@ -89,6 +89,7 @@
         <button class="menu-btn active" onclick="switchTab('dashboard', this)">📊 ภาพรวมรายได้ (Billing)</button>
         <button class="menu-btn" onclick="switchTab('withdrawals', this)">💸 ถอนเงิน Affiliate</button>
         <button class="menu-btn" onclick="switchTab('vendors', this)">🏪 จัดการร้านค้า</button>
+        <button class="menu-btn" onclick="switchTab('paymentAccounts', this)">🏦 บัญชีรับเงินระบบ</button>
     </div>
 
     <!-- พื้นที่แสดงข้อมูลด้านขวา -->
@@ -197,6 +198,95 @@
             </div>
         </div>
 
+        <!-- 4. ตั้งค่าบัญชีรับเงินระบบ -->
+        <div id="paymentAccounts" class="tab-content">
+            <h2 style="margin-top:0;">🏦 บัญชีรับเงินระบบ</h2>
+
+            <div style="background:#eef6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px;margin-bottom:16px;color:#1e3a8a;font-size:13px;line-height:1.5;">
+                แก้เลขบัญชีจากหน้านี้ได้เลย ไม่ต้องเข้า SQL Editor<br>
+                ระบบจะใช้ข้อมูลจาก Supabase เป็นศูนย์กลางเดียว
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">
+
+                <div class="table-container" style="border-left:4px solid #2563eb;">
+                    <h3 style="margin-top:0;color:#1d4ed8;">💳 บัญชีค่าแพ็กเกจ NPX</h3>
+                    <p style="font-size:12px;color:#666;">
+                        ใช้รับค่าแพ็กเกจ / ต่ออายุ / เติมโควต้า / ค่าสาขา
+                    </p>
+
+                    <label style="font-size:12px;font-weight:bold;">ประเภทรับเงิน</label>
+                    <select id="packagePaymentType"
+                            style="width:100%;padding:10px;margin:5px 0 12px;border:1px solid #ddd;border-radius:7px;">
+                        <option value="promptpay">PromptPay</option>
+                        <option value="bank">บัญชีธนาคาร</option>
+                    </select>
+
+                    <label style="font-size:12px;font-weight:bold;">เลขพร้อมเพย์ / เลขบัญชี</label>
+                    <input id="packagePromptpay" type="text"
+                           style="width:100%;box-sizing:border-box;padding:10px;margin:5px 0 12px;border:1px solid #ddd;border-radius:7px;"
+                           placeholder="เช่น 0812345678 หรือเลขนิติบุคคล">
+
+                    <label style="font-size:12px;font-weight:bold;">ชื่อธนาคาร / ชื่อบัญชี / รายละเอียด</label>
+                    <textarea id="packageBankInfo"
+                              style="width:100%;box-sizing:border-box;min-height:80px;padding:10px;margin:5px 0 12px;border:1px solid #ddd;border-radius:7px;"
+                              placeholder="เช่น ธ.กสิกรไทย บจก.NPX Digital Marketing"></textarea>
+
+                    <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:12px;">
+                        <input id="packageAccountActive" type="checkbox" checked>
+                        เปิดใช้งานบัญชีนี้
+                    </label>
+
+                    <button class="btn btn-primary"
+                            onclick="saveSystemPaymentAccount('package_payment')"
+                            style="width:100%;">
+                        💾 บันทึกบัญชีค่าแพ็กเกจ
+                    </button>
+
+                    <div id="packageAccountUpdatedAt"
+                         style="font-size:11px;color:#888;margin-top:8px;"></div>
+                </div>
+
+                <div class="table-container" style="border-left:4px solid #ff9800;">
+                    <h3 style="margin-top:0;color:#e65100;">💰 บัญชี Marketing Wallet</h3>
+                    <p style="font-size:12px;color:#666;">
+                        ใช้รับเงินฝากสำหรับจ่ายค่าคอม Influencer เท่านั้น
+                    </p>
+
+                    <label style="font-size:12px;font-weight:bold;">ประเภทรับเงิน</label>
+                    <select id="walletPaymentType"
+                            style="width:100%;padding:10px;margin:5px 0 12px;border:1px solid #ddd;border-radius:7px;">
+                        <option value="promptpay">PromptPay</option>
+                        <option value="bank">บัญชีธนาคาร</option>
+                    </select>
+
+                    <label style="font-size:12px;font-weight:bold;">เลขพร้อมเพย์ / เลขบัญชี</label>
+                    <input id="walletPromptpay" type="text"
+                           style="width:100%;box-sizing:border-box;padding:10px;margin:5px 0 12px;border:1px solid #ddd;border-radius:7px;"
+                           placeholder="เลขบัญชีรับฝาก Marketing Wallet">
+
+                    <label style="font-size:12px;font-weight:bold;">ชื่อธนาคาร / ชื่อบัญชี / รายละเอียด</label>
+                    <textarea id="walletBankInfo"
+                              style="width:100%;box-sizing:border-box;min-height:80px;padding:10px;margin:5px 0 12px;border:1px solid #ddd;border-radius:7px;"
+                              placeholder="รายละเอียดบัญชี Marketing Wallet"></textarea>
+
+                    <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:12px;">
+                        <input id="walletAccountActive" type="checkbox" checked>
+                        เปิดใช้งานบัญชีนี้
+                    </label>
+
+                    <button class="btn btn-warning"
+                            onclick="saveSystemPaymentAccount('marketing_wallet')"
+                            style="width:100%;background:#ff9800;color:#fff;">
+                        💾 บันทึกบัญชี Marketing Wallet
+                    </button>
+
+                    <div id="walletAccountUpdatedAt"
+                         style="font-size:11px;color:#888;margin-top:8px;"></div>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <!-- Modal ปรับยอดกระเป๋าการตลาด -->
@@ -247,6 +337,7 @@
             await loadWithdrawals();
             await loadMarketingWalletTopupRequests();
             await loadAllVendors();
+            await loadSystemPaymentAccountsAdmin();
         }
 
 
@@ -275,6 +366,110 @@
         function printBillingReport() {
             window.print();
         }
+
+
+        // ================= บัญชีรับเงินระบบ =================
+        async function loadSystemPaymentAccountsAdmin() {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('system_payment_accounts')
+                    .select('account_code, payment_type, promptpay_number, bank_info, is_active, updated_at')
+                    .in('account_code', ['package_payment', 'marketing_wallet']);
+
+                if (error) throw error;
+
+                const byCode = new Map((data || []).map(x => [x.account_code, x]));
+
+                const pkg = byCode.get('package_payment');
+                if (pkg) {
+                    document.getElementById('packagePaymentType').value = pkg.payment_type || 'promptpay';
+                    document.getElementById('packagePromptpay').value = pkg.promptpay_number || '';
+                    document.getElementById('packageBankInfo').value = pkg.bank_info || '';
+                    document.getElementById('packageAccountActive').checked = pkg.is_active !== false;
+                    document.getElementById('packageAccountUpdatedAt').innerText =
+                        pkg.updated_at
+                            ? 'แก้ไขล่าสุด: ' + new Date(pkg.updated_at).toLocaleString('th-TH')
+                            : '';
+                }
+
+                const wallet = byCode.get('marketing_wallet');
+                if (wallet) {
+                    document.getElementById('walletPaymentType').value = wallet.payment_type || 'promptpay';
+                    document.getElementById('walletPromptpay').value = wallet.promptpay_number || '';
+                    document.getElementById('walletBankInfo').value = wallet.bank_info || '';
+                    document.getElementById('walletAccountActive').checked = wallet.is_active !== false;
+                    document.getElementById('walletAccountUpdatedAt').innerText =
+                        wallet.updated_at
+                            ? 'แก้ไขล่าสุด: ' + new Date(wallet.updated_at).toLocaleString('th-TH')
+                            : '';
+                }
+            } catch (err) {
+                console.error('loadSystemPaymentAccountsAdmin error:', err);
+                alert('โหลดข้อมูลบัญชีรับเงินไม่สำเร็จ: ' + (err.message || err));
+            }
+        }
+
+        async function saveSystemPaymentAccount(accountCode) {
+            const isPackage = accountCode === 'package_payment';
+
+            const paymentType = document.getElementById(
+                isPackage ? 'packagePaymentType' : 'walletPaymentType'
+            ).value;
+
+            const promptpay = document.getElementById(
+                isPackage ? 'packagePromptpay' : 'walletPromptpay'
+            ).value.trim();
+
+            const bankInfo = document.getElementById(
+                isPackage ? 'packageBankInfo' : 'walletBankInfo'
+            ).value.trim();
+
+            const isActive = document.getElementById(
+                isPackage ? 'packageAccountActive' : 'walletAccountActive'
+            ).checked;
+
+            const label = isPackage ? 'บัญชีค่าแพ็กเกจ NPX' : 'บัญชี Marketing Wallet';
+
+            if (isActive && !promptpay && !bankInfo) {
+                alert('กรุณากรอกเลขบัญชีหรือรายละเอียดบัญชีก่อนบันทึก');
+                return;
+            }
+
+            if (!confirm(
+                `ยืนยันเปลี่ยน ${label} ใช่หรือไม่?\n\n` +
+                `เลขบัญชี/พร้อมเพย์: ${promptpay || '-'}\n` +
+                `สถานะ: ${isActive ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}`
+            )) {
+                return;
+            }
+
+            try {
+                const { data, error } = await supabaseClient.rpc(
+                    'admin_update_system_payment_account',
+                    {
+                        p_account_code: accountCode,
+                        p_payment_type: paymentType,
+                        p_promptpay_number: promptpay,
+                        p_bank_info: bankInfo,
+                        p_is_active: isActive,
+                        p_admin_pin: ADMIN_PIN
+                    }
+                );
+
+                if (error) throw error;
+                if (!data || data.success !== true) {
+                    throw new Error('ระบบบันทึกบัญชีไม่สำเร็จ');
+                }
+
+                alert(`✅ บันทึก ${label} เรียบร้อยแล้ว`);
+                await loadSystemPaymentAccountsAdmin();
+
+            } catch (err) {
+                console.error('saveSystemPaymentAccount error:', err);
+                alert('บันทึกบัญชีไม่สำเร็จ: ' + (err.message || err));
+            }
+        }
+
 
         // ================= 1. โหลดข้อมูล SaaS Analytics & Billing =================
         async function loadBillingAnalytics() {
