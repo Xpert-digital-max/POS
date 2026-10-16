@@ -574,15 +574,16 @@
                 }
 
                 if (source === 'dine_in') {
-                    const { error } =
-                        await supabaseClient
-                            .from('table_orders')
-                            .update({
-                                order_status: 'served'
-                            })
-                            .eq('id', orderId);
+                    const { data: statusResult, error: statusRpcError } =
+                        await supabaseClient.rpc('update_table_order_status', {
+                            p_order_id: orderId,
+                            p_new_status: 'served'
+                        });
 
-                    if (error) throw error;
+                    if (statusRpcError) throw statusRpcError;
+                    if (!statusResult || statusResult.success !== true) {
+                        throw new Error(statusResult?.message || 'อัปเดตสถานะ Dine-in ไม่สำเร็จ');
+                    }
 
                     await fetchData();
                     return;
@@ -688,7 +689,15 @@
             if(!confirm("ต้องการยกเลิกออเดอร์นี้ใช่หรือไม่? (ยอดเงินจะไม่ถูกนำไปรวมในบิล)")) return;
             try {
                 if (source === 'dine_in') {
-                    await supabaseClient.from('table_orders').update({ order_status: 'cancelled' }).eq('id', orderId);
+                    const { data: cancelResult, error: cancelRpcError } =
+                        await supabaseClient.rpc('cancel_table_order', {
+                            p_order_id: orderId
+                        });
+
+                    if (cancelRpcError) throw cancelRpcError;
+                    if (!cancelResult || cancelResult.success !== true) {
+                        throw new Error(cancelResult?.message || 'ยกเลิกออเดอร์ไม่สำเร็จ');
+                    }
                 } else {
                     await supabaseClient.from('orders').update({ status: 'cancelled' }).eq('id', orderId);
                 }
@@ -834,8 +843,8 @@
             html += `</div>`;
 
             html += `<div style="display: flex; gap: 10px; margin-top: 5px; padding-top: 15px; border-top: 1px dashed #ddd;">
-                        <button onclick="forceCloseTable('paid_cash', ${totalAmt})" class="btn-large" style="background: #06C755; color: white; font-size: 14px;">💵 รับเงินสด (ปิดโต๊ะ)</button>
-                        <button onclick="forceCloseTable('paid_transfer', ${totalAmt})" class="btn-large" style="background: #00BCD4; color: white; font-size: 14px;">📲 รับเงินโอน (ปิดโต๊ะ)</button>
+                        <button onclick="forceCloseTable('cash')" class="btn-large" style="background: #06C755; color: white; font-size: 14px;">💵 รับเงินสด (ปิดโต๊ะ)</button>
+                        <button onclick="forceCloseTable('transfer')" class="btn-large" style="background: #00BCD4; color: white; font-size: 14px;">📲 ยืนยันเงินโอนแบบ Manual</button>
                      </div>`;
             html += `</div>`;
 
@@ -859,38 +868,56 @@
             fetchData();
         }
 
-        async function forceCloseTable(method, amount) {
-            const methodText = method === 'paid_cash' ? 'เงินสด' : 'เงินโอน';
+        async function forceCloseTable(method) {
+            if (!currentViewingSession) return;
+
+            const methodText = method === 'cash' ? 'เงินสด' : 'เงินโอน';
+
+            // เงินโอนปกติจะถูกปิดโต๊ะโดย Edge Function หลังตรวจสลิปผ่าน
+            // ปุ่มนี้อนุญาตเฉพาะ Manual Review เท่านั้น
+            if (method === 'transfer' && currentViewingSession.payment_status !== 'pending_review') {
+                return alert("การชำระเงินโอนต้องให้ลูกค้าแนบสลิปและผ่านการตรวจอัตโนมัติก่อน\nหากระบบตรวจไม่ได้ จึงค่อยใช้ Manual Review");
+            }
+
+            const amount = Number(currentViewingSession.bill_amount || 0);
             if(!confirm(`ยืนยันการรับเงิน ${methodText} ยอด ${amount} บาท และต้องการ [ปิดโต๊ะ] ใช่หรือไม่?`)) return;
-            
-            await supabaseClient.from('table_sessions').update({ 
-                session_status: 'closed', 
-                payment_status: method, 
-                payment_method: method === 'paid_cash' ? 'cash' : 'transfer',
-                bill_amount: amount,
-                closed_at: new Date().toISOString()
-            }).eq('id', currentViewingSession.id);
-            
-            closeTableModal(); 
+
+            const { data: closeResult, error: closeRpcError } =
+                await supabaseClient.rpc('close_table_session', {
+                    p_session_id: currentViewingSession.id,
+                    p_payment_method: method
+                });
+
+            if (closeRpcError) {
+                alert("ปิดโต๊ะไม่สำเร็จ: " + closeRpcError.message);
+                return;
+            }
+
+            if (!closeResult || closeResult.success !== true) {
+                alert("ปิดโต๊ะไม่สำเร็จ: " + (closeResult?.message || "Unknown error"));
+                return;
+            }
+
+            closeTableModal();
             fetchData();
         }
 
         async function openNewTableAndPrintQR() {
             if(!confirm(`ต้องการเปิดโต๊ะ ${currentViewingTable.table_name} และพิมพ์ QR Code ใช่หรือไม่?`)) return;
-            
+
             try {
-                const { data: newSess, error: createError } = await supabaseClient.from('table_sessions').insert([{ 
-                    vendor_id: VENDOR_ID, 
-                    branch_id: currentViewingTable.branch_id, 
-                    table_id: currentViewingTable.id, 
-                    session_status: 'open', 
-                    payment_status: 'unpaid' 
-                }]).select().single();
-                
-                if (createError) throw createError;
-                
+                const { data: sessionResult, error: sessionRpcError } =
+                    await supabaseClient.rpc('open_or_get_table_session', {
+                        p_table_token: currentViewingTable.table_token
+                    });
+
+                if (sessionRpcError) throw sessionRpcError;
+                if (!sessionResult || sessionResult.success !== true) {
+                    throw new Error(sessionResult?.message || "ไม่สามารถเปิดโต๊ะได้");
+                }
+
                 printTableQRCode(currentViewingTable);
-                
+
                 closeTableModal();
                 fetchData();
             } catch(e) {
