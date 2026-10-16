@@ -44,6 +44,34 @@
         #loginScreen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #0f172a; display: flex; justify-content: center; align-items: center; z-index: 1000; flex-direction: column; }
         #loginScreen input { padding: 15px; font-size: 18px; border-radius: 8px; border: none; text-align: center; margin-bottom: 15px; }
         #loginScreen button { padding: 12px 30px; font-size: 16px; background: #06C755; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+
+        .report-toolbar {
+            display: flex; flex-wrap: wrap; gap: 10px; align-items: end;
+            background: #fff; padding: 14px; border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 18px;
+        }
+        .report-toolbar label { display:block; font-size:12px; color:#64748b; margin-bottom:5px; font-weight:bold; }
+        .report-toolbar input[type="date"] { padding:9px 10px; border:1px solid #cbd5e1; border-radius:7px; }
+        .btn-primary { background:#2563eb; color:#fff; }
+        .btn-dark { background:#0f172a; color:#fff; }
+        .report-period { font-size:13px; color:#475569; margin: 5px 0 15px; }
+
+        @media print {
+            @page { size: A4 landscape; margin: 10mm; }
+            body { background:#fff !important; font-size:10pt; }
+            .sidebar, #loginScreen, .no-print { display:none !important; }
+            .main-content { margin-left:0 !important; padding:0 !important; }
+            .tab-content { display:none !important; }
+            #dashboard.tab-content { display:block !important; }
+            .stat-grid { grid-template-columns: repeat(4, 1fr) !important; gap:8px !important; }
+            .stat-card, .table-container { box-shadow:none !important; border:1px solid #ddd; }
+            .stat-card { padding:10px !important; }
+            .stat-card p { font-size:18px !important; }
+            table { min-width:0 !important; font-size:9pt !important; }
+            th, td { padding:6px 5px !important; }
+            .table-container { overflow:visible !important; padding:10px !important; }
+        }
+
     </style>
 </head>
 <body>
@@ -68,7 +96,22 @@
         
         <!-- 1. หน้าภาพรวมระบบรายได้ (SaaS Analytics) -->
         <div id="dashboard" class="tab-content active">
-            <h2 style="margin-top: 0;">ภาพรวมรายได้ประจำเดือน (Real-time)</h2>
+            <h2 style="margin-top: 0;">ภาพรวมรายได้ / การใช้งาน</h2>
+            <div class="report-toolbar no-print">
+                <div>
+                    <label>วันที่เริ่มต้น</label>
+                    <input type="date" id="reportStartDate">
+                </div>
+                <div>
+                    <label>วันที่สิ้นสุด</label>
+                    <input type="date" id="reportEndDate">
+                </div>
+                <button class="btn btn-primary" onclick="loadBillingAnalytics()">🔎 แสดงรายงาน</button>
+                <button class="btn" onclick="setReportThisMonth()">เดือนนี้</button>
+                <button class="btn" onclick="setReportToday()">วันนี้</button>
+                <button class="btn btn-dark" onclick="printBillingReport()">🖨️ พิมพ์รายงาน A4</button>
+            </div>
+            <div id="reportPeriodText" class="report-period"></div>
             <div class="stat-grid">
                 <div class="stat-card" style="border-left-color: #3b82f6;">
                     <h3>รายได้โดยประมาณ (Revenue)</h3>
@@ -115,7 +158,7 @@
             <h2 style="margin-top: 0;">จัดการการถอนเงิน Affiliate</h2>
             <div class="table-container">
                 <table id="withdrawalsTable">
-                    <thead><tr><th>วันที่แจ้ง</th><th>ร้านค้า</th><th>พร้อมเพย์</th><th>จำนวนเงิน</th><th>ประเภท</th><th>สถานะ</th><th>จัดการ</th></tr></thead>
+                    <thead><tr><th>วันที่แจ้ง</th><th>ผู้แนะนำ</th><th>บัญชีรับเงิน</th><th>จำนวนเงิน</th><th>สถานะ</th><th>จัดการ</th></tr></thead>
                     <tbody></tbody>
                 </table>
             </div>
@@ -177,22 +220,77 @@
         }
 
         async function initAdmin() {
+            setReportThisMonth(false);
             await loadBillingAnalytics();
             await loadWithdrawals();
             await loadAllVendors();
         }
 
+
+        function formatDateInput(d) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        function setReportThisMonth(reload = true) {
+            const now = new Date();
+            document.getElementById('reportStartDate').value =
+                formatDateInput(new Date(now.getFullYear(), now.getMonth(), 1));
+            document.getElementById('reportEndDate').value = formatDateInput(now);
+            if (reload) loadBillingAnalytics();
+        }
+
+        function setReportToday() {
+            const today = formatDateInput(new Date());
+            document.getElementById('reportStartDate').value = today;
+            document.getElementById('reportEndDate').value = today;
+            loadBillingAnalytics();
+        }
+
+        function printBillingReport() {
+            window.print();
+        }
+
         // ================= 1. โหลดข้อมูล SaaS Analytics & Billing =================
         async function loadBillingAnalytics() {
-            // ดึงข้อมูล Vendors, Branches, Slip Logs ของเดือนนี้
-            const d = new Date(); const firstDay = new Date(d.getFullYear(), d.getMonth(), 1).toISOString();
-            
+            const startValue = document.getElementById('reportStartDate').value;
+            const endValue = document.getElementById('reportEndDate').value;
+
+            if (!startValue || !endValue) {
+                alert('กรุณาเลือกวันที่เริ่มต้นและวันที่สิ้นสุด');
+                return;
+            }
+            if (startValue > endValue) {
+                alert('วันที่เริ่มต้นต้องไม่เกินวันที่สิ้นสุด');
+                return;
+            }
+
+            const startISO = new Date(`${startValue}T00:00:00+07:00`).toISOString();
+            const endExclusive = new Date(`${endValue}T00:00:00+07:00`);
+            endExclusive.setDate(endExclusive.getDate() + 1);
+            const endISO = endExclusive.toISOString();
+
+            document.getElementById('reportPeriodText').innerText =
+                `ช่วงรายงาน: ${new Date(startValue + 'T00:00:00').toLocaleDateString('th-TH')} - ${new Date(endValue + 'T00:00:00').toLocaleDateString('th-TH')}`;
+
             const [resVendors, resBranches, resSlipLogs, resPlans] = await Promise.all([
                 supabaseClient.from('vendors').select('*'),
                 supabaseClient.from('branches').select('*').eq('is_active', true),
-                supabaseClient.from('slip_logs').select('merchant_id, status').gte('created_at', firstDay),
+                supabaseClient.from('slip_logs')
+                    .select('merchant_id, status, created_at')
+                    .gte('created_at', startISO)
+                    .lt('created_at', endISO),
                 supabaseClient.from('plans').select('*')
             ]);
+
+            const billingErrors = [resVendors.error, resBranches.error, resSlipLogs.error, resPlans.error].filter(Boolean);
+            if (billingErrors.length) {
+                console.error('Billing load error:', billingErrors);
+                alert('โหลดข้อมูลรายงานไม่สำเร็จ: ' + billingErrors[0].message);
+                return;
+            }
 
             const vendors = resVendors.data || [];
             const branches = resBranches.data || [];
@@ -263,27 +361,96 @@
             document.getElementById('statMargin').innerText = `฿${grossMargin.toLocaleString()}`;
         }
 
-        // ================= 2. จัดการถอนเงิน (เหมือนเดิม) =================
+        // ================= 2. จัดการถอนเงิน Influencer =================
         async function loadWithdrawals() {
-            const { data, error } = await supabaseClient.from('withdrawals').select('*').order('created_at', { ascending: false });
             const tbody = document.getElementById('withdrawalsTable').querySelector('tbody');
-            if (error || data.length === 0) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">ยังไม่มีรายการแจ้งถอน</td></tr>'; return; }
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">กำลังโหลด...</td></tr>';
 
-            let html = '';
-            data.forEach(w => {
-                const date = new Date(w.created_at).toLocaleString('th-TH');
-                const typeText = w.type === 'cash' ? 'ถอนเงินสด' : 'จ่ายค่าระบบ';
-                const statusBadge = w.status === 'pending' ? '<span class="badge warning">รออนุมัติ/โอน</span>' : '<span class="badge success" style="background:#bbf7d0;">ดำเนินการแล้ว</span>';
-                
-                let actionBtn = w.status === 'pending' ? `<button class="btn btn-success" onclick="approveWithdrawal('${w.id}')">✔️ กดโอนแล้ว (อนุมัติ)</button>` : `<span style="color:#888; font-size:12px;">✅ เรียบร้อย</span>`;
+            try {
+                const { data: withdrawals, error: wError } = await supabaseClient
+                    .from('influencer_withdrawals')
+                    .select('*')
+                    .order('created_at', { ascending: false });
 
-                html += `<tr><td>${date}</td><td>${w.store_name}</td><td style="font-weight:bold; color:#06C755;">${w.promptpay}</td><td style="font-weight:bold;">฿${w.amount}</td><td>${typeText}</td><td>${statusBadge}</td><td>${actionBtn}</td></tr>`;
-            }); tbody.innerHTML = html;
+                if (wError) throw wError;
+
+                const uidList = [...new Set((withdrawals || []).map(w => w.influencer_uid).filter(Boolean))];
+                const influencerMap = new Map();
+
+                if (uidList.length > 0) {
+                    const { data: influencers, error: iError } = await supabaseClient
+                        .from('influencers')
+                        .select('line_uid, display_name, phone, bank_info')
+                        .in('line_uid', uidList);
+
+                    if (iError) throw iError;
+                    (influencers || []).forEach(i => influencerMap.set(i.line_uid, i));
+                }
+
+                if (!withdrawals || withdrawals.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">ยังไม่มีรายการขอถอนเงินจากผู้แนะนำ</td></tr>';
+                    return;
+                }
+
+                let html = '';
+                withdrawals.forEach(w => {
+                    const influencer = influencerMap.get(w.influencer_uid) || {};
+                    const date = new Date(w.created_at).toLocaleString('th-TH');
+                    const displayName = influencer.display_name || w.influencer_uid || '-';
+                    const bankInfo = w.bank_info || influencer.bank_info || '-';
+
+                    let statusBadge = '';
+                    let actionBtn = '';
+
+                    if (w.status === 'pending') {
+                        statusBadge = '<span class="badge warning">รอโอน</span>';
+                        actionBtn = `<button class="btn btn-success" onclick="approveInfluencerWithdrawal('${w.id}')">✔️ โอนแล้ว</button>`;
+                    } else if (w.status === 'completed' || w.status === 'paid') {
+                        statusBadge = '<span class="badge success">จ่ายแล้ว</span>';
+                        actionBtn = '<span style="color:#888; font-size:12px;">✅ เรียบร้อย</span>';
+                    } else {
+                        statusBadge = `<span class="badge">${w.status || '-'}</span>`;
+                        actionBtn = '-';
+                    }
+
+                    html += `<tr>
+                        <td>${date}</td>
+                        <td><strong>${displayName}</strong><br><span style="font-size:11px;color:#888;">${w.influencer_uid || ''}</span></td>
+                        <td style="white-space:pre-wrap;">${bankInfo}</td>
+                        <td style="font-weight:bold; color:#0f766e;">฿${Number(w.amount || 0).toLocaleString()}</td>
+                        <td>${statusBadge}</td>
+                        <td>${actionBtn}</td>
+                    </tr>`;
+                });
+
+                tbody.innerHTML = html;
+
+            } catch (err) {
+                console.error('loadWithdrawals error:', err);
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#b91c1c;">
+                    โหลดรายการถอนเงินไม่สำเร็จ<br><span style="font-size:11px;">${err.message || err}</span>
+                </td></tr>`;
+            }
         }
 
-        async function approveWithdrawal(id) {
-            if (!confirm("ยืนยันว่าคุณได้ทำการโอนเงิน/หักค่าระบบเรียบร้อยแล้วใช่หรือไม่?")) return;
-            await supabaseClient.from('withdrawals').update({ status: 'completed' }).eq('id', id); alert("อัปเดตสถานะสำเร็จ!"); loadWithdrawals();
+        async function approveInfluencerWithdrawal(id) {
+            if (!confirm('ยืนยันว่าคุณโอนเงินให้ผู้แนะนำเรียบร้อยแล้วใช่หรือไม่?')) return;
+
+            try {
+                const { error } = await supabaseClient
+                    .from('influencer_withdrawals')
+                    .update({ status: 'completed' })
+                    .eq('id', id);
+
+                if (error) throw error;
+
+                alert('✅ อัปเดตรายการถอนเงินเป็นจ่ายแล้ว');
+                await loadWithdrawals();
+
+            } catch (err) {
+                console.error('approveInfluencerWithdrawal error:', err);
+                alert('อัปเดตรายการถอนเงินไม่สำเร็จ: ' + (err.message || err));
+            }
         }
 
         // ================= 3. จัดการร้านค้า (อัปเดตระบบอนุมัติ + จ่ายค่าคอมฯ) =================
