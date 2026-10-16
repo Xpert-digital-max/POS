@@ -353,11 +353,17 @@
 
             if (targetVendorId) {
                 try {
-                    const { data: vendor, error } = await supabaseClient
-                        .from('vendors')
-                        .select('id, name, line_picture_url, marketplace_enabled, influencer_comm_type, influencer_comm_value')
-                        .eq('id', targetVendorId)
+                    const { data: walletVendor, error } = await supabaseClient
+                        .from('vendor_influencer_wallet_status')
+                        .select('*')
+                        .eq('vendor_id', targetVendorId)
                         .single();
+                    const vendor = walletVendor ? {
+                        id: walletVendor.vendor_id, name: walletVendor.vendor_name, marketplace_enabled: walletVendor.marketplace_enabled,
+                        influencer_comm_type: walletVendor.influencer_comm_type, influencer_comm_value: walletVendor.influencer_comm_value,
+                        available_balance: walletVendor.available_balance, influencer_program_status: walletVendor.influencer_program_status,
+                        influencer_visible: walletVendor.influencer_visible
+                    } : null;
 
                     if (!error && vendor) {
                         targetVendorData = vendor;
@@ -372,9 +378,12 @@
                             `รับ ${commVal}${commType}`;
 
                         const btn = document.getElementById('targetAddBtn');
-                        const eligible = vendor.marketplace_enabled === true && commVal > 0;
+                        const eligible = vendor.marketplace_enabled === true && commVal > 0 && vendor.influencer_visible === true;
                         btn.disabled = !eligible;
-                        btn.innerText = eligible ? '+ เพิ่มร้านแนะนำ' : 'ร้านนี้ยังไม่เปิดค่าคอม';
+                        if (eligible) btn.innerText = '+ เพิ่มร้านแนะนำ';
+                        else if (vendor.influencer_program_status === 'paused') btn.innerText = 'Wallet ต่ำ ร้านถูกพัก';
+                        else if (vendor.influencer_program_status === 'not_activated') btn.innerText = 'ร้านยังไม่เปิดระบบพาร์ทเนอร์';
+                        else btn.innerText = 'ร้านนี้ยังไม่พร้อมรับ Referral';
                     }
                 } catch (err) {
                     console.error("Error fetching target vendor:", err);
@@ -424,11 +433,10 @@
             const [{ data: vendors, error: vendorErr }, { data: recs, error: recErr }] =
                 await Promise.all([
                     supabaseClient
-                        .from('vendors')
-                        .select('id, name, line_picture_url, marketplace_enabled, influencer_comm_type, influencer_comm_value')
-                        .eq('marketplace_enabled', true)
-                        .gt('influencer_comm_value', 0)
-                        .order('name', { ascending: true }),
+                        .from('vendor_influencer_wallet_status')
+                        .select('vendor_id, vendor_name, marketplace_enabled, influencer_comm_type, influencer_comm_value, marketing_wallet, reserved_commission, available_balance, influencer_program_status, influencer_visible')
+                        .eq('influencer_visible', true)
+                        .order('vendor_name', { ascending: true }),
 
                     supabaseClient
                         .from('influencer_recommendations')
@@ -440,9 +448,15 @@
             if (vendorErr) throw vendorErr;
             if (recErr) throw recErr;
 
-            eligibleVendors = vendors || [];
-            recommendations = recs || [];
-
+            eligibleVendors = (vendors || []).map(v => ({
+                id: v.vendor_id, name: v.vendor_name, marketplace_enabled: v.marketplace_enabled,
+                influencer_comm_type: v.influencer_comm_type, influencer_comm_value: v.influencer_comm_value,
+                marketing_wallet: v.marketing_wallet, reserved_commission: v.reserved_commission,
+                available_balance: v.available_balance, influencer_program_status: v.influencer_program_status,
+                influencer_visible: v.influencer_visible
+            }));
+            const visibleVendorIds = new Set(eligibleVendors.map(v => v.id));
+            recommendations = (recs || []).filter(r => visibleVendorIds.has(r.vendor_id));
             renderRecommendationManager();
         }
 
