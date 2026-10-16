@@ -205,7 +205,10 @@
         } 
         
         async function initApp() { 
-            try { 
+            try {
+                // ต้อง init LIFF ก่อนอ่าน table_token เพราะ LIFF URL อาจส่งค่าผ่าน liff.state
+                await liff.init({ liffId: CONFIG.liffIdCustomer });
+
                 const urlParams = new URLSearchParams(window.location.search);
                 tableToken = urlParams.get('table_token');
 
@@ -214,37 +217,36 @@
                     return;
                 }
 
-                await liff.init({ liffId: CONFIG.liffIdCustomer });
-
-                // ป้องกัน LIFF access token เก่าหมดอายุแล้วทำให้หน้าเปิดไม่ได้
+                // ถ้าเปิดจาก browser ภายนอกและยังไม่ login ให้ login ด้วย URL สะอาด
+                // ห้ามใช้ window.location.href เพราะอาจติด code/state/liff.state เก่าจน LINE Login 400
                 if (!liff.isLoggedIn()) {
-                    liff.login({ redirectUri: window.location.href });
+                    const cleanRedirect =
+                        window.location.origin +
+                        window.location.pathname +
+                        '?table_token=' +
+                        encodeURIComponent(tableToken);
+
+                    liff.login({ redirectUri: cleanRedirect });
                     return;
                 }
 
-                try {
+                // ใช้ ID token ที่ LIFF SDK จัดการให้ก่อน เพื่อลดปัญหา access token หมดอายุจาก getProfile()
+                const decoded = liff.getDecodedIDToken();
+                customerUid = decoded && decoded.sub ? decoded.sub : null;
+
+                // fallback เฉพาะกรณีไม่มี openid/sub
+                if (!customerUid) {
                     const profile = await liff.getProfile();
                     customerUid = profile.userId;
-                } catch (profileError) {
-                    const msg = String(profileError?.message || profileError || '').toLowerCase();
-
-                    if (msg.includes('access token expired') || msg.includes('token expired')) {
-                        console.warn("LIFF token expired, re-login...");
-                        liff.logout();
-                        liff.login({ redirectUri: window.location.href });
-                        return;
-                    }
-
-                    throw profileError;
                 }
 
                 await loadTableAndSession();
                 pollingInterval = setInterval(pollSessionStatus, 3000);
             } catch (err) {
-                showError("เกิดข้อผิดพลาดในการเปิดระบบ: " + err.message);
+                showError("เกิดข้อผิดพลาดในการเปิดระบบ: " + (err?.message || err));
             } 
         } 
-        
+
         function showError(msg) { document.getElementById('loader').innerHTML = `<h2 style="color: #ff4d4f; text-align:center;">❌<br>เกิดข้อผิดพลาด</h2><p style="text-align:center; padding: 20px;">${msg}</p>`; } 
         
         async function loadTableAndSession() { 
