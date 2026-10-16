@@ -116,37 +116,51 @@
         function deg2rad(deg) {
             return deg * (Math.PI / 180);
         }
-
-        // ==================== Init & Location ====================
+        // =========================================================
+        // Init Marketplace
+        // =========================================================
         async function initMarketplace() {
-    const params = new URLSearchParams(window.location.search);
+            const params = new URLSearchParams(window.location.search);
 
-    referralCode = params.get('ref');
+            // ใช้ ref จาก URL ปัจจุบันเท่านั้น
+            // marketplace.html           = Marketplace ปกติ
+            // marketplace.html?ref=XXXX  = Influencer / Referral mode
+            referralCode = params.get('ref');
 
-    // ถ้า URL ไม่มี ref = Marketplace ปกติ
-    if (!referralCode) {
-        referralInfluencer = null;
-        recommendationMap = new Map();
+            if (referralCode) {
+                // มี ref จริงใน URL เท่านั้น จึงเข้า Influencer mode
+                localStorage.setItem('npx_marketplace_ref', referralCode);
 
-        // ล้าง ref เก่าที่อาจค้างจากการเปิดลิงก์ Influencer ก่อนหน้า
-        localStorage.removeItem('npx_marketplace_ref');
-    } else {
-        // มี ref จริงจาก URL เท่านั้นจึงเข้า Influencer mode
-        localStorage.setItem('npx_marketplace_ref', referralCode);
-        await resolveReferral();
-    }
+                await resolveReferral();
+            } else {
+                // ไม่มี ref = Marketplace ปกติ
+                // ห้ามนำ ref เก่าจาก session ก่อนหน้ากลับมาใช้
+                referralCode = null;
+                referralInfluencer = null;
+                recommendationMap = new Map();
 
-    const liffId = CONFIG.liffIdMarketplace || CONFIG.liffIdCustomer;
+                localStorage.removeItem('npx_marketplace_ref');
 
-    try {
-        await liff.init({ liffId });
-    } catch (err) {
-        console.warn('LIFF Init Failed:', err);
-    }
+                const banner = document.getElementById('referralBanner');
+                if (banner) {
+                    banner.style.display = 'none';
+                }
+            }
 
-    requestLocation();
-}
-    }
+            // Marketplace ใช้ LIFF Marketplace ถ้ามี
+            // ถ้ายังไม่ได้กำหนด จะ fallback ไป Customer LIFF ตามระบบเดิม
+            const liffId =
+                CONFIG.liffIdMarketplace ||
+                CONFIG.liffIdCustomer;
+
+            try {
+                await liff.init({ liffId });
+            } catch (err) {
+                console.warn('LIFF Init Failed:', err);
+            }
+
+            requestLocation();
+        }
 
         async function resolveReferral() {
             referralInfluencer = null;
