@@ -1673,6 +1673,8 @@ async function loadVendorData(uid) {
                 await safeLoad('Orders', loadOrders);
                 await safeLoad('Billing Info', loadBillingInfo);
 
+                await safeLoad('Wallet Draft Restore', restoreMarketingWalletDraftIfNeeded);
+
                 // Restaurant เป็นโมดูลเสริม ไม่ควรบล็อก Takeaway
                 if (vendorData.restaurant_mode_enabled === true) {
                     const tabBtnRest = document.getElementById('tabBtnRestaurant');
@@ -3920,6 +3922,84 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             return packagePaymentAccount;
         }
 
+        function getMarketingWalletDraftKey() {
+            return vendorData?.id
+                ? `npxMarketingWalletTopupDraft_${vendorData.id}`
+                : null;
+        }
+
+        function getMarketingWalletDraft() {
+            try {
+                const key = getMarketingWalletDraftKey();
+                if (!key) return null;
+
+                const raw = localStorage.getItem(key);
+                if (!raw) return null;
+
+                const draft = JSON.parse(raw);
+                const createdAt = Number(draft?.createdAt || 0);
+
+                // เก็บ session การโอนไว้สูงสุด 6 ชั่วโมง
+                if (!createdAt || (Date.now() - createdAt) > (6 * 60 * 60 * 1000)) {
+                    localStorage.removeItem(key);
+                    return null;
+                }
+
+                return draft;
+            } catch (err) {
+                console.warn('[WALLET DRAFT READ]', err);
+                return null;
+            }
+        }
+
+        function saveMarketingWalletDraft({ amount, stage = 'payment' } = {}) {
+            try {
+                const key = getMarketingWalletDraftKey();
+                if (!key) return;
+
+                const current = getMarketingWalletDraft() || {};
+                const account = marketingWalletPaymentAccount || {};
+
+                const next = {
+                    amount: Number(amount || current.amount || 0),
+                    stage: stage || current.stage || 'payment',
+                    createdAt: current.createdAt || Date.now(),
+                    updatedAt: Date.now(),
+                    accountCode: 'marketing_wallet',
+                    paymentType: account.payment_type || current.paymentType || null,
+                    promptpayNumber: account.promptpay_number || current.promptpayNumber || null,
+                    accountUpdatedAt: account.updated_at || current.accountUpdatedAt || null
+                };
+
+                localStorage.setItem(key, JSON.stringify(next));
+            } catch (err) {
+                console.warn('[WALLET DRAFT SAVE]', err);
+            }
+        }
+
+        function clearMarketingWalletDraft() {
+            try {
+                const key = getMarketingWalletDraftKey();
+                if (key) localStorage.removeItem(key);
+            } catch (err) {
+                console.warn('[WALLET DRAFT CLEAR]', err);
+            }
+        }
+
+        async function restoreMarketingWalletDraftIfNeeded() {
+            const draft = getMarketingWalletDraft();
+            if (!draft || !Number(draft.amount)) return;
+
+            // เปิดหน้าต่อจากเดิมอัตโนมัติหลังกลับจากแอปธนาคาร
+            setTimeout(async () => {
+                try {
+                    await openTopupModal(true);
+                } catch (err) {
+                    console.warn('[WALLET DRAFT RESTORE]', err);
+                }
+            }, 350);
+        }
+
         async function loadMarketingWalletPaymentAccount(forceReload = false) {
             if (marketingWalletPaymentAccount && !forceReload) {
                 return marketingWalletPaymentAccount;
@@ -3958,7 +4038,7 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             return marketingWalletPaymentAccount;
         }
 
-        async function openTopupModal() {
+        async function openTopupModal(isRestore = false) {
             if (!vendorData) {
                 alert('ไม่พบข้อมูลร้านค้า');
                 return;
@@ -3966,6 +4046,7 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
 
             const activated = !!vendorData.influencer_program_activated_at;
             const minimum = activated ? 10 : 100;
+            const draft = getMarketingWalletDraft();
 
             const modal = document.getElementById('marketingWalletTopupModal');
             const amountInput = document.getElementById('marketingWalletTopupAmount');
@@ -3976,11 +4057,20 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
                     : 'เติมครั้งแรกขั้นต่ำ 100 บาท เพื่อเปิดระบบพาร์ทเนอร์';
 
             amountInput.min = minimum;
-            amountInput.value = minimum;
+
+            // ถ้ามีรายการที่กำลังโอนอยู่ ใช้ยอดเดิม ห้าม reset กลับเป็นขั้นต่ำ
+            const restoredAmount =
+                draft && Number(draft.amount) >= minimum
+                    ? Number(draft.amount)
+                    : minimum;
+
+            amountInput.value = restoredAmount;
 
             document.getElementById('marketingWalletPaymentArea').style.display = 'block';
             document.getElementById('marketingWalletPaymentArea').style.opacity = '0.45';
             document.getElementById('marketingWalletSlipArea').style.display = 'none';
+
+            // file input ไม่สามารถ restore ได้ตามข้อจำกัด browser
             document.getElementById('marketingWalletSlipImage').value = '';
             document.getElementById('marketingWalletSlipPreviewWrap').style.display = 'none';
 
@@ -3991,14 +4081,54 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             modal.style.display = 'flex';
 
             try {
-                // บังคับโหลดใหม่ทุกครั้ง เพื่อให้เปลี่ยนบัญชีใน Supabase แล้วมีผลทันที
+                // โหลดใหม่ทุกครั้ง เพื่อให้บัญชีจาก Admin มีผลทันที
                 await loadMarketingWalletPaymentAccount(true);
+
+                // ถ้า draft ถูกสร้างด้วยบัญชีเก่า และบัญชีถูกเปลี่ยนระหว่างทาง ให้หยุดก่อน
+                if (
+                    draft?.promptpayNumber &&
+                    marketingWalletPaymentAccount?.promptpay_number &&
+                    String(draft.promptpayNumber) !== String(marketingWalletPaymentAccount.promptpay_number)
+                ) {
+                    clearMarketingWalletDraft();
+                    amountInput.value = minimum;
+
+                    alert(
+                        'บัญชีรับ Marketing Wallet มีการเปลี่ยนแปลงระหว่างทำรายการ\n\n' +
+                        'ระบบยกเลิกรายการเดิมเพื่อป้องกันการโอนผิดบัญชี\n' +
+                        'กรุณาสร้างยอดใหม่อีกครั้ง'
+                    );
+                }
+
                 refreshMarketingWalletPayment();
+
+                const activeDraft = getMarketingWalletDraft();
+
+                if (
+                    activeDraft &&
+                    Number(activeDraft.amount) >= minimum
+                ) {
+                    amountInput.value = Number(activeDraft.amount);
+                    refreshMarketingWalletPayment();
+
+                    if (activeDraft.stage === 'awaiting_slip') {
+                        document.getElementById('marketingWalletSlipArea').style.display = 'block';
+                        document.getElementById('marketingWalletResumeNotice').style.display = 'block';
+                    }
+                }
+
+                // สร้าง/อัปเดต draft ทันที เพื่อให้ยอดนี้คงอยู่หากออกไปแอปธนาคาร
+                saveMarketingWalletDraft({
+                    amount: Number(amountInput.value),
+                    stage: activeDraft?.stage || 'payment'
+                });
+
             } catch (err) {
                 console.error('[OPEN WALLET TOPUP]', err);
                 amountError.style.display = 'block';
                 amountError.innerText = err.message || 'โหลดบัญชีรับเงินไม่สำเร็จ';
                 document.getElementById('marketingWalletPaymentArea').style.opacity = '0.35';
+
                 alert(
                     'ไม่สามารถเปิดระบบเติม Marketing Wallet ได้\n\n' +
                     (err.message || err) +
@@ -4008,6 +4138,7 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
         }
 
         function closeMarketingWalletTopupModal() {
+            // ปิดหน้าต่างได้ แต่ไม่ลบ draft เพื่อให้กลับมาแล้วทำต่อได้
             document.getElementById('marketingWalletTopupModal').style.display = 'none';
         }
 
@@ -4035,11 +4166,12 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             } else {
                 paymentArea.style.opacity = '1';
                 amountError.style.display = 'none';
+                saveMarketingWalletDraft({
+                    amount,
+                    stage: getMarketingWalletDraft()?.stage || 'payment'
+                });
             }
 
-            // Source of Truth = Supabase public.system_payment_accounts
-            // account_code = marketing_wallet
-            // ไม่อ่านบัญชี Marketing Wallet จาก config.js อีกต่อไป
             const paymentType = String(
                 marketingWalletPaymentAccount.payment_type || 'promptpay'
             ).toLowerCase();
@@ -4052,43 +4184,69 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
                 marketingWalletPaymentAccount.bank_info || ''
             ).trim();
 
-            document.getElementById('marketingWalletAdminBank').innerText =
-                bankInfo || 'บัญชีกลาง Marketing Wallet';
-
-            document.getElementById('marketingWalletAdminPromptpay').innerText =
-                promptpay || '-';
+            const promptpayBox = document.getElementById('marketingWalletPromptpayBox');
+            const bankBox = document.getElementById('marketingWalletBankBox');
+            const qrEl = document.getElementById('marketingWalletQrImage');
 
             document.getElementById('marketingWalletPayAmount').innerText =
                 Number.isFinite(amount) ? amount.toFixed(2) : '0.00';
 
-            const qrEl = document.getElementById('marketingWalletQrImage');
+            if (paymentType === 'promptpay') {
+                // PromptPay: แสดง "แบบเดียว" เท่านั้น เพื่อลดความสับสน
+                if (bankBox) bankBox.style.display = 'none';
+                if (promptpayBox) promptpayBox.style.display = 'block';
 
-            if (
-                paymentType === 'promptpay' &&
-                promptpay &&
-                Number.isFinite(amount) &&
-                amount > 0
-            ) {
-                qrEl.style.display = 'block';
+                document.getElementById('marketingWalletAdminPromptpay').innerText =
+                    promptpay || '-';
 
-                renderPromptPayQR({
-                    containerId: 'marketingWalletQrImage',
-                    promptpayId: promptpay,
-                    amount: amount,
-                    logPrefix: 'MARKETING_WALLET_DB'
-                });
+                if (promptpay && Number.isFinite(amount) && amount >= minimum) {
+                    qrEl.style.display = 'block';
+
+                    renderPromptPayQR({
+                        containerId: 'marketingWalletQrImage',
+                        promptpayId: promptpay,
+                        amount: amount,
+                        logPrefix: 'MARKETING_WALLET_DB'
+                    });
+                } else {
+                    qrEl.style.display = 'none';
+                }
+
             } else {
+                // Bank: แสดงเฉพาะรายละเอียดบัญชีธนาคาร
+                if (promptpayBox) promptpayBox.style.display = 'none';
+                if (bankBox) bankBox.style.display = 'block';
+
+                document.getElementById('marketingWalletAdminBank').innerText =
+                    bankInfo || 'ยังไม่ได้ระบุรายละเอียดบัญชี';
+
                 qrEl.style.display = 'none';
             }
         }
 
         async function copyMarketingWalletAccount() {
-            const account = String(marketingWalletPaymentAccount?.promptpay_number || '');
+            const paymentType = String(
+                marketingWalletPaymentAccount?.payment_type || 'promptpay'
+            ).toLowerCase();
+
+            const account =
+                paymentType === 'promptpay'
+                    ? String(marketingWalletPaymentAccount?.promptpay_number || '')
+                    : String(marketingWalletPaymentAccount?.bank_info || '');
+
+            if (!account) {
+                alert('ไม่พบข้อมูลบัญชีสำหรับคัดลอก');
+                return;
+            }
+
             try {
                 await navigator.clipboard.writeText(account);
-                alert('คัดลอกเลขพร้อมเพย์แล้ว');
+                alert(paymentType === 'promptpay'
+                    ? 'คัดลอกเลขพร้อมเพย์แล้ว'
+                    : 'คัดลอกรายละเอียดบัญชีแล้ว'
+                );
             } catch (err) {
-                alert('เลขพร้อมเพย์: ' + account);
+                alert(account);
             }
         }
 
@@ -4106,14 +4264,18 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
                 String(marketingWalletPaymentAccount?.bank_info || '').trim();
 
             if (!hasWalletAccount) {
-                alert(
-                    'ยังไม่ได้ตั้งค่าบัญชีรับเงิน Marketing Wallet ใน Supabase\n' +
-                    'system_payment_accounts / marketing_wallet'
-                );
+                alert('ยังไม่ได้ตั้งค่าบัญชีรับเงิน Marketing Wallet');
                 return;
             }
 
+            saveMarketingWalletDraft({
+                amount,
+                stage: 'awaiting_slip'
+            });
+
             document.getElementById('marketingWalletSlipArea').style.display = 'block';
+            document.getElementById('marketingWalletResumeNotice').style.display = 'none';
+
             document.getElementById('marketingWalletSlipArea').scrollIntoView({
                 behavior: 'smooth',
                 block: 'nearest'
@@ -4241,6 +4403,7 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
                         'กด ตกลง เพื่อไปแจ้งแอดมินทาง LINE'
                     );
 
+                    clearMarketingWalletDraft();
                     closeMarketingWalletTopupModal();
                     setTimeout(openMarketingWalletAdminLine, 250);
                     return;
@@ -4270,6 +4433,7 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
                         'ใช้สำหรับติดต่อกรณีต้องการตรวจสอบเพิ่มเติม'
                     );
 
+                    clearMarketingWalletDraft();
                     closeMarketingWalletTopupModal();
                     setTimeout(openMarketingWalletAdminLine, 250);
                     return;
@@ -4283,6 +4447,7 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
                         'กด ตกลง เพื่อแจ้งแอดมินทาง LINE'
                     );
 
+                    clearMarketingWalletDraft();
                     closeMarketingWalletTopupModal();
                     setTimeout(openMarketingWalletAdminLine, 250);
                     return;
@@ -4297,6 +4462,7 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
                     'กด ตกลง เพื่อไปแจ้งแอดมินทาง LINE'
                 );
 
+                clearMarketingWalletDraft();
                 closeMarketingWalletTopupModal();
                 setTimeout(openMarketingWalletAdminLine, 250);
 
@@ -4324,7 +4490,7 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
 <div id="marketingWalletTopupModal"
      style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.60);z-index:99999;
             align-items:center;justify-content:center;padding:14px;box-sizing:border-box;">
-    <div style="background:#fff;width:100%;max-width:440px;max-height:92vh;overflow:auto;
+    <div style="background:#fff;width:100%;max-width:420px;max-height:92vh;overflow:auto;
                 border-radius:22px;padding:20px;box-sizing:border-box;box-shadow:0 20px 60px rgba(0,0,0,.28);">
 
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
@@ -4356,22 +4522,49 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
                         border-radius:12px;background:#fff;padding:6px;box-sizing:border-box;">
 
             <div style="background:#f8fafc;border-radius:12px;padding:13px;text-align:left;">
-                <div style="font-size:12px;color:#777;">บัญชีรับฝาก Marketing Wallet</div>
-                <div id="marketingWalletAdminBank" style="font-weight:800;color:#222;margin-top:4px;"></div>
 
-                <div style="font-size:12px;color:#777;margin-top:10px;">พร้อมเพย์ / เลขบัญชี</div>
-                <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-                    <div id="marketingWalletAdminPromptpay"
-                         style="font-size:18px;font-weight:900;color:#0f766e;flex:1;"></div>
+                <!-- PromptPay mode: แสดงแค่ PromptPay ชุดเดียว -->
+                <div id="marketingWalletPromptpayBox" style="display:none;">
+                    <div style="font-size:12px;color:#777;">พร้อมเพย์รับฝาก Marketing Wallet</div>
+
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:5px;">
+                        <div id="marketingWalletAdminPromptpay"
+                             style="font-size:20px;font-weight:900;color:#0f766e;flex:1;
+                                    word-break:break-all;"></div>
+
+                        <button type="button" onclick="copyMarketingWalletAccount()"
+                                style="border:none;background:#e0f2f1;color:#00695c;padding:8px 10px;
+                                       border-radius:8px;font-weight:bold;white-space:nowrap;">
+                            คัดลอก
+                        </button>
+                    </div>
+
+                    <div style="font-size:11px;color:#8a8a8a;margin-top:7px;line-height:1.45;">
+                        ชื่อผู้รับเงินจริงจะแสดงในแอปธนาคารก่อนกดยืนยันโอน
+                    </div>
+                </div>
+
+                <!-- Bank mode: แสดงเฉพาะบัญชีธนาคาร -->
+                <div id="marketingWalletBankBox" style="display:none;">
+                    <div style="font-size:12px;color:#777;">บัญชีธนาคารรับฝาก Marketing Wallet</div>
+                    <div id="marketingWalletAdminBank"
+                         style="font-weight:800;color:#222;margin-top:5px;line-height:1.45;"></div>
+
                     <button type="button" onclick="copyMarketingWalletAccount()"
-                            style="border:none;background:#e0f2f1;color:#00695c;padding:8px 10px;border-radius:8px;font-weight:bold;">
-                        คัดลอก
+                            style="margin-top:9px;border:none;background:#e8eefc;color:#244a91;padding:8px 10px;
+                                   border-radius:8px;font-weight:bold;">
+                        คัดลอกรายละเอียดบัญชี
                     </button>
                 </div>
 
-                <div style="font-size:12px;color:#777;margin-top:10px;">ยอดที่ต้องโอน</div>
-                <div style="font-size:26px;font-weight:900;color:#e65100;">
-                    ฿<span id="marketingWalletPayAmount">0.00</span>
+                <div style="margin-top:12px;padding-top:11px;border-top:1px solid #e8edf2;">
+                    <div style="font-size:12px;color:#777;">ยอดที่ต้องโอน</div>
+                    <div style="font-size:28px;font-weight:900;color:#e65100;">
+                        ฿<span id="marketingWalletPayAmount">0.00</span>
+                    </div>
+                    <div style="font-size:11px;color:#777;margin-top:4px;">
+                        QR ด้านบนผูกกับยอดนี้ กรุณาโอนยอดเดียวกัน
+                    </div>
                 </div>
             </div>
 
@@ -4385,6 +4578,12 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
         <div id="marketingWalletSlipArea"
              style="display:none;margin-top:14px;border:2px dashed #26c6da;border-radius:16px;padding:16px;background:#f3fdff;">
             <div style="font-size:15px;font-weight:900;color:#00838f;text-align:center;">3. แนบสลิปเพื่อส่งตรวจ</div>
+            <div id="marketingWalletResumeNotice"
+                 style="display:none;margin-top:10px;background:#fff8e1;border:1px solid #ffe082;
+                        color:#8a5a00;border-radius:10px;padding:10px;font-size:11px;line-height:1.5;text-align:center;">
+                ↩️ กลับมาจากแอปธนาคารแล้ว ระบบคืนยอดเดิมและ QR เดิมให้แล้ว<br>
+                กรุณาอัพโหลดสลิปของรายการนี้เพื่อส่งตรวจ
+            </div>
 
             <label for="marketingWalletSlipImage"
                    style="display:block;margin-top:12px;background:#fff;border:1px solid #b2ebf2;border-radius:11px;
