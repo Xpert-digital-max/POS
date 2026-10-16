@@ -1021,6 +1021,8 @@
     <script>
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
         let vendorData = null;
+        let marketingWalletPaymentAccount = null;
+        let packagePaymentAccount = null;
         let dashboardOwnerUid = null;
         let categories = [];
         let editingMenuId = null;
@@ -1657,6 +1659,9 @@ async function loadVendorData(uid) {
                     customerLinkEl.value = `https://liff.line.me/${liffToUse}?vid=${vendorData.id}`;
                 }
 
+                // โหลดบัญชีค่าแพ็กเกจจาก Supabase ก่อนสร้าง QR
+                await safeLoad('Package Payment Account', async () => loadPackagePaymentAccount(true));
+
                 // UI ข้อมูลร้าน — แยก error ไม่ให้ทำ Dashboard ทั้งหน้าหยุด
                 await safeLoad('Settings Form', async () => populateSettingsForm());
                 await safeLoad('Marketing Wallet', loadMarketingWalletStatus);
@@ -1914,7 +1919,7 @@ async function loadVendorData(uid) {
         }
 
         // ==================== ระบบชำระเงินสาขาย่อย ====================
-        function openBranchPaymentModal(branchId, branchName) {
+        async function openBranchPaymentModal(branchId, branchName) {
             if (!vendorData.is_subscription_active || (vendorData.subscription_expires_at && new Date() > new Date(vendorData.subscription_expires_at))) {
                 alert("⚠️ กรุณาต่ออายุแพ็กเกจหลัก (สาขาหลัก) ให้เรียบร้อยก่อนดำเนินการต่ออายุสาขาย่อยครับ");
                 return;
@@ -1933,8 +1938,26 @@ async function loadVendorData(uid) {
             document.getElementById('currentBranchPaymentId').value = branchId;
             document.getElementById('currentBranchPaymentPlanId').value = planId;
             
-            renderPromptPayQR({ containerId: 'branchPaymentQrImage', promptpayId: CONFIG.adminPromptpay || '0812345678', amount: price, logPrefix: 'BRANCH' });
-            document.getElementById('branchPaymentModal').style.display = 'flex';
+            try {
+                const account = await loadPackagePaymentAccount(true);
+
+                if (account.payment_type !== 'promptpay' || !account.promptpay_number) {
+                    alert('บัญชีค่าแพ็กเกจไม่ได้ตั้งเป็น PromptPay กรุณาติดต่อแอดมิน');
+                    return;
+                }
+
+                renderPromptPayQR({
+                    containerId: 'branchPaymentQrImage',
+                    promptpayId: account.promptpay_number,
+                    amount: price,
+                    logPrefix: 'BRANCH_DB'
+                });
+
+                document.getElementById('branchPaymentModal').style.display = 'flex';
+
+            } catch (err) {
+                alert('เปิดหน้าชำระเงินไม่สำเร็จ: ' + (err.message || err));
+            }
         }
 
         function closeBranchPaymentModal() {
@@ -2318,18 +2341,80 @@ async function loadVendorData(uid) {
             } catch(e) { console.error("Billing Info Error:", e); document.getElementById('billPlanName').innerText = "โหลดล้มเหลว"; }
         }
 
-        function updateRenewQr() {
-            const select = document.getElementById('renewPlanSelect'); const opt = select.options[select.selectedIndex]; if (!opt) return; localStorage.setItem('savedRenewPlan_' + vendorData.id, select.value);
-            const price = opt.getAttribute('data-price'); document.getElementById('renewAmountText').innerText = `ยอดชำระ: ฿${price}`;
-            if (CONFIG.adminPaymentType === 'bank') { document.getElementById('adminQrImage').style.display = 'none'; document.getElementById('adminBankInfoBox').style.display = 'block'; document.getElementById('adminBankInfoBox').innerHTML = `<b>โอนเข้าบัญชีผู้ให้บริการ:</b><br>${CONFIG.adminBankInfo}<br>เลขบัญชี: ${CONFIG.adminPromptpay}`;
-            } else { document.getElementById('adminBankInfoBox').style.display = 'none'; renderPromptPayQR({ containerId: 'adminQrImage', promptpayId: CONFIG.adminPromptpay || '0812345678', amount: price, logPrefix: 'RENEW' }); }
+        async function updateRenewQr() {
+            const select = document.getElementById('renewPlanSelect');
+            const opt = select.options[select.selectedIndex];
+            if (!opt) return;
+
+            localStorage.setItem('savedRenewPlan_' + vendorData.id, select.value);
+
+            const price = opt.getAttribute('data-price');
+            document.getElementById('renewAmountText').innerText = `ยอดชำระ: ฿${price}`;
+
+            try {
+                const account = await loadPackagePaymentAccount(true);
+
+                if (account.payment_type === 'bank') {
+                    document.getElementById('adminQrImage').style.display = 'none';
+                    document.getElementById('adminBankInfoBox').style.display = 'block';
+                    document.getElementById('adminBankInfoBox').innerHTML =
+                        `<b>โอนเข้าบัญชีผู้ให้บริการ:</b><br>` +
+                        `${account.bank_info || '-'}<br>` +
+                        `เลขบัญชี: ${account.promptpay_number || '-'}`;
+                } else {
+                    document.getElementById('adminBankInfoBox').style.display = 'none';
+                    document.getElementById('adminQrImage').style.display = 'block';
+
+                    renderPromptPayQR({
+                        containerId: 'adminQrImage',
+                        promptpayId: account.promptpay_number,
+                        amount: price,
+                        logPrefix: 'RENEW_DB'
+                    });
+                }
+
+            } catch (err) {
+                console.error('updateRenewQr:', err);
+                alert('โหลดบัญชีค่าแพ็กเกจไม่สำเร็จ: ' + (err.message || err));
+            }
         }
 
-        function updateQuotaQr() {
-            const select = document.getElementById('quotaPlanSelect'); const opt = select.options[select.selectedIndex]; if (!opt) return; localStorage.setItem('savedQuotaPlan_' + vendorData.id, select.value);
-            const price = opt.getAttribute('data-price'); document.getElementById('quotaAmountText').innerText = `ยอดชำระ: ฿${price}`;
-            if (CONFIG.adminPaymentType === 'bank') { document.getElementById('quotaQrImage').style.display = 'none'; document.getElementById('quotaBankInfoBox').style.display = 'block'; document.getElementById('quotaBankInfoBox').innerHTML = `<b>โอนเข้าบัญชีผู้ให้บริการ:</b><br>${CONFIG.adminBankInfo}<br>เลขบัญชี: ${CONFIG.adminPromptpay}`;
-            } else { document.getElementById('quotaBankInfoBox').style.display = 'none'; renderPromptPayQR({ containerId: 'quotaQrImage', promptpayId: CONFIG.adminPromptpay || '0812345678', amount: price, logPrefix: 'QUOTA' }); }
+        async function updateQuotaQr() {
+            const select = document.getElementById('quotaPlanSelect');
+            const opt = select.options[select.selectedIndex];
+            if (!opt) return;
+
+            localStorage.setItem('savedQuotaPlan_' + vendorData.id, select.value);
+
+            const price = opt.getAttribute('data-price');
+            document.getElementById('quotaAmountText').innerText = `ยอดชำระ: ฿${price}`;
+
+            try {
+                const account = await loadPackagePaymentAccount(true);
+
+                if (account.payment_type === 'bank') {
+                    document.getElementById('quotaQrImage').style.display = 'none';
+                    document.getElementById('quotaBankInfoBox').style.display = 'block';
+                    document.getElementById('quotaBankInfoBox').innerHTML =
+                        `<b>โอนเข้าบัญชีผู้ให้บริการ:</b><br>` +
+                        `${account.bank_info || '-'}<br>` +
+                        `เลขบัญชี: ${account.promptpay_number || '-'}`;
+                } else {
+                    document.getElementById('quotaBankInfoBox').style.display = 'none';
+                    document.getElementById('quotaQrImage').style.display = 'block';
+
+                    renderPromptPayQR({
+                        containerId: 'quotaQrImage',
+                        promptpayId: account.promptpay_number,
+                        amount: price,
+                        logPrefix: 'QUOTA_DB'
+                    });
+                }
+
+            } catch (err) {
+                console.error('updateQuotaQr:', err);
+                alert('โหลดบัญชีค่าแพ็กเกจไม่สำเร็จ: ' + (err.message || err));
+            }
         }
 
         async function verifyAndRenewSubscription(btn) {
@@ -3797,7 +3882,83 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             }
         }
 
-        function openTopupModal() {
+        async function loadPackagePaymentAccount(forceReload = false) {
+            if (packagePaymentAccount && !forceReload) {
+                return packagePaymentAccount;
+            }
+
+            const { data, error } = await supabaseClient
+                .from('system_payment_accounts')
+                .select('account_code, payment_type, promptpay_number, bank_info, is_active, updated_at')
+                .eq('account_code', 'package_payment')
+                .eq('is_active', true)
+                .single();
+
+            if (error) {
+                console.error('[PACKAGE PAYMENT ACCOUNT]', error);
+                throw new Error('โหลดบัญชีรับเงินค่าแพ็กเกจไม่สำเร็จ');
+            }
+
+            if (!data) {
+                throw new Error('ไม่พบบัญชีรับเงินค่าแพ็กเกจในระบบ');
+            }
+
+            const promptpay = String(data.promptpay_number || '').replace(/\s+/g, '');
+            const bankInfo = String(data.bank_info || '').trim();
+
+            if (!promptpay && !bankInfo) {
+                throw new Error('ยังไม่ได้ตั้งค่าบัญชีรับเงินค่าแพ็กเกจใน Admin');
+            }
+
+            packagePaymentAccount = {
+                ...data,
+                payment_type: String(data.payment_type || 'promptpay').toLowerCase(),
+                promptpay_number: promptpay,
+                bank_info: bankInfo
+            };
+
+            return packagePaymentAccount;
+        }
+
+        async function loadMarketingWalletPaymentAccount(forceReload = false) {
+            if (marketingWalletPaymentAccount && !forceReload) {
+                return marketingWalletPaymentAccount;
+            }
+
+            const { data, error } = await supabaseClient
+                .from('system_payment_accounts')
+                .select('account_code, payment_type, promptpay_number, bank_info, is_active, updated_at')
+                .eq('account_code', 'marketing_wallet')
+                .eq('is_active', true)
+                .single();
+
+            if (error) {
+                console.error('[MARKETING WALLET ACCOUNT]', error);
+                throw new Error('โหลดบัญชีรับเงิน Marketing Wallet ไม่สำเร็จ');
+            }
+
+            if (!data) {
+                throw new Error('ไม่พบบัญชีรับเงิน Marketing Wallet');
+            }
+
+            const promptpay = String(data.promptpay_number || '').replace(/\s+/g, '');
+            const bankInfo = String(data.bank_info || '').trim();
+
+            if (!promptpay && !bankInfo) {
+                throw new Error('ยังไม่ได้ตั้งค่าบัญชีรับเงิน Marketing Wallet ใน Supabase');
+            }
+
+            marketingWalletPaymentAccount = {
+                ...data,
+                payment_type: String(data.payment_type || 'promptpay').toLowerCase(),
+                promptpay_number: promptpay,
+                bank_info: bankInfo
+            };
+
+            return marketingWalletPaymentAccount;
+        }
+
+        async function openTopupModal() {
             if (!vendorData) {
                 alert('ไม่พบข้อมูลร้านค้า');
                 return;
@@ -3818,12 +3979,32 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             amountInput.value = minimum;
 
             document.getElementById('marketingWalletPaymentArea').style.display = 'block';
+            document.getElementById('marketingWalletPaymentArea').style.opacity = '0.45';
             document.getElementById('marketingWalletSlipArea').style.display = 'none';
             document.getElementById('marketingWalletSlipImage').value = '';
             document.getElementById('marketingWalletSlipPreviewWrap').style.display = 'none';
 
+            const amountError = document.getElementById('marketingWalletAmountError');
+            amountError.style.display = 'block';
+            amountError.innerText = 'กำลังโหลดบัญชีรับเงินจากระบบ...';
+
             modal.style.display = 'flex';
-            refreshMarketingWalletPayment();
+
+            try {
+                // บังคับโหลดใหม่ทุกครั้ง เพื่อให้เปลี่ยนบัญชีใน Supabase แล้วมีผลทันที
+                await loadMarketingWalletPaymentAccount(true);
+                refreshMarketingWalletPayment();
+            } catch (err) {
+                console.error('[OPEN WALLET TOPUP]', err);
+                amountError.style.display = 'block';
+                amountError.innerText = err.message || 'โหลดบัญชีรับเงินไม่สำเร็จ';
+                document.getElementById('marketingWalletPaymentArea').style.opacity = '0.35';
+                alert(
+                    'ไม่สามารถเปิดระบบเติม Marketing Wallet ได้\n\n' +
+                    (err.message || err) +
+                    '\n\nกรุณาติดต่อแอดมิน'
+                );
+            }
         }
 
         function closeMarketingWalletTopupModal() {
@@ -3840,6 +4021,13 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             const paymentArea = document.getElementById('marketingWalletPaymentArea');
             const amountError = document.getElementById('marketingWalletAmountError');
 
+            if (!marketingWalletPaymentAccount) {
+                paymentArea.style.opacity = '0.35';
+                amountError.style.display = 'block';
+                amountError.innerText = 'ยังโหลดบัญชีรับเงิน Marketing Wallet ไม่สำเร็จ';
+                return;
+            }
+
             if (!Number.isFinite(amount) || amount < minimum) {
                 paymentArea.style.opacity = '0.45';
                 amountError.style.display = 'block';
@@ -3849,22 +4037,20 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
                 amountError.style.display = 'none';
             }
 
-            // IMPORTANT:
-            // Marketing Wallet ใช้บัญชีเฉพาะของตัวเอง
-            // ห้ามดึง CONFIG.adminPromptpay / adminBankInfo ของค่าแพ็กเกจ
-            const paymentType = String(CONFIG.marketingWalletPaymentType || 'promptpay');
-            const promptpay = String(CONFIG.marketingWalletPromptpay || '').replace(/\s+/g, '');
-            const bankInfo = String(CONFIG.marketingWalletBankInfo || '').trim();
+            // Source of Truth = Supabase public.system_payment_accounts
+            // account_code = marketing_wallet
+            // ไม่อ่านบัญชี Marketing Wallet จาก config.js อีกต่อไป
+            const paymentType = String(
+                marketingWalletPaymentAccount.payment_type || 'promptpay'
+            ).toLowerCase();
 
-            if (!promptpay && !bankInfo) {
-                paymentArea.style.opacity = '0.35';
-                amountError.style.display = 'block';
-                amountError.innerText = 'ยังไม่ได้ตั้งค่าบัญชีรับเงิน Marketing Wallet ใน config.js';
-                document.getElementById('marketingWalletAdminBank').innerText = 'ยังไม่ได้ตั้งค่า';
-                document.getElementById('marketingWalletAdminPromptpay').innerText = '-';
-                document.getElementById('marketingWalletQrImage').style.display = 'none';
-                return;
-            }
+            const promptpay = String(
+                marketingWalletPaymentAccount.promptpay_number || ''
+            ).replace(/\s+/g, '');
+
+            const bankInfo = String(
+                marketingWalletPaymentAccount.bank_info || ''
+            ).trim();
 
             document.getElementById('marketingWalletAdminBank').innerText =
                 bankInfo || 'บัญชีกลาง Marketing Wallet';
@@ -3885,22 +4071,19 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             ) {
                 qrEl.style.display = 'block';
 
-                // ใช้ตัวสร้าง PromptPay QR เดียวกับระบบค่าแพ็กเกจ
-                // แต่เปลี่ยนแหล่งบัญชีเป็น marketingWalletPromptpay
                 renderPromptPayQR({
                     containerId: 'marketingWalletQrImage',
                     promptpayId: promptpay,
                     amount: amount,
-                    logPrefix: 'MARKETING_WALLET'
+                    logPrefix: 'MARKETING_WALLET_DB'
                 });
             } else {
-                // กรณีเลือกบัญชีธนาคารอย่างเดียว
                 qrEl.style.display = 'none';
             }
         }
 
         async function copyMarketingWalletAccount() {
-            const account = String(CONFIG.marketingWalletPromptpay || '');
+            const account = String(marketingWalletPaymentAccount?.promptpay_number || '');
             try {
                 await navigator.clipboard.writeText(account);
                 alert('คัดลอกเลขพร้อมเพย์แล้ว');
@@ -3919,11 +4102,14 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             }
 
             const hasWalletAccount =
-                String(CONFIG.marketingWalletPromptpay || '').trim() ||
-                String(CONFIG.marketingWalletBankInfo || '').trim();
+                String(marketingWalletPaymentAccount?.promptpay_number || '').trim() ||
+                String(marketingWalletPaymentAccount?.bank_info || '').trim();
 
             if (!hasWalletAccount) {
-                alert('ยังไม่ได้ตั้งค่าบัญชีรับเงิน Marketing Wallet ใน config.js');
+                alert(
+                    'ยังไม่ได้ตั้งค่าบัญชีรับเงิน Marketing Wallet ใน Supabase\n' +
+                    'system_payment_accounts / marketing_wallet'
+                );
                 return;
             }
 
@@ -4163,7 +4349,7 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
 
         <div id="marketingWalletPaymentArea"
              style="margin-top:14px;border:1px solid #e5e7eb;border-radius:16px;padding:16px;text-align:center;">
-            <div style="font-size:15px;font-weight:900;color:#333;">2. โอนเข้าบัญชีกลาง Marketing Wallet</div><div style="font-size:11px;color:#888;margin-top:3px;">บัญชีนี้แยกจากบัญชีค่าแพ็กเกจ NPX</div>
+            <div style="font-size:15px;font-weight:900;color:#333;">2. โอนเข้าบัญชีกลาง Marketing Wallet</div><div style="font-size:11px;color:#888;margin-top:3px;">บัญชีนี้แยกจากบัญชีค่าแพ็กเกจ NPX และโหลดจากระบบกลางอัตโนมัติ</div>
 
             <img id="marketingWalletQrImage" alt="PromptPay QR"
                  style="display:block;width:230px;max-width:82%;margin:12px auto;border:1px solid #eee;
