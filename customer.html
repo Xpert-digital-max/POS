@@ -1322,28 +1322,36 @@ function shareNormalFlex() {
 }
 
 // ---- แชร์รับค่าคอม (Influencer) ----
-function handleInfluencerShare() {
-    if (!liff.isLoggedIn()) {
-        alert("กรุณาเปิดลิงก์นี้ในแอป LINE หรือเข้าสู่ระบบ LINE เพื่อใช้ระบบพาร์ทเนอร์ครับ");
-        liff.login({ redirectUri: window.location.href });
+async function handleInfluencerShare() {
+    if (!vendorData || Number(vendorData.influencer_comm_value || 0) <= 0) {
+        alert("ขออภัยครับ ร้านค้านี้ยังไม่ได้เปิดใช้งานระบบให้ค่าคอมมิชชันพาร์ทเนอร์\nคุณสามารถใช้ปุ่ม 'แชร์บอกต่อ (ปกติ)' ได้ครับ");
         return;
     }
-    
-    // ตรวจสอบว่าร้านเปิดระบบค่าคอมหรือไม่
-    if (!vendorData || !vendorData.influencer_comm_value || vendorData.influencer_comm_value <= 0) {
-        alert("ขออภัยครับ ร้านค้านี้ยังไม่ได้เปิดใช้งานระบบให้ค่าคอมมิชชันพาร์ทเนอร์\nคุณสามารถใช้ปุ่ม 'แชร์บอกต่อ(ปกติ)' ได้ครับ");
-        return;
+    try {
+        if (!userLineProfile && typeof liff !== 'undefined' && liff.isLoggedIn()) {
+            const decoded = liff.getDecodedIDToken();
+            if (decoded && decoded.sub) {
+                userLineProfile = { userId: decoded.sub, displayName: decoded.name || '', pictureUrl: decoded.picture || '' };
+            } else {
+                userLineProfile = await liff.getProfile();
+            }
+        }
+        if (!userLineProfile || !userLineProfile.userId) {
+            alert("กรุณาเปิดร้านนี้จากในแอป LINE เพื่อเข้าสู่ศูนย์พาร์ทเนอร์ครับ");
+            return;
+        }
+        closeShareModal();
+        const partnerLiffId = (CONFIG.liffIdDashboard || CONFIG.liffIdInfluencer || '').trim();
+        if (partnerLiffId) {
+            window.location.href = `https://liff.line.me/${encodeURIComponent(partnerLiffId)}?vid=${encodeURIComponent(vendorId)}`;
+            return;
+        }
+        const basePath = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
+        window.location.href = `${basePath}/influencer.html?vid=${encodeURIComponent(vendorId)}`;
+    } catch (err) {
+        console.error("Open Partner Dashboard Error:", err);
+        alert("ไม่สามารถเปิดศูนย์พาร์ทเนอร์ได้ กรุณาลองใหม่อีกครั้ง");
     }
-
-    if (!userLineProfile) {
-        alert("กำลังเชื่อมต่อระบบ LINE ข้อมูลยังไม่พร้อม กรุณาลองกดใหม่อีกครั้ง");
-        return;
-    }
-
-    // เปิดใช้งานโค้ดส่วนที่เคยปิดไว้ (เชื่อมโยงไปหน้า Dashboard ของ Influencer)
-    const basePath = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
-    const influUrl = `${basePath}/influencer.html?uid=${userLineProfile.userId}&vid=${vendorId}`;
-    window.location.href = influUrl;
 }
 
         window.onload = initCustomerApp;
