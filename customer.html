@@ -332,6 +332,7 @@
         function recoverCustomerContext() {
             let vid = getUrlParameter('vid');
             let bid = getUrlParameter('bid');
+            let ref = getUrlParameter('ref');
 
             function readParamsFromText(rawText) {
                 if (!rawText) return;
@@ -349,8 +350,9 @@
                         const u = new URL(decoded, window.location.origin);
                         vid = vid || u.searchParams.get('vid');
                         bid = bid || u.searchParams.get('bid');
+                        ref = ref || u.searchParams.get('ref');
                         const nestedState = u.searchParams.get('liff.state');
-                        if ((!vid || !bid) && nestedState) readParamsFromText(nestedState);
+                        if ((!vid || !bid || !ref) && nestedState) readParamsFromText(nestedState);
                         return;
                     } catch (e) {}
 
@@ -359,9 +361,10 @@
                     const params = new URLSearchParams(queryText);
                     vid = vid || params.get('vid');
                     bid = bid || params.get('bid');
+                    ref = ref || params.get('ref');
 
                     const nestedState = params.get('liff.state');
-                    if ((!vid || !bid) && nestedState) readParamsFromText(nestedState);
+                    if ((!vid || !bid || !ref) && nestedState) readParamsFromText(nestedState);
                 } catch (e) {
                     console.warn("[CONTEXT PARSE]", e);
                 }
@@ -390,7 +393,22 @@
                 localStorage.setItem('NPX_CUSTOMER_BRANCH_ID', bid);
             }
 
-            return { vendorId: vid || null, branchId: bid || null };
+            if (!ref) {
+                ref =
+                    sessionStorage.getItem('NPX_CUSTOMER_REF') ||
+                    localStorage.getItem('NPX_CUSTOMER_REF');
+            }
+
+            if (ref) {
+                sessionStorage.setItem('NPX_CUSTOMER_REF', ref);
+                localStorage.setItem('NPX_CUSTOMER_REF', ref);
+            }
+
+            return {
+                vendorId: vid || null,
+                branchId: bid || null,
+                referralRef: ref || null
+            };
         }
 
         function saveCart() {
@@ -423,7 +441,7 @@
                 const ctx = recoverCustomerContext();
                 vendorId = ctx.vendorId;
                 branchId = ctx.branchId;
-                influencerRef = getUrlParameter('ref'); // [เพิ่มใหม่] ดึงรหัสพาร์ทเนอร์จากลิงก์
+                influencerRef = ctx.referralRef; // รองรับทั้ง URL ปกติ และ LIFF liff.state
 
                 if (!vendorId) {
                     alert("ไม่พบรหัสร้านค้า กรุณาตรวจสอบลิงก์อีกครั้ง");
