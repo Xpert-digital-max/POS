@@ -771,31 +771,20 @@
               style="width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 15px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px; resize: none;"
               rows="2"></textarea>
 
-    <!-- เริ่ม: Marketing Wallet V2 -->
-<div id="marketingWalletCard" style="background:#fff8e1;border:1px solid #ffe0b2;padding:18px;border-radius:12px;margin-bottom:25px;">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
-        <div>
-            <h3 style="margin:0;color:#e65100;font-size:16px;">💰 Marketing Wallet (พาร์ทเนอร์)</h3>
-            <p style="margin:5px 0 0;font-size:12px;color:#666;">งบสำหรับจ่ายค่าคอมมิชชันให้ผู้แนะนำ</p>
-        </div>
-        <div id="marketingWalletStatusBadge" style="padding:6px 10px;border-radius:14px;background:#eee;color:#666;font-size:12px;font-weight:bold;">กำลังโหลด...</div>
+    <!-- เริ่ม: กล่องกระเป๋าเงินการตลาด -->
+<div style="background: #fff8e1; border: 1px solid #ffe0b2; padding: 20px; border-radius: 12px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+    <div>
+        <h3 style="margin: 0; color: #e65100; font-size: 16px;">💰 กระเป๋าเงินค่าการตลาด (พาร์ทเนอร์)</h3>
+        <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">ยอดคงเหลือสำหรับจ่ายค่าคอมมิชชันให้ Influencer</p>
+        <h1 style="margin: 10px 0 0 0; color: #ff9800; font-size: 28px;">฿<span id="displayMarketingWallet">0.00</span></h1>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px;">
-        <div style="background:white;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:11px;color:#777;">ยอด Wallet</div><div style="font-size:20px;font-weight:bold;color:#ff9800;">฿<span id="displayMarketingWallet">0.00</span></div></div>
-        <div style="background:white;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:11px;color:#777;">กันไว้รอค่าคอม</div><div style="font-size:20px;font-weight:bold;color:#7e57c2;">฿<span id="displayReservedCommission">0.00</span></div></div>
-        <div style="background:white;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:11px;color:#777;">ใช้รับ Referral ใหม่ได้</div><div style="font-size:20px;font-weight:bold;color:#06C755;">฿<span id="displayAvailableBalance">0.00</span></div></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
-        <div style="background:#fff;border-radius:10px;padding:10px;"><div style="font-size:11px;color:#777;">ค่าคอมจ่ายแล้ว</div><div style="font-weight:bold;color:#333;">฿<span id="displayCommissionPaidTotal">0.00</span></div></div>
-        <div style="background:#fff;border-radius:10px;padding:10px;"><div style="font-size:11px;color:#777;">ออเดอร์ที่จ่ายค่าคอม</div><div style="font-weight:bold;color:#333;"><span id="displayCommissionPaidCount">0</span> ออเดอร์</div></div>
-    </div>
-    <div id="marketingWalletWarning" style="display:none;margin-top:10px;padding:10px;border-radius:8px;font-size:12px;line-height:1.5;"></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;">
-        <div style="font-size:11px;color:#777;">เติมครั้งแรกขั้นต่ำ <b>100 บาท</b> · ครั้งต่อไปขั้นต่ำ <b>10 บาท</b><br>ร้านจะถูกซ่อนจากหน้าพาร์ทเนอร์เมื่อยอดพร้อมใช้ ≤ <b>10 บาท</b></div>
-        <button type="button" onclick="openTopupModal()" style="background:#ff9800;color:white;border:none;padding:12px 20px;border-radius:8px;font-weight:bold;cursor:pointer;">➕ เติม Marketing Wallet</button>
+    <div>
+        <button type="button" onclick="openTopupModal()" style="background: #ff9800; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(255,152,0,0.3); font-size: 14px;">
+            ➕ เติมเงินเครดิต
+        </button>
     </div>
 </div>
-<!-- จบ: Marketing Wallet V2 -->
+<!-- จบ: กล่องกระเป๋าเงินการตลาด -->
     
     <!-- [แก้ไขใหม่] ปรับ Layout ค่าแนะนำ Influencer เป็นปุ่มวงกลม (Radio) -->
     <label style="font-size: 13px; font-weight: bold; color: #555;">
@@ -965,6 +954,7 @@
     <script>
         const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
         let vendorData = null;
+        let dashboardOwnerUid = null;
         let categories = [];
         let editingMenuId = null;
         let editingCategoryId = null;
@@ -1534,6 +1524,8 @@ async function initDashboard() {
             profile.userId
         );
 
+        dashboardOwnerUid = profile.userId;
+
         await loadVendorData(
             profile.userId
         );
@@ -1600,7 +1592,6 @@ async function loadVendorData(uid) {
 
                 // UI ข้อมูลร้าน — แยก error ไม่ให้ทำ Dashboard ทั้งหน้าหยุด
                 await safeLoad('Settings Form', async () => populateSettingsForm());
-                await safeLoad('Marketing Wallet', loadMarketingWalletStatus);
                 await safeLoad('Affiliate', async () => renderAffiliateInfo());
                 await safeLoad('Subscription', async () => renderSubscriptionInfo());
 
@@ -2115,19 +2106,81 @@ async function loadVendorData(uid) {
             if (type === 'cash') { const maxCash = Math.max(0, balance - 100); infoDiv.innerHTML = `* ถอนเงินสด: ต้องเหลือเงินติดกระเป๋าขั้นต่ำ 100 บาท<br>(ถอนได้สูงสุด: <b>฿${maxCash}</b>)`; } else { infoDiv.innerHTML = `* ชำระค่าแพ็กเกจ: สามารถใช้ยอดเงินได้ 100%<br>(ใช้ได้สูงสุด: <b>฿${balance}</b>)`; }
         }
         async function submitWithdraw() {
-            const type = document.getElementById('withdrawType').value; const amount = parseFloat(document.getElementById('withdrawAmount').value);
-            const balance = vendorData.wallet_balance || 0; const btn = document.getElementById('submitWithdrawBtn');
+            const type = document.getElementById('withdrawType').value;
+            const amount = parseFloat(document.getElementById('withdrawAmount').value);
+            const btn = document.getElementById('submitWithdrawBtn');
 
-            if (!amount || amount <= 0) { alert('กรุณาระบุจำนวนเงินให้ถูกต้อง'); return; }
-            if (type === 'cash') { if (balance < 100) return alert('ไม่สามารถถอนเงินสดได้'); if (amount > balance - 100) return alert(`ถอนเงินสดได้สูงสุด ${balance - 100} บาท`); } else { if (amount > balance) return alert(`ยอดเงินไม่พอ`); }
+            if (!vendorData || !vendorData.id) {
+                alert('ไม่พบข้อมูลร้านค้า');
+                return;
+            }
 
-            btn.innerText = "กำลังประมวลผล..."; btn.disabled = true;
+            if (!dashboardOwnerUid) {
+                alert('ไม่พบข้อมูล LINE เจ้าของร้าน กรุณาปิดแล้วเปิด Dashboard ใหม่');
+                return;
+            }
+
+            if (!amount || amount <= 0) {
+                alert('กรุณาระบุจำนวนเงินให้ถูกต้อง');
+                return;
+            }
+
+            btn.innerText = "กำลังประมวลผล...";
+            btn.disabled = true;
+
             try {
-                const newBalance = balance - amount; await supabaseClient.from('vendors').update({ wallet_balance: newBalance }).eq('id', vendorData.id); vendorData.wallet_balance = newBalance; document.getElementById('walletBalance').innerText = newBalance;
-                await fetch(CONFIG.gasWebhookUrl, { method: 'POST', redirect: 'follow', headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: 'withdraw_request', vendor_id: vendorData.id, store_name: vendorData.name, phone: vendorData.phone, promptpay: vendorData.promptpay_number, type: type, amount: amount }) });
-                alert('ส่งคำร้องเรียบร้อยแล้ว แอดมินจะตรวจสอบและดำเนินการให้เร็วที่สุดครับ!'); closeWithdrawModal();
-            } catch (error) { alert('เกิดข้อผิดพลาด: ' + error.message); }
-            btn.innerText = "ยืนยันการทำรายการ"; btn.disabled = false;
+                // ทำที่ Database transaction เดียว:
+                // ตรวจเจ้าของร้าน + ตรวจยอด + หัก wallet + สร้าง withdrawal
+                const { data, error } = await supabaseClient.rpc(
+                    'request_affiliate_withdrawal',
+                    {
+                        p_vendor_id: vendorData.id,
+                        p_owner_uid: dashboardOwnerUid,
+                        p_withdrawal_type: type,
+                        p_amount: amount
+                    }
+                );
+
+                if (error) throw error;
+                if (!data || data.success !== true) {
+                    throw new Error('ระบบไม่สามารถสร้างคำขอถอนได้');
+                }
+
+                const newBalance = Number(data.wallet_after || 0);
+
+                vendorData.wallet_balance = newBalance;
+                document.getElementById('walletBalance').innerText =
+                    newBalance.toFixed(2);
+
+                alert(
+                    '✅ ส่งคำร้องขอถอนเรียบร้อยแล้ว\n' +
+                    `จำนวน ฿${Number(data.amount || amount).toFixed(2)}\n` +
+                    `ยอดคงเหลือ ฿${newBalance.toFixed(2)}\n\n` +
+                    'รายการถูกส่งเข้า Admin แล้ว'
+                );
+
+                closeWithdrawModal();
+
+            } catch (error) {
+                console.error('Affiliate withdrawal error:', error);
+
+                const msg = String(error?.message || error || '');
+
+                if (msg.includes('CASH_MIN_BALANCE_100')) {
+                    alert('ถอนเงินสดไม่ได้: ต้องมียอดอย่างน้อย 100 บาท');
+                } else if (msg.includes('CASH_MUST_KEEP_100')) {
+                    alert('ถอนเงินสดไม่ได้: หลังถอนต้องเหลือในกระเป๋าอย่างน้อย 100 บาท');
+                } else if (msg.includes('INSUFFICIENT_BALANCE')) {
+                    alert('ยอดเงินในกระเป๋าไม่เพียงพอ');
+                } else if (msg.includes('VENDOR_OWNER_NOT_MATCHED')) {
+                    alert('ไม่สามารถยืนยันสิทธิ์เจ้าของร้านได้ กรุณาเปิด Dashboard ผ่าน LINE เจ้าของร้าน');
+                } else {
+                    alert('เกิดข้อผิดพลาดในการส่งคำขอถอน: ' + msg);
+                }
+            } finally {
+                btn.innerText = "ยืนยันการทำรายการ";
+                btn.disabled = false;
+            }
         }
 
         // ==================== ระบบแพ็กเกจ โควต้า และ บิลลิ่ง ====================
@@ -3649,41 +3702,20 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
         }
         
         // ==================== ระบบเติมเงินการตลาด ====================
-        async function loadMarketingWalletStatus() {
-            if (!vendorData || !vendorData.id) return;
-            try {
-                const [{ data: walletStatus, error: walletError }, { data: paidOrders, error: paidError }] = await Promise.all([
-                    supabaseClient.from('vendor_influencer_wallet_status').select('*').eq('vendor_id', vendorData.id).single(),
-                    supabaseClient.from('orders').select('influencer_commission').eq('vendor_id', vendorData.id).eq('is_commission_paid', true)
-                ]);
-                if (walletError) throw walletError;
-                if (paidError) throw paidError;
-                const wallet=Number(walletStatus?.marketing_wallet||0), reserved=Number(walletStatus?.reserved_commission||0), available=Number(walletStatus?.available_balance||0), status=walletStatus?.influencer_program_status||'disabled';
-                const paidRows=paidOrders||[]; const paidTotal=paidRows.reduce((s,r)=>s+Number(r.influencer_commission||0),0);
-                const setText=(id,v)=>{const el=document.getElementById(id); if(el) el.innerText=v;};
-                setText('displayMarketingWallet',wallet.toFixed(2)); setText('displayReservedCommission',reserved.toFixed(2)); setText('displayAvailableBalance',available.toFixed(2)); setText('displayCommissionPaidTotal',paidTotal.toFixed(2)); setText('displayCommissionPaidCount',String(paidRows.length));
-                const badge=document.getElementById('marketingWalletStatusBadge'), warning=document.getElementById('marketingWalletWarning');
-                let label='⚪ ปิดระบบ', bg='#eee', color='#666', warningText='', warningBg='#fff', warningColor='#555';
-                if(status==='active'){label='🟢 เปิดรับ Referral';bg='#e8f5e9';color='#2e7d32';}
-                else if(status==='low_balance'){label='🟡 เครดิตใกล้หมด';bg='#fff8e1';color='#ef6c00';warningText=`⚠️ ยอดพร้อมใช้เหลือ ฿${available.toFixed(2)} กรุณาเติมเงินก่อนลดเหลือ 10 บาท`;warningBg='#fff3e0';warningColor='#e65100';}
-                else if(status==='paused'){label='🔴 พักจากหน้าพาร์ทเนอร์';bg='#ffebee';color='#c62828';warningText='ร้านยังแสดงใน Marketplace ปกติ แต่ถูกซ่อนจากหน้าผู้แนะนำจนกว่าจะเติม Marketing Wallet';warningBg='#ffebee';warningColor='#c62828';}
-                else if(status==='not_activated'){label='⚪ ยังไม่เปิดระบบพาร์ทเนอร์';warningText='เติมครั้งแรกขั้นต่ำ 100 บาท เพื่อเปิดระบบผู้แนะนำ';warningBg='#f5f5f5';}
-                else if(status==='disabled'){label='⚪ ยังไม่ได้ตั้งค่าคอม';warningText='กำหนดค่าแนะนำมากกว่า 0 และเติม Wallet เพื่อเปิดระบบพาร์ทเนอร์';warningBg='#f5f5f5';}
-                if(badge){badge.innerText=label;badge.style.background=bg;badge.style.color=color;}
-                if(warning){if(warningText){warning.style.display='block';warning.style.background=warningBg;warning.style.color=warningColor;warning.innerText=warningText;}else warning.style.display='none';}
-                vendorData.marketing_wallet=wallet;
-            } catch(err) {
-                console.error('[MARKETING WALLET STATUS]',err);
-                const badge=document.getElementById('marketingWalletStatusBadge'); if(badge){badge.innerText='⚠️ โหลดสถานะไม่สำเร็จ';badge.style.background='#ffebee';badge.style.color='#c62828';}
-            }
-        }
-
         function openTopupModal() {
-            const lineOaLink = "https://line.me/R/ti/p/@143iruhg";
-            const activated = !!vendorData?.influencer_program_activated_at;
-            const minimum = activated ? 10 : 100;
-            const msg = "📥 เติม Marketing Wallet\n\n" + `ยอดขั้นต่ำครั้งนี้: ${minimum} บาท\n` + (activated ? "ครั้งต่อไปเติมได้ตั้งแต่ 10 บาทขึ้นไป\n" : "ครั้งแรกต้องเติมอย่างน้อย 100 บาทเพื่อเปิดระบบผู้แนะนำ\n") + "\nหลังแอดมินยืนยันยอด ระบบจะอัปเดต Wallet และสถานะร้านอัตโนมัติ";
-            if (confirm(msg + "\n\nกด 'ตกลง' เพื่อไปที่ LINE แอดมิน")) window.location.href = lineOaLink;
+            // ในเฟสแรก ใช้เป็น Alert แจ้งช่องทางโอนเงินให้ติดต่อแอดมิน
+            // คุณสามารถเปลี่ยน Link LINE ด้านล่างเป็นลิงก์ LINE OA ของคุณได้เลยครับ
+            const lineOaLink = "https://line.me/R/ti/p/@143iruhg"; // <-- เปลี่ยนเป็นลิงก์ LINE OA ของคุณ
+            
+            const msg = "📥 การเติมเงินค่าการตลาด (พาร์ทเนอร์)\n\n" +
+                        "เพื่อความปลอดภัย กรุณาเติมเงินผ่าน LINE แอดมินครับ\n" +
+                        "1. โอนเงินเข้าบัญชี: กสิกรไทย 148-1-65097-2 (ชื่อบัญชี NPX Digital)\n" +
+                        "2. ส่งสลิปให้แอดมินทาง LINE\n\n" +
+                        "แอดมินจะปรับยอดเครดิตให้คุณทันทีครับ!";
+            
+            if(confirm(msg + "\n\nกด 'ตกลง' เพื่อไปที่แชท LINE แอดมิน")) {
+                window.location.href = lineOaLink;
+            }
         }
         // ====================
 
