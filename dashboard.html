@@ -3961,6 +3961,25 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             wrap.style.display = 'block';
         }
 
+        function openMarketingWalletAdminLine() {
+            const url = String(CONFIG.marketingWalletAdminLineUrl || '').trim();
+
+            if (!url) {
+                alert(
+                    'ยังไม่ได้ตั้งค่า LINE แอดมินสำหรับ Marketing Wallet\n' +
+                    'เพิ่ม marketingWalletAdminLineUrl ใน config.js'
+                );
+                return;
+            }
+
+            try {
+                window.location.href = url;
+            } catch (err) {
+                console.error('OPEN ADMIN LINE ERROR:', err);
+                window.open(url, '_blank');
+            }
+        }
+
         async function submitMarketingWalletTopupRequest(btn) {
             const amount = Number(document.getElementById('marketingWalletTopupAmount').value || 0);
             const minimum = getMarketingWalletMinimum();
@@ -3977,13 +3996,14 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             }
 
             btn.disabled = true;
-            btn.innerText = '⏳ กำลังส่งสลิป...';
+            btn.innerText = '⏳ กำลังตรวจสลิป...';
 
             try {
                 const file = fileInput.files[0];
                 const ext = (file.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '');
                 const fileName = `marketing-wallet-${vendorData.id}-${Date.now()}.${ext}`;
 
+                // 1) Upload slip
                 const { error: uploadError } = await supabaseClient.storage
                     .from('slip-images')
                     .upload(fileName, file);
@@ -3997,6 +4017,7 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
                 const slipUrl = publicData?.publicUrl;
                 if (!slipUrl) throw new Error('ไม่สามารถสร้าง URL สลิปได้');
 
+                // 2) Create request first. Wallet ยังไม่เพิ่ม
                 const { data: request, error: requestError } = await supabaseClient
                     .from('marketing_wallet_topup_requests')
                     .insert([{
@@ -4010,35 +4031,99 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
                     .single();
 
                 if (requestError) throw requestError;
+                if (!request?.id) throw new Error('ไม่พบเลขคำขอเติม Wallet');
 
-                // แจ้งแอดมินแบบ best-effort
-                fetch(CONFIG.gasWebhookUrl, {
-                    method: 'POST',
-                    redirect: 'follow',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({
-                        action: 'notify_admin_payment',
-                        type: 'marketing_wallet_topup',
-                        vendor_id: vendorData.id,
-                        store_name: vendorData.name,
-                        amount: amount,
-                        slip_url: slipUrl,
-                        request_id: request?.id || null
-                    })
-                }).catch(err => console.log('notify admin wallet topup:', err));
+                // 3) ให้ Edge Function ตรวจสลิปและเครดิต Wallet ฝั่ง Server
+                const { data: verifyResult, error: verifyError } =
+                    await supabaseClient.functions.invoke(
+                        'verify-marketing-wallet-slip',
+                        {
+                            body: {
+                                request_id: request.id
+                            }
+                        }
+                    );
 
+                if (verifyError) {
+                    console.error('AUTO VERIFY INVOKE ERROR:', verifyError);
+
+                    alert(
+                        '⏳ รับสลิปเรียบร้อยแล้ว\n\n' +
+                        `ยอดที่แจ้งเติม ฿${amount.toFixed(2)}\n` +
+                        'ระบบตรวจอัตโนมัติยังไม่สำเร็จ\n' +
+                        'รายการถูกเก็บไว้ให้แอดมินตรวจสอบแล้ว\n\n' +
+                        'กด ตกลง เพื่อไปแจ้งแอดมินทาง LINE'
+                    );
+
+                    closeMarketingWalletTopupModal();
+                    setTimeout(openMarketingWalletAdminLine, 250);
+                    return;
+                }
+
+                const status = String(verifyResult?.status || '');
+
+                if (status === 'success') {
+                    const walletAfter = Number(verifyResult?.data?.wallet_after);
+
+                    if (Number.isFinite(walletAfter)) {
+                        vendorData.marketing_wallet = walletAfter;
+                    }
+
+                    await loadMarketingWalletStatus();
+
+                    alert(
+                        '✅ เติม Marketing Wallet สำเร็จ\n\n' +
+                        `ยอดเติม ฿${amount.toFixed(2)}\n` +
+                        (
+                            Number.isFinite(walletAfter)
+                                ? `ยอด Wallet ใหม่ ฿${walletAfter.toFixed(2)}\n`
+                                : ''
+                        ) +
+                        '\nระบบตรวจสลิปผ่านและเพิ่มยอดให้อัตโนมัติแล้ว\n\n' +
+                        'กด ตกลง เพื่อเปิด LINE แอดมิน\n' +
+                        'ใช้สำหรับติดต่อกรณีต้องการตรวจสอบเพิ่มเติม'
+                    );
+
+                    closeMarketingWalletTopupModal();
+                    setTimeout(openMarketingWalletAdminLine, 250);
+                    return;
+                }
+
+                if (status === 'rejected') {
+                    alert(
+                        '❌ สลิปไม่ผ่านการตรวจสอบ\n\n' +
+                        `${verifyResult?.msg || 'กรุณาตรวจสอบสลิปอีกครั้ง'}\n\n` +
+                        'Wallet ยังไม่ได้เพิ่ม\n' +
+                        'กด ตกลง เพื่อแจ้งแอดมินทาง LINE'
+                    );
+
+                    closeMarketingWalletTopupModal();
+                    setTimeout(openMarketingWalletAdminLine, 250);
+                    return;
+                }
+
+                // manual_review / fallback
                 alert(
-                    `✅ ส่งสลิปเรียบร้อยแล้ว\n` +
-                    `ยอดเติม ฿${amount.toFixed(2)}\n\n` +
-                    `สถานะ: รอแอดมินตรวจสอบ\n` +
-                    `Wallet จะยังไม่เพิ่มจนกว่าแอดมินอนุมัติ`
+                    '⏳ รับสลิปเรียบร้อยแล้ว — รอตรวจสอบ\n\n' +
+                    `ยอดที่แจ้งเติม ฿${amount.toFixed(2)}\n` +
+                    `${verifyResult?.msg || 'ระบบยังไม่สามารถยืนยันรายการอัตโนมัติได้'}\n\n` +
+                    'Wallet จะยังไม่เพิ่มจนกว่าแอดมินตรวจสอบ\n\n' +
+                    'กด ตกลง เพื่อไปแจ้งแอดมินทาง LINE'
                 );
 
                 closeMarketingWalletTopupModal();
+                setTimeout(openMarketingWalletAdminLine, 250);
 
             } catch (err) {
                 console.error('Marketing Wallet topup request error:', err);
-                alert('ส่งสลิปไม่สำเร็จ: ' + (err.message || err));
+
+                alert(
+                    'ส่งสลิปไม่สำเร็จ: ' + (err.message || err) +
+                    '\n\nหากโอนเงินไปแล้ว กรุณาติดต่อแอดมินทันที'
+                );
+
+                setTimeout(openMarketingWalletAdminLine, 250);
+
             } finally {
                 btn.disabled = false;
                 btn.innerText = '📩 ส่งสลิปเติม Wallet';
@@ -4137,8 +4222,8 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             </button>
 
             <div style="font-size:11px;color:#777;line-height:1.55;text-align:center;margin-top:10px;">
-                ส่งสลิปแล้ว Wallet จะยังไม่เพิ่ม<br>
-                รอแอดมินตรวจและกดอนุมัติก่อน
+                ระบบจะตรวจสลิปอัตโนมัติก่อน<br>
+                ถ้าผ่าน Wallet จะเพิ่มทันที · ถ้าตรวจไม่ได้จะส่งให้แอดมินตรวจ
             </div>
         </div>
     </div>
