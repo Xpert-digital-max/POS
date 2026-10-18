@@ -1266,8 +1266,18 @@ function closeShareModal() {
 }
 
 function getBaseCustomerUrl() {
-    const currentUrl = window.location.href.split('?')[0]; 
-    return `${currentUrl}?vid=${vendorId}`;
+    const currentUrl = window.location.href.split('?')[0];
+    const shareUrl = new URL(currentUrl, window.location.origin);
+
+    // แชร์ร้านเดิม และรักษาสาขาเดิมไว้ด้วย
+    shareUrl.search = '';
+    shareUrl.hash = '';
+    shareUrl.searchParams.set('vid', vendorId);
+    if (branchId) {
+        shareUrl.searchParams.set('bid', branchId);
+    }
+
+    return shareUrl.toString();
 }
 
 // ---- แชร์ปกติ ----
