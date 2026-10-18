@@ -196,57 +196,107 @@
         let staffBranchId = null;
         let isAutoPrint = localStorage.getItem('auto_print_kitchen') === 'true';
 
-        // ===== TAKEAWAY ACK/ALARM ADD-ON (ไม่แตะ status เดิม) =====
+        // =========================================================
+        // TAKEAWAY ACK / ALARM V2
+        // - Takeaway ใหม่: ดังทันทีหลังดึงออเดอร์เจอ
+        // - ดังซ้ำทุก 7 วินาที จนร้านกด "👀 เห็นออเดอร์แล้ว"
+        // - ลูกค้ากด "🔔 แจ้งร้านอีกครั้ง": ดังเพิ่มทันทีใน polling รอบถัดไป
+        // - ไม่เปลี่ยน status / payment / queue / Dine-in เดิม
+        // =========================================================
         let takeawayAlarmTimer = null;
         let lastCustomerReminderSeen = {};
-        const TAKEAWAY_ESCALATE_SECONDS = 180; // 3 นาที
+        let audioUnlocked = false;
+
+        async function ensureAudioReady() {
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+                audioUnlocked = (audioContext.state === 'running');
+                return audioUnlocked;
+            } catch (e) {
+                console.error('[AUDIO UNLOCK ERROR]', e);
+                audioUnlocked = false;
+                return false;
+            }
+        }
 
         function getUnacknowledgedTakeawayOrders() {
-            return (newOrders || []).filter(o => {
-                if (o.source !== 'prepaid') return false;
-                if (o.merchant_acknowledged_at) return false;
-                const st = String(o.status || o.unified_status || '').toLowerCase();
+            return (newOrders || []).filter(order => {
+                if (order.source !== 'prepaid') return false;
+                if (order.merchant_acknowledged_at) return false;
+                const st = String(order.status || order.unified_status || '').toLowerCase();
                 return !['completed','cancelled','rejected'].includes(st);
             });
         }
 
-        function playUrgentTakeawayBurst() {
-            if (!audioContext) return;
-            if (audioContext.state === 'suspended') audioContext.resume();
-            [0, 0.22, 0.44, 0.80].forEach((delay, idx) => {
+        async function playUrgentTakeawayBurst() {
+            const ok = await ensureAudioReady();
+            if (!ok || !audioContext) {
+                console.warn('[TAKEAWAY ALARM] AudioContext ยังไม่พร้อม');
+                return;
+            }
+
+            const now = audioContext.currentTime;
+            const notes = [
+                { delay: 0.00, frequency: 880,  duration: 0.25 },
+                { delay: 0.32, frequency: 880,  duration: 0.25 },
+                { delay: 0.64, frequency: 1050, duration: 0.30 },
+                { delay: 1.05, frequency: 720,  duration: 0.45 }
+            ];
+
+            notes.forEach((note, index) => {
                 const osc = audioContext.createOscillator();
                 const gain = audioContext.createGain();
-                osc.connect(gain); gain.connect(audioContext.destination);
-                osc.type = idx === 3 ? 'square' : 'sine';
-                osc.frequency.setValueAtTime(idx === 3 ? 660 : 920, audioContext.currentTime + delay);
-                gain.gain.setValueAtTime(0.75, audioContext.currentTime + delay);
-                gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + delay + 0.18);
-                osc.start(audioContext.currentTime + delay);
-                osc.stop(audioContext.currentTime + delay + 0.2);
+                osc.connect(gain);
+                gain.connect(audioContext.destination);
+                osc.type = (index === notes.length - 1) ? 'square' : 'sine';
+                osc.frequency.setValueAtTime(note.frequency, now + note.delay);
+                gain.gain.setValueAtTime(0.85, now + note.delay);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + note.delay + note.duration);
+                osc.start(now + note.delay);
+                osc.stop(now + note.delay + note.duration + 0.02);
             });
         }
 
-        function syncTakeawayAlarm() {
-            const now = Date.now();
-            const urgent = getUnacknowledgedTakeawayOrders().filter(o =>
-                (now - new Date(o.created_at).getTime()) >= TAKEAWAY_ESCALATE_SECONDS * 1000
-            );
+        function stopTakeawayAlarm() {
+            if (takeawayAlarmTimer) {
+                clearInterval(takeawayAlarmTimer);
+                takeawayAlarmTimer = null;
+            }
+        }
 
-            // ถ้าลูกค้ากด "แจ้งร้านอีกครั้ง" ให้ดังทันที แม้รอบ alarm ยังไม่ถึง
-            urgent.forEach(o => {
-                const stamp = o.customer_last_reminder_at || '';
-                if (stamp && lastCustomerReminderSeen[o.id] !== stamp) {
-                    lastCustomerReminderSeen[o.id] = stamp;
+        function syncTakeawayAlarm() {
+            const waitingOrders = getUnacknowledgedTakeawayOrders();
+
+            // ลูกค้ากด "แจ้งร้านอีกครั้ง" -> customer_last_reminder_at เปลี่ยน
+            // ให้ดังเพิ่มทันทีใน polling รอบถัดไป
+            waitingOrders.forEach(order => {
+                const stamp = order.customer_last_reminder_at || '';
+                if (stamp && lastCustomerReminderSeen[order.id] !== stamp) {
+                    lastCustomerReminderSeen[order.id] = stamp;
                     playUrgentTakeawayBurst();
                 }
             });
 
-            if (urgent.length > 0 && !takeawayAlarmTimer) {
-                playUrgentTakeawayBurst();
-                takeawayAlarmTimer = setInterval(playUrgentTakeawayBurst, 7000);
-            } else if (urgent.length === 0 && takeawayAlarmTimer) {
-                clearInterval(takeawayAlarmTimer);
-                takeawayAlarmTimer = null;
+            // มี Takeaway ที่ยังไม่รับทราบ: ดังทันที + ดังซ้ำทุก 7 วินาที
+            if (waitingOrders.length > 0) {
+                if (!takeawayAlarmTimer) {
+                    playUrgentTakeawayBurst();
+                    takeawayAlarmTimer = setInterval(() => {
+                        const stillWaiting = getUnacknowledgedTakeawayOrders();
+                        if (stillWaiting.length > 0) {
+                            playUrgentTakeawayBurst();
+                        } else {
+                            stopTakeawayAlarm();
+                        }
+                    }, 7000);
+                }
+            } else {
+                stopTakeawayAlarm();
             }
         }
 
@@ -280,26 +330,51 @@
             });
         }
 
-        function startSystem() {
-            document.getElementById('soundUnlockOverlay').style.display = 'none';
-            document.getElementById('loginInfo').innerText = `Vendor ID: ${VENDOR_ID.substring(0,8)}...`;
-            document.getElementById('autoPrintToggle').checked = isAutoPrint;
+        async function startSystem() {
+            try {
+                if (!VENDOR_ID) {
+                    alert('ไม่พบ Vendor ID กรุณาเปิดหน้าพนักงานจากลิงก์ของร้านอีกครั้ง');
+                    return;
+                }
 
-            if (!audioContext) { audioContext = new (window.AudioContext || window.webkitAudioContext)(); }
-            if (audioContext.state === 'suspended') { audioContext.resume(); }
-            const osc = audioContext.createOscillator(); osc.connect(audioContext.destination); osc.start(); osc.stop(audioContext.currentTime + 0.01);
-            
-            // ดึง Branch ID จาก Session
-            const sessionRaw = localStorage.getItem('staff_session');
-            if (sessionRaw) {
-                try {
-                    const session = JSON.parse(sessionRaw);
-                    if (session.bid && session.bid !== 'null') staffBranchId = session.bid;
-                } catch(e) {}
+                // ต้องปลดล็อกเสียงจากการกดปุ่มจริง
+                const audioOK = await ensureAudioReady();
+                if (!audioOK) {
+                    alert('ไม่สามารถเปิดเสียงแจ้งเตือนได้\nกรุณาตรวจสอบระดับเสียงของอุปกรณ์ แล้วกดเริ่มการทำงานอีกครั้ง');
+                    return;
+                }
+
+                // ทดสอบเสียงทันที 1 ชุด
+                await playUrgentTakeawayBurst();
+
+                document.getElementById('soundUnlockOverlay').style.display = 'none';
+                document.getElementById('loginInfo').innerText = `🔊 เสียงพร้อม • Vendor ID: ${VENDOR_ID.substring(0,8)}...`;
+                document.getElementById('autoPrintToggle').checked = isAutoPrint;
+
+                // ดึง Branch ID จาก Session
+                const sessionRaw = localStorage.getItem('staff_session');
+                if (sessionRaw) {
+                    try {
+                        const session = JSON.parse(sessionRaw);
+                        if (session.bid && session.bid !== 'null') {
+                            staffBranchId = session.bid;
+                        }
+                    } catch(e) {
+                        console.warn('[STAFF SESSION PARSE ERROR]', e);
+                    }
+                }
+
+                await fetchData();
+
+                if (pollingTimer) {
+                    clearInterval(pollingTimer);
+                }
+                pollingTimer = setInterval(fetchData, 3000);
+
+            } catch (e) {
+                console.error('[START SYSTEM ERROR]', e);
+                alert('เปิดระบบไม่สำเร็จ\n' + (e?.message || e));
             }
-            
-            fetchData();
-            pollingTimer = setInterval(fetchData, 3000);
         }
 
         function toggleAutoPrint() {
@@ -1101,6 +1176,21 @@
             const isAuth = await verifyStaffSession();
         };
 
-    </script>
+    
+        // =========================================================
+        // เมื่อกลับเข้าหน้าจอหลัง Browser/LINE ถูกพัก ให้ resume เสียงและรีเฟรชทันที
+        // =========================================================
+        document.addEventListener('visibilitychange', async () => {
+            if (document.visibilityState === 'visible') {
+                if (audioContext && audioContext.state === 'suspended') {
+                    try { await audioContext.resume(); } catch(e) {}
+                }
+                if (pollingTimer) {
+                    fetchData();
+                }
+            }
+        });
+
+</script>
 </body>
 </html>
