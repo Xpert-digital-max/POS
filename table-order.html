@@ -469,7 +469,7 @@
 
         async function initApp() { 
             try {
-                // 1) โต๊ะต้องเปิดใช้งานได้จาก QR ปกติ แม้ผู้ใช้จะไม่ได้ Login LINE
+                // 1) อ่าน table_token ก่อน
                 const urlParams = new URLSearchParams(window.location.search);
                 tableToken = urlParams.get('table_token');
 
@@ -478,44 +478,52 @@
                     return;
                 }
 
-                // 2) LINE/LIFF เป็น Optional เท่านั้น
-                //    - เปิดจากกล้อง/Browser: ใช้งานต่อได้โดยไม่ Login
-                //    - เปิดจาก LINE และมี session อยู่แล้ว: อ่าน userId ได้
-                //    - token หมดอายุ / LIFF error: ข้าม LINE แล้วใช้งานแบบ Browser ต่อ
+                // 2) โหลดข้อมูลโต๊ะ/ร้านก่อน เพื่อให้รู้ LIFF Customer ของร้านจริง
+                //    สำคัญ: Takeaway ใช้ vendorData.liff_customer_id ก่อน CONFIG.liffIdCustomer
+                //    Dine-in ต้องใช้กติกาเดียวกัน มิฉะนั้น shareTargetPicker อาจไม่พร้อม
                 customerUid = null;
-
-                try {
-                    await liff.init({ liffId: CONFIG.liffIdCustomer });
-
-                    if (liff.isLoggedIn()) {
-                        try {
-                            const decoded = liff.getDecodedIDToken();
-                            if (decoded && decoded.sub) {
-                                customerUid = decoded.sub;
-                            }
-
-                            if (!customerUid) {
-                                const profile = await liff.getProfile();
-                                customerUid = profile.userId;
-                            }
-                        } catch (profileError) {
-                            console.warn("LINE profile unavailable; continue as guest:", profileError);
-                            customerUid = null;
-                        }
-                    } else {
-                        console.log("LINE not logged in; continue as guest browser user.");
-                    }
-                } catch (liffError) {
-                    console.warn("LIFF unavailable; continue as guest browser user:", liffError);
-                    customerUid = null;
-                }
-
-                // 3) ไม่ว่า LINE จะพร้อมหรือไม่ ต้องเข้าโต๊ะเดิม/สั่งเพิ่ม/ชำระเงินต่อได้
                 await loadTableAndSession();
 
-                // หน้าอาหารใช้งานได้ก่อน แล้วค่อยถามเพิ่มเพื่อนแบบ Optional
-                setTimeout(maybeShowLineFriendPrompt, 350);
+                // 3) Initialize LIFF ด้วย Customer LIFF เดียวกับหน้า Takeaway
+                const liffToUse = vendorData && vendorData.liff_customer_id
+                    ? String(vendorData.liff_customer_id).trim()
+                    : String(CONFIG.liffIdCustomer || '').trim();
 
+                if (liffToUse) {
+                    try {
+                        await liff.init({ liffId: liffToUse });
+
+                        console.log('[DINE-IN LIFF]', {
+                            liffId: liffToUse,
+                            inClient: liff.isInClient(),
+                            loggedIn: liff.isLoggedIn(),
+                            shareTargetPicker: typeof liff.isApiAvailable === 'function'
+                                ? liff.isApiAvailable('shareTargetPicker')
+                                : false
+                        });
+
+                        if (liff.isLoggedIn()) {
+                            try {
+                                const decoded = liff.getDecodedIDToken();
+                                if (decoded && decoded.sub) customerUid = decoded.sub;
+
+                                if (!customerUid) {
+                                    const profile = await liff.getProfile();
+                                    customerUid = profile.userId;
+                                }
+                            } catch (profileError) {
+                                console.warn("LINE profile unavailable; continue as guest:", profileError);
+                                customerUid = null;
+                            }
+                        }
+                    } catch (liffError) {
+                        console.warn("LIFF unavailable; continue as guest browser user:", liffError);
+                        customerUid = null;
+                    }
+                }
+
+                // 4) หน้าอาหารใช้งานได้ตามปกติ และค่อยถามเพิ่มเพื่อนแบบ Optional
+                setTimeout(maybeShowLineFriendPrompt, 350);
                 pollingInterval = setInterval(pollSessionStatus, 3000);
 
             } catch (err) {
@@ -1341,7 +1349,7 @@
             closeShareModal();
         }
 
-        function shareNormalFlex() {
+        async function shareNormalFlex() {
             const url = getSharedTakeawayUrl();
             if (!url) return alert('ไม่พบข้อมูลร้านค้า');
 
@@ -1371,16 +1379,25 @@
 
                 const flexMessage = { type: 'flex', altText: `แวะมาดูร้าน ${storeName} กัน!`, contents };
 
-                if (typeof liff !== 'undefined' && typeof liff.isApiAvailable === 'function' && liff.isApiAvailable('shareTargetPicker')) {
-                    liff.shareTargetPicker([flexMessage])
-                        .then(() => closeShareModal())
-                        .catch(err => {
-                            console.warn('shareTargetPicker failed, fallback:', err);
-                            fallbackToLineShareUrl();
-                        });
-                } else {
-                    fallbackToLineShareUrl();
+                if (typeof liff !== 'undefined' &&
+                    typeof liff.isApiAvailable === 'function' &&
+                    liff.isApiAvailable('shareTargetPicker')) {
+                    try {
+                        await liff.shareTargetPicker([flexMessage]);
+                        closeShareModal();
+                        return;
+                    } catch (err) {
+                        console.warn('shareTargetPicker failed, fallback:', err);
+                        fallbackToLineShareUrl();
+                        return;
+                    }
                 }
+
+                console.warn('shareTargetPicker unavailable', {
+                    inClient: typeof liff !== 'undefined' && typeof liff.isInClient === 'function' ? liff.isInClient() : false,
+                    loggedIn: typeof liff !== 'undefined' && typeof liff.isLoggedIn === 'function' ? liff.isLoggedIn() : false
+                });
+                fallbackToLineShareUrl();
             } catch (err) {
                 console.warn('Normal share failed, fallback:', err);
                 fallbackToLineShareUrl();
