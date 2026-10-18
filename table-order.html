@@ -486,64 +486,15 @@
                 customerUid = null;
                 await loadTableAndSession();
 
-                // 3) Initialize LIFF ด้วย Customer LIFF เดียวกับหน้า Takeaway
-                const storeLiffId = vendorData && vendorData.liff_customer_id
-                    ? String(vendorData.liff_customer_id).trim()
-                    : '';
-                const centralLiffId = String(CONFIG.liffIdCustomer || '').trim();
-                const liffToUse = storeLiffId || centralLiffId;
-
-                // Dine-in Share policy:
-                // 1) ร้านมี LINE/LIFF ของตัวเอง -> ใช้ LIFF ของร้าน
-                // 2) ร้านไม่มี -> fallback ไป LIFF กลาง NPX/KINDI
-                // 3) ไม่บังคับ Friendship; LINE ใช้เพื่อเปิด Share Target Picker เท่านั้น
-                activeShareLiffId = liffToUse;
-                activeShareLiffSource = storeLiffId ? 'store' : (centralLiffId ? 'central' : 'none');
-
-                if (liffToUse) {
-                    try {
-                        await liff.init({ liffId: liffToUse });
-
-                        console.log('[DINE-IN LIFF]', {
-                            liffId: liffToUse,
-                            source: activeShareLiffSource,
-                            inClient: liff.isInClient(),
-                            loggedIn: liff.isLoggedIn(),
-                            shareTargetPicker: typeof liff.isApiAvailable === 'function'
-                                ? liff.isApiAvailable('shareTargetPicker')
-                                : false
-                        });
-
-                        if (liff.isLoggedIn()) {
-                            try {
-                                const decoded = liff.getDecodedIDToken();
-                                if (decoded && decoded.sub) customerUid = decoded.sub;
-
-                                if (!customerUid) {
-                                    const profile = await liff.getProfile();
-                                    customerUid = profile.userId;
-                                }
-                            } catch (profileError) {
-                                console.warn("LINE profile unavailable; continue as guest:", profileError);
-                                customerUid = null;
-                            }
-                        }
-                    } catch (liffError) {
-                        console.warn("LIFF unavailable; continue as guest browser user:", liffError);
-                        customerUid = null;
-                    }
-                }
+                // 3) Dine-in Share แยกออกไปอยู่ใน dinein-share.html โดยเฉพาะ
+                // table-order.html ไม่ init LIFF Share และไม่ login LINE เองอีกแล้ว
+                activeShareLiffId = String(CONFIG.liffIdDineInShare || '').trim();
+                activeShareLiffSource = activeShareLiffId ? 'share-bridge' : 'none';
 
                 // 4) หน้าอาหารใช้งานได้ทันที — ไม่ถามเพิ่มเพื่อนตอนสแกนโต๊ะ
                 //    การตรวจ friendship จะทำเฉพาะตอนผู้ใช้กดแชร์เท่านั้น
                 pollingInterval = setInterval(pollSessionStatus, 3000);
 
-                // ถ้าผู้ใช้เพิ่งผ่าน LINE Login จากการกดแชร์ ให้กลับมาเปิด Target Picker ต่ออัตโนมัติ
-                // ไม่ส่ง table_token / table_id / table_session_id ออกไปในข้อความแชร์
-                if (sessionStorage.getItem('NPX_DINEIN_PENDING_SHARE') === '1') {
-                    sessionStorage.removeItem('NPX_DINEIN_PENDING_SHARE');
-                    setTimeout(() => shareNormalFlex({ resumedAfterLogin: true }), 250);
-                }
 
             } catch (err) {
                 showError("เกิดข้อผิดพลาดในการเปิดระบบ: " + (err?.message || err));
@@ -1321,11 +1272,6 @@
 
             modal.style.display = 'flex';
 
-            if (typeof liff !== 'undefined' && liff.isLoggedIn && liff.isLoggedIn() && !userLineProfile) {
-                liff.getProfile().then(profile => {
-                    userLineProfile = profile;
-                }).catch(err => console.warn('ไม่สามารถดึง LINE profile สำหรับ share:', err));
-            }
         }
 
         function closeShareModal() {
@@ -1376,75 +1322,42 @@
             closeShareModal();
         }
 
-        async function ensureDineInShareReady() {
-            if (typeof liff === 'undefined' || !activeShareLiffId) {
-                throw new Error('ไม่พบ LIFF ของร้านหรือ LIFF กลาง NPX/KINDI สำหรับการแชร์');
-            }
-
-            // Dine-in Share ต้องเรียบที่สุด:
-            // ไม่บังคับเพิ่มเพื่อน OA และไม่ตรวจ friendship ก่อนแชร์
-            // ถ้าอยู่นอก LIFF/ยังไม่ Login ให้ Login LINE เพียงครั้งเดียว แล้ว resume การแชร์อัตโนมัติ
-            if (!liff.isLoggedIn()) {
-                sessionStorage.setItem('NPX_DINEIN_PENDING_SHARE', '1');
-                liff.login({ redirectUri: window.location.href });
-                return false;
-            }
-
-            if (typeof liff.isApiAvailable !== 'function' || !liff.isApiAvailable('shareTargetPicker')) {
-                throw new Error('อุปกรณ์หรือ LIFF นี้ไม่รองรับ Share Target Picker');
-            }
-
-            return true;
-        }
-
-        async function shareNormalFlex(options = {}) {
+        // ==================== DINE-IN SHARE BRIDGE ====================
+        // Dine-in ไม่เรียก shareTargetPicker ใน table-order.html โดยตรงอีกแล้ว
+        // หน้านี้มีหน้าที่ส่งเฉพาะข้อมูลร้าน/สาขาไปยัง LIFF กลาง dinein-share.html
+        // ห้ามส่ง table_token / table_id / table_session_id ออกไป
+        async function shareNormalFlex() {
             const url = getSharedTakeawayUrl();
             if (!url) return alert('ไม่พบข้อมูลร้านค้าหรือสาขา');
 
-            // Safety guard: URL ที่แชร์ต้องเป็น Takeaway เท่านั้น และห้ามมีข้อมูลโต๊ะหลุดออกไป
+            const shareLiffId = String(CONFIG.liffIdDineInShare || '').trim();
+            if (!shareLiffId) {
+                return alert('ยังไม่ได้ตั้ง CONFIG.liffIdDineInShare');
+            }
+
             const sharedUrl = new URL(url);
             ['table_token', 'table_id', 'table_session_id'].forEach(key => sharedUrl.searchParams.delete(key));
-            const safeTakeawayUrl = sharedUrl.toString();
 
+            const vid = vendorData?.id ? String(vendorData.id) : '';
+            const bid = tableData?.branch_id || tableData?.branches?.id || '';
             const storeName = vendorData?.name || 'ร้านอาหาร';
+            const heroUrl = vendorData?.line_picture_url || '';
 
-            try {
-                const heroUrl = vendorData?.line_picture_url || '';
-                const contents = {
-                    type: 'bubble',
-                    body: {
-                        type: 'box', layout: 'vertical', contents: [
-                            { type: 'text', text: storeName, weight: 'bold', size: 'xl', wrap: true },
-                            { type: 'text', text: 'แนะนำร้านนี้ครับ 👋 ดูเมนูและสั่งกลับบ้าน/รับที่ร้านได้เลย', size: 'sm', color: '#666666', wrap: true, margin: 'md' }
-                        ]
-                    },
-                    footer: {
-                        type: 'box', layout: 'vertical', spacing: 'sm', contents: [
-                            { type: 'button', style: 'primary', color: '#06C755', action: { type: 'uri', label: 'ดูเมนู / สั่งอาหาร', uri: safeTakeawayUrl } }
-                        ]
-                    }
-                };
-                if (heroUrl) contents.hero = { type: 'image', url: heroUrl, size: 'full', aspectRatio: '20:13', aspectMode: 'cover' };
-
-                const flexMessage = { type: 'flex', altText: `แนะนำร้าน ${storeName} — ดูเมนูและสั่งอาหารได้เลย`, contents };
-
-                const ready = await ensureDineInShareReady();
-                if (!ready) return;
-
-                // จุดจบของ Dine-in Share ต้องเป็น Target Picker ทันที
-                // ไม่มี handoff ไป customer.html และไม่มีการให้ผู้ใช้กดแชร์ซ้ำ
-                const result = await liff.shareTargetPicker([flexMessage], { isMultiple: true });
-                console.log('[DINE-IN SHARE] shareTargetPicker result:', result, {
-                    source: activeShareLiffSource,
-                    liffId: activeShareLiffId,
-                    takeawayUrl: safeTakeawayUrl,
-                    resumedAfterLogin: options.resumedAfterLogin === true
-                });
-                closeShareModal();
-            } catch (err) {
-                console.error('[DINE-IN SHARE] failed:', err);
-                alert('ไม่สามารถเปิดหน้ารายชื่อสำหรับแชร์ได้\n' + (err?.message || err));
+            if (!vid || !bid) {
+                return alert('ไม่พบรหัสร้านหรือสาขา');
             }
+
+            const params = new URLSearchParams();
+            params.set('vid', vid);
+            params.set('bid', String(bid));
+            params.set('name', storeName);
+            if (heroUrl) params.set('img', heroUrl);
+
+            // เปิด LIFF กลางสำหรับ Share โดยเฉพาะ
+            // Endpoint ของ LIFF ID นี้ต้องเป็น dinein-share.html
+            const shareEntryUrl = `https://liff.line.me/${encodeURIComponent(shareLiffId)}/?${params.toString()}`;
+            closeShareModal();
+            window.location.href = shareEntryUrl;
         }
 
         async function handleInfluencerShare() {
