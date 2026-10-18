@@ -80,30 +80,23 @@
             .no-print { display: none !important; }
         }
 
-        /* ===== Phase 2.2 / 2.3: Branch + Item Status ===== */
+        /* ===== Phase 2 Simplified: Takeaway รับทราบครั้งเดียว + เสร็จ/ปฏิเสธรายรายการ ===== */
         .npx-title-row { display:flex; align-items:center; gap:8px; flex-wrap:nowrap; min-width:0; }
         .npx-title-main { font-size:24px; font-weight:900; line-height:1.2; white-space:nowrap; }
         .npx-branch-badge { display:inline-flex; align-items:center; background:#eef3ff; color:#3157a5; border:1px solid #c9d6f5; border-radius:999px; padding:3px 9px; font-size:12px; font-weight:800; white-space:nowrap; }
         .npx-ref-row { margin-top:5px; font-size:12px; color:#888; line-height:1.5; }
-        .npx-item-line { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; padding:8px 0; border-bottom:1px solid #f0f0f0; }
+        .npx-item-line { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; padding:10px 0; border-bottom:1px solid #f0f0f0; }
         .npx-item-line:last-child { border-bottom:none; }
         .npx-item-info { flex:1; min-width:0; }
-        .npx-item-controls { display:flex; align-items:center; gap:5px; flex-wrap:wrap; justify-content:flex-end; }
-        .npx-item-badge { display:inline-block; border-radius:999px; padding:3px 7px; font-size:11px; font-weight:800; white-space:nowrap; }
+        .npx-item-controls { display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+        .npx-item-badge { display:inline-block; border-radius:999px; padding:4px 8px; font-size:11px; font-weight:800; white-space:nowrap; }
         .npx-item-wait { background:#f3f4f6; color:#666; border:1px solid #ddd; }
-        .npx-item-cooking { background:#fff3e0; color:#e65100; border:1px solid #ffcc80; }
         .npx-item-done { background:#e8f5e9; color:#137333; border:1px solid #a5d6a7; }
         .npx-item-rejected { background:#ffebee; color:#b71c1c; border:1px solid #ffcdd2; }
-        .npx-item-btn { border:0; border-radius:8px; padding:6px 8px; font-size:11px; font-weight:800; cursor:pointer; }
-        .npx-item-accept { background:#06C755; color:#fff; }
-        .npx-item-reject { background:#ff5252; color:#fff; }
-        .npx-item-start { background:#ff9800; color:#fff; }
+        .npx-item-btn { border:0; border-radius:8px; padding:7px 9px; font-size:11px; font-weight:800; cursor:pointer; }
         .npx-item-done-btn { background:#06C755; color:#fff; }
-        .npx-item-accepted { background:#e8f5e9; color:#137333; border:1px solid #a5d6a7; }
-        .npx-bulk-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
-        .npx-bulk-btn { border:0; border-radius:9px; padding:9px; font-size:12px; font-weight:800; cursor:pointer; }
-        .npx-bulk-start { background:#fff3e0; color:#e65100; border:1px solid #ffcc80; }
-        .npx-bulk-done { background:#e8f5e9; color:#137333; border:1px solid #a5d6a7; }
+        .npx-item-reject { background:#ff5252; color:#fff; }
+        .npx-summary-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
 
     </style>
 </head>
@@ -696,11 +689,13 @@
 
         function getItemStatusMeta(rawStatus) {
             const st = String(rawStatus || 'pending').toLowerCase();
-            if (st === 'accepted') return { label:'✅ รับแล้ว', cls:'npx-item-badge npx-item-accepted', terminal:false };
-            if (st === 'cooking' || st === 'preparing') return { label:'👨‍🍳 กำลังทำ', cls:'npx-item-badge npx-item-cooking', terminal:false };
-            if (st === 'done' || st === 'served') return { label:'✅ เสร็จแล้ว', cls:'npx-item-badge npx-item-done', terminal:true };
-            if (st === 'rejected') return { label:'❌ ปฏิเสธ', cls:'npx-item-badge npx-item-rejected', terminal:true };
-            return { label:'⏳ รอยืนยัน', cls:'npx-item-badge npx-item-wait', terminal:false };
+            if (st === 'done' || st === 'served') {
+                return { label:'✅ เสร็จแล้ว', cls:'npx-item-badge npx-item-done', terminal:true };
+            }
+            if (st === 'rejected') {
+                return { label:'❌ ปฏิเสธ', cls:'npx-item-badge npx-item-rejected', terminal:true };
+            }
+            return { label:'⏳ รอทำ', cls:'npx-item-badge npx-item-wait', terminal:false };
         }
 
         function renderOrderQueue() {
@@ -715,164 +710,148 @@
             newOrders.forEach(order => {
                 const time = new Date(order.created_at).toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' });
                 const currentStatus = String(order.unified_status || '').toLowerCase();
+                const isTakeaway = order.source === 'prepaid';
                 const items = normalizeOrderItemsForStatus(order);
                 order.items = items;
 
+                const isWaitingAck = isTakeaway && !order.merchant_acknowledged_at && !['ready','completed','cancelled','rejected'].includes(currentStatus);
+
                 let statusBadgeHtml = '';
-                if (currentStatus === 'new' || currentStatus === 'pending') {
-                    statusBadgeHtml = '<span style="background:#fff3e0;color:#e65100;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:bold;border:1px solid #ffe0b2;">⏳ รอยืนยัน</span>';
-                } else if (currentStatus === 'preparing' || currentStatus === 'processing' || currentStatus === 'accepted') {
-                    statusBadgeHtml = '<span style="background:#e3f2fd;color:#1565c0;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:bold;border:1px solid #bbdefb;">👨‍🍳 กำลังทำอาหาร</span>';
+                if (isWaitingAck) {
+                    statusBadgeHtml = '<span style="background:#fff3e0;color:#e65100;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:bold;border:1px solid #ffe0b2;">👀 รอร้านเห็นออเดอร์</span>';
                 } else if (currentStatus === 'ready') {
-                    statusBadgeHtml = '<span style="background:#e8f5e9;color:#137333;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:bold;border:1px solid #c8e6c9;">✅ พร้อมรับ</span>';
+                    statusBadgeHtml = '<span style="background:#e8f5e9;color:#137333;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:bold;border:1px solid #c8e6c9;">🥡 พร้อมรับ</span>';
                 } else {
-                    statusBadgeHtml = '<span style="background:#e8f5e9;color:#137333;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:bold;border:1px solid #c8e6c9;">✅ เสร็จแล้ว</span>';
+                    statusBadgeHtml = '<span style="background:#e3f2fd;color:#1565c0;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:bold;border:1px solid #bbdefb;">⏳ รอทำ</span>';
                 }
 
-                let allItemsFinished = items.length > 0;
+                let allFinished = items.length > 0;
                 let itemsHtml = '';
 
                 items.forEach((item, index) => {
-                    const meta = getItemStatusMeta(item.status);
-                    const itemStatus = String(item.status || 'pending').toLowerCase();
-                    if (!meta.terminal) allItemsFinished = false;
+                    const st = String(item.status || 'pending').toLowerCase();
+                    const meta = getItemStatusMeta(st);
+                    if (!meta.terminal) allFinished = false;
 
-                    const itemStyle = ['done','served','rejected'].includes(itemStatus) ? 'color:#888;' : '';
                     const optStr = item.option ? `<div style="color:#00BCD4;font-size:12px;margin-top:4px;">👉 ${item.option}</div>` : '';
                     const noteStr = item.note ? `<div style="color:#ff4d4f;font-size:12px;margin-top:4px;">📝 ${item.note}</div>` : '';
-                    const rejectStr = (itemStatus === 'rejected' && item.reject_reason)
-                        ? `<div style="color:#c62828;font-size:12px;margin-top:4px;font-weight:bold;">เหตุผล: ${item.reject_reason}</div>` : '';
+                    const rejectStr = (st === 'rejected' && item.reject_reason)
+                        ? `<div style="color:#c62828;font-size:12px;margin-top:4px;font-weight:bold;">เหตุผล: ${item.reject_reason}</div>`
+                        : '';
 
-                    let controlHtml = `<span class="${meta.cls}">${meta.label}</span>`;
+                    let controls = `<span class="${meta.cls}">${meta.label}</span>`;
 
-                    if (order.source === 'prepaid' && (currentStatus === 'pending' || currentStatus === 'new')) {
-                        if (itemStatus === 'pending' || itemStatus === 'new' || itemStatus === '') {
-                            controlHtml += `<button class="npx-item-btn npx-item-accept" onclick="acceptOrderItem('${order.id}','${order.source}',${index},this)">✅ รับ</button>`;
-                            controlHtml += `<button class="npx-item-btn npx-item-reject" onclick="rejectOrderItem('${order.id}','${order.source}',${index},this)">❌ ปฏิเสธ</button>`;
-                        } else if (itemStatus === 'accepted') {
-                            controlHtml += `<button class="npx-item-btn npx-item-reject" onclick="rejectOrderItem('${order.id}','${order.source}',${index},this)">❌ ปฏิเสธ</button>`;
-                        }
-                    } else if (!['ready','completed','served'].includes(currentStatus)) {
-                        if (itemStatus === 'pending' || itemStatus === 'new' || itemStatus === 'accepted' || itemStatus === '') {
-                            controlHtml += `<button class="npx-item-btn npx-item-start" onclick="updateOrderItemStatus('${order.id}','${order.source}',${index},'cooking',this)">👨‍🍳 เริ่มทำ</button>`;
-                            if (itemStatus !== 'accepted') {
-                                controlHtml += `<button class="npx-item-btn npx-item-reject" onclick="rejectOrderItem('${order.id}','${order.source}',${index},this)">❌ ปฏิเสธ</button>`;
-                            }
-                        } else if (itemStatus === 'cooking' || itemStatus === 'preparing') {
-                            controlHtml += `<button class="npx-item-btn npx-item-done-btn" onclick="updateOrderItemStatus('${order.id}','${order.source}',${index},'done',this)">✅ เสร็จ</button>`;
+                    // หลังร้านกดเห็นออเดอร์แล้วเท่านั้น จึงให้จัดการรายเมนู
+                    if (!isWaitingAck && !['ready','completed','served'].includes(currentStatus)) {
+                        if (!meta.terminal) {
+                            controls += `
+                                <button class="npx-item-btn npx-item-done-btn" onclick="finishOrderItem('${order.id}','${order.source}',${index},this)">✅ เสร็จ</button>
+                                <button class="npx-item-btn npx-item-reject" onclick="rejectOrderItemSimple('${order.id}','${order.source}',${index},this)">❌ ปฏิเสธ</button>`;
                         }
                     }
 
-                    itemsHtml += `<div class="npx-item-line">
-                        <div class="npx-item-info" style="${itemStyle}">
-                            <div><b>${item.qty || 1}x</b> ${item.name || 'รายการอาหาร'}</div>
-                            ${optStr}${noteStr}${rejectStr}
-                        </div>
-                        <div class="npx-item-controls">${controlHtml}</div>
-                    </div>`;
+                    itemsHtml += `
+                        <div class="npx-item-line" style="${meta.terminal ? 'opacity:.68;' : ''}">
+                            <div class="npx-item-info">
+                                <div><b>${item.qty || 1}x</b> ${item.name || 'รายการอาหาร'}</div>
+                                ${optStr}${noteStr}${rejectStr}
+                            </div>
+                            <div class="npx-item-controls">${controls}</div>
+                        </div>`;
                 });
 
-                const safeOrderData = encodeURIComponent(JSON.stringify(order));
-                const queueTitle = order.source === 'prepaid'
-                    ? (order.queue_no ? `คิวที่ ${order.queue_no}` : 'คิว: รอยืนยัน')
-                    : (order.displayTitle || 'Dine-in');
+                let queueTitle = '';
+                if (isTakeaway) {
+                    queueTitle = order.queue_no ? `คิวที่ ${order.queue_no}` : 'คิว: รอยืนยัน';
+                } else {
+                    queueTitle = order.displayTitle || 'Dine-in';
+                }
 
-                const titleRow = `<div class="npx-title-row">
-                    <div class="npx-title-main">${queueTitle}</div>
-                    <span class="npx-branch-badge">🏬 ${order.branchName || 'สาขาหลัก'}</span>
-                </div>`;
+                const titleRow = `
+                    <div class="npx-title-row">
+                        <div class="npx-title-main">${queueTitle}</div>
+                        <span class="npx-branch-badge">🏬 ${order.branchName || 'สาขาหลัก'}</span>
+                    </div>`;
 
-                const refHtml = order.source === 'prepaid'
+                const refHtml = isTakeaway
                     ? `<div class="npx-ref-row">อ้างอิง: ${order.reference_no || order.shortRef || '-'} • ${time}</div>`
                     : `<div class="npx-ref-row">${time}</div>`;
 
-                let bulkHtml = '';
-                if (order.source === 'prepaid' && (currentStatus === 'pending' || currentStatus === 'new') && items.length > 0) {
-                    bulkHtml = `<div class="npx-bulk-actions">
-                        <button class="npx-bulk-btn" style="background:#e8f5e9;color:#137333;border:1px solid #a5d6a7;" onclick="acceptAllPendingItems('${order.id}','${order.source}',this)">✅ รับทุกรายการ</button>
-                        <button class="npx-bulk-btn" style="background:#ffebee;color:#b71c1c;border:1px solid #ffcdd2;" onclick="cancelOrder('${order.id}','${safeOrderData}','${order.source}')">❌ ปฏิเสธทั้งออเดอร์</button>
-                    </div>`;
-                } else if (!['ready','completed','served'].includes(currentStatus) && items.length > 0) {
-                    bulkHtml = `<div class="npx-bulk-actions">
-                        <button class="npx-bulk-btn npx-bulk-start" onclick="updateAllOrderItems('${order.id}','${order.source}','cooking',this)">👨‍🍳 เริ่มทำทั้งหมด</button>
-                        <button class="npx-bulk-btn npx-bulk-done" onclick="updateAllOrderItems('${order.id}','${order.source}','done',this)">✅ เสร็จทั้งหมด</button>
-                    </div>`;
+                const safeOrderData = encodeURIComponent(JSON.stringify(order));
+                let actionHtml = '';
+
+                if (isWaitingAck) {
+                    actionHtml = `
+                        <button class="ticket-btn btn-accept" onclick="acknowledgeAndStartTakeaway('${order.id}',this)">👀 เห็นออเดอร์แล้ว</button>
+                        <button class="ticket-btn btn-cancel" onclick="cancelOrder('${order.id}','${safeOrderData}','${order.source}')">❌ ปฏิเสธทั้งออเดอร์</button>`;
+                } else if (isTakeaway && currentStatus === 'ready') {
+                    actionHtml = `<button class="ticket-btn btn-accept" onclick="completeTakeawayDelivery('${order.id}',this)" style="background:#06C755;color:#fff;">🏁 ส่งมอบ / จบออเดอร์</button>`;
+                } else if (!isTakeaway && currentStatus === 'ready') {
+                    actionHtml = `<button class="ticket-btn btn-accept" onclick="advanceOrderStatus('${order.id}','${order.source}',this)" style="background:#06C755;color:#fff;">🍽️ เสิร์ฟแล้ว</button>`;
                 }
 
-                let finalButton = '';
-                if (order.source === 'prepaid') {
-                    if (currentStatus === 'pending' || currentStatus === 'new') {
-                        finalButton = `<button class="ticket-btn btn-accept" onclick="advanceOrderStatus('${order.id}','${order.source}',this)">✅ ยืนยันรับออเดอร์ / ออกเลขคิว</button>`;
-                    } else if (currentStatus === 'ready' || allItemsFinished) {
-                        finalButton = `<button class="ticket-btn btn-accept" onclick="advanceOrderStatus('${order.id}','${order.source}',this)" style="background:#06C755;color:#fff;box-shadow:0 0 10px rgba(6,199,85,.35);">🏁 ส่งมอบ / เสร็จสิ้น</button>`;
-                    }
-                } else if (currentStatus === 'ready' || allItemsFinished) {
-                    finalButton = `<button class="ticket-btn btn-accept" onclick="advanceOrderStatus('${order.id}','${order.source}',this)" style="background:#06C755;color:#fff;">🍽️ เสิร์ฟแล้ว</button>`;
-                }
+                html += `
+                    <div class="ticket" style="${allFinished ? 'border-left:5px solid #06C755;background:#fafffa;' : ''}">
+                        <div class="ticket-header" style="border-bottom:1px dashed #ccc;">
+                            <div style="min-width:0;flex:1;">
+                                ${titleRow}
+                                ${refHtml}
+                                <div style="margin-top:6px;">${order.badgeHtml || ''}</div>
+                            </div>
+                            <div style="text-align:right;flex-shrink:0;">${statusBadgeHtml}</div>
+                        </div>
 
-                const ticketHeaderStyle = allItemsFinished ? 'background:#f1fff5;border-bottom:1px dashed #06C755;' : 'border-bottom:1px dashed #ccc;';
+                        <div>${itemsHtml}</div>
 
-                html += `<div class="ticket" style="${allItemsFinished ? 'border-left:5px solid #06C755;background:#fafffa;' : ''}">
-                    <div class="ticket-header" style="${ticketHeaderStyle}">
-                        <div style="min-width:0;flex:1;">${titleRow}${refHtml}</div>
-                        <div style="text-align:right;flex-shrink:0;">${order.badgeHtml || ''}<div style="margin-top:6px;">${statusBadgeHtml}</div></div>
-                    </div>
-                    <div>${itemsHtml}</div>
-                    ${bulkHtml}
-                    <div class="ticket-actions">
-                        <button class="ticket-btn btn-print" onclick="printKitchenTicket('${safeOrderData}', false)">🖨 พิมพ์</button>
-                        ${finalButton}
-                    </div>
-                </div>`;
+                        <div class="ticket-actions">
+                            ${!isWaitingAck ? `<button class="ticket-btn btn-print" onclick="printKitchenTicket('${safeOrderData}', false)">🖨 พิมพ์</button>` : ''}
+                            ${actionHtml}
+                        </div>
+                    </div>`;
             });
 
             container.innerHTML = html;
         }
 
-        async function saveOrderItemsOnly(order, nextItems) {
-            const tableName = order.source === 'dine_in' ? 'table_orders' : 'orders';
-            const { error } = await supabaseClient.from(tableName).update({ items: nextItems }).eq('id', order.id);
+        async function saveSimplifiedItems(order, nextItems) {
+            const accepted = nextItems.filter(i => String(i.status || 'pending').toLowerCase() !== 'rejected');
+            const allDone = accepted.length > 0 && accepted.every(i => ['done','served'].includes(String(i.status || '').toLowerCase()));
+
+            if (order.source === 'dine_in') {
+                const nextStatus = allDone ? 'ready' : 'preparing';
+                const { error } = await supabaseClient.from('table_orders')
+                    .update({ items:nextItems, order_status:nextStatus })
+                    .eq('id',order.id);
+                if (error) throw error;
+                return;
+            }
+
+            const nextStatus = allDone ? 'ready' : 'processing';
+            const { error } = await supabaseClient.from('orders')
+                .update({ items:nextItems, status:nextStatus })
+                .eq('id',order.id);
             if (error) throw error;
-            order.items = nextItems;
         }
 
-        async function acceptOrderItem(orderId, source, itemIndex, btnElement) {
+        async function finishOrderItem(orderId, source, itemIndex, btnElement) {
             try {
                 if (btnElement) { btnElement.disabled = true; btnElement.innerText = '...'; }
                 const order = newOrders.find(o => o.id === orderId && o.source === source);
                 if (!order) throw new Error('ไม่พบออเดอร์นี้');
                 const items = normalizeOrderItemsForStatus(order);
                 if (!items[itemIndex]) throw new Error('ไม่พบรายการอาหารนี้');
-                items[itemIndex] = { ...items[itemIndex], status:'accepted' };
-                await saveOrderItemsOnly(order, items);
+                items[itemIndex] = { ...items[itemIndex], status:'done' };
+                await saveSimplifiedItems(order,items);
                 await fetchData();
             } catch (err) {
-                console.error('[ACCEPT ITEM ERROR]', err);
-                alert('รับรายการไม่สำเร็จ: ' + (err?.message || err));
+                console.error('[FINISH ITEM ERROR]',err);
+                alert('อัปเดตรายการไม่สำเร็จ: '+(err?.message||err));
                 await fetchData();
             }
         }
 
-        async function acceptAllPendingItems(orderId, source, btnElement) {
-            try {
-                if (btnElement) { btnElement.disabled = true; btnElement.innerText = 'กำลังรับรายการ...'; }
-                const order = newOrders.find(o => o.id === orderId && o.source === source);
-                if (!order) throw new Error('ไม่พบออเดอร์นี้');
-                const items = normalizeOrderItemsForStatus(order).map(item => {
-                    const st = String(item.status || 'pending').toLowerCase();
-                    return (st === 'pending' || st === 'new' || st === '') ? { ...item, status:'accepted' } : item;
-                });
-                await saveOrderItemsOnly(order, items);
-                await fetchData();
-            } catch (err) {
-                console.error('[ACCEPT ALL ITEMS ERROR]', err);
-                alert('รับรายการทั้งหมดไม่สำเร็จ: ' + (err?.message || err));
-                await fetchData();
-            }
-        }
-
-        async function rejectOrderItem(orderId, source, itemIndex, btnElement) {
-            const reasonInput = prompt('ระบุเหตุผลที่ปฏิเสธรายการนี้ เช่น ของหมด / วัตถุดิบหมด / ทำไม่ได้', 'ของหมด');
+        async function rejectOrderItemSimple(orderId, source, itemIndex, btnElement) {
+            const reasonInput = prompt('เหตุผลที่ปฏิเสธรายการ เช่น ของหมด / วัตถุดิบหมด','ของหมด');
             if (reasonInput === null) return;
             const reason = String(reasonInput || '').trim() || 'ร้านไม่สามารถทำรายการนี้ได้';
 
@@ -883,83 +862,78 @@
                 const items = normalizeOrderItemsForStatus(order);
                 if (!items[itemIndex]) throw new Error('ไม่พบรายการอาหารนี้');
                 items[itemIndex] = { ...items[itemIndex], status:'rejected', reject_reason:reason };
-                await saveOrderItemsOnly(order, items);
+                await saveSimplifiedItems(order,items);
                 await fetchData();
             } catch (err) {
-                console.error('[REJECT ITEM ERROR]', err);
-                alert('ปฏิเสธรายการไม่สำเร็จ: ' + (err?.message || err));
+                console.error('[REJECT ITEM ERROR]',err);
+                alert('ปฏิเสธรายการไม่สำเร็จ: '+(err?.message||err));
                 await fetchData();
             }
         }
 
-        async function saveOrderItemsAndRollup(order, nextItems) {
-            const statuses = nextItems.map(i => String(i.status || 'pending').toLowerCase());
-            const acceptedItems = statuses.filter(st => st !== 'rejected');
-            const allAcceptedItemsDone = acceptedItems.length > 0 && acceptedItems.every(st => ['done','served'].includes(st));
-            const anyStarted = statuses.some(st => ['accepted','cooking','preparing','done','served'].includes(st));
-            const previousStatus = String(order.unified_status || order.status || order.order_status || '').toLowerCase();
-
-            if (order.source === 'dine_in') {
-                const nextOrderStatus = allAcceptedItemsDone ? 'ready' : (anyStarted ? 'preparing' : 'new');
-                const { error } = await supabaseClient.from('table_orders').update({ items:nextItems, order_status:nextOrderStatus }).eq('id', order.id);
-                if (error) throw error;
-                order.items = nextItems;
-                order.unified_status = nextOrderStatus;
-                return;
-            }
-
-            let nextOrderStatus;
-            if (allAcceptedItemsDone) nextOrderStatus = 'ready';
-            else if (previousStatus === 'processing' || previousStatus === 'ready' || anyStarted) nextOrderStatus = 'processing';
-            else nextOrderStatus = 'pending';
-
-            const { data, error } = await supabaseClient.from('orders')
-                .update({ items:nextItems, status:nextOrderStatus })
-                .eq('id', order.id)
-                .select('id, customer_uid, reference_no, queue_no, status, status_token, branch_id');
-            if (error) throw error;
-
-            order.items = nextItems;
-            order.unified_status = nextOrderStatus;
-            order.status = nextOrderStatus;
-
-            if (previousStatus !== 'processing' && nextOrderStatus === 'processing' && data && data[0]) {
-                await notifyTakeawayCustomer({ ...order, ...data[0], source:'prepaid' }, 'processing');
-            }
-        }
-
-        async function updateOrderItemStatus(orderId, source, itemIndex, newStatus, btnElement) {
+        async function acknowledgeAndStartTakeaway(orderId, btnElement) {
             try {
-                if (btnElement) { btnElement.disabled = true; btnElement.innerText = '...'; }
-                const order = newOrders.find(o => o.id === orderId && o.source === source);
+                if (btnElement) { btnElement.disabled = true; btnElement.innerText = '⏳ กำลังรับออเดอร์...'; }
+                const order = newOrders.find(o => o.id === orderId && o.source === 'prepaid');
                 if (!order) throw new Error('ไม่พบออเดอร์นี้');
-                const items = normalizeOrderItemsForStatus(order);
-                if (!items[itemIndex]) throw new Error('ไม่พบรายการอาหารนี้');
-                items[itemIndex] = { ...items[itemIndex], status:newStatus };
-                await saveOrderItemsAndRollup(order, items);
-                await fetchData();
-            } catch (err) {
-                console.error('[ITEM STATUS ERROR]', err);
-                alert('อัปเดตรายการไม่สำเร็จ: ' + (err?.message || err));
-                await fetchData();
-            }
-        }
 
-        async function updateAllOrderItems(orderId, source, newStatus, btnElement) {
-            try {
-                if (btnElement) { btnElement.disabled = true; btnElement.innerText = 'กำลังอัปเดต...'; }
-                const order = newOrders.find(o => o.id === orderId && o.source === source);
-                if (!order) throw new Error('ไม่พบออเดอร์นี้');
                 const items = normalizeOrderItemsForStatus(order).map(item => {
                     const st = String(item.status || 'pending').toLowerCase();
                     if (st === 'rejected') return item;
-                    return { ...item, status:newStatus };
+                    return { ...item, status:'pending' }; // เห็นแล้ว -> รอทำทันที
                 });
-                await saveOrderItemsAndRollup(order, items);
+
+                let staffName = 'staff';
+                try {
+                    const session = JSON.parse(localStorage.getItem('staff_session') || '{}');
+                    staffName = session.displayName || session.name || session.username || 'staff';
+                } catch(e) {}
+
+                const { data, error } = await supabaseClient.from('orders')
+                    .update({
+                        status:'processing',
+                        items,
+                        merchant_acknowledged_at:new Date().toISOString(),
+                        merchant_acknowledged_by:staffName
+                    })
+                    .eq('id',orderId)
+                    .in('status',['pending','processing'])
+                    .select('id,customer_uid,reference_no,queue_no,status,status_token,branch_id,merchant_acknowledged_at');
+
+                if (error) throw error;
+                if (!data || !data[0]) throw new Error('ออเดอร์อาจถูกอัปเดตจากอุปกรณ์อื่นแล้ว');
+
+                await notifyTakeawayCustomer({ ...order, ...data[0], items, source:'prepaid' },'processing');
                 await fetchData();
             } catch (err) {
-                console.error('[ALL ITEM STATUS ERROR]', err);
-                alert('อัปเดตรายการทั้งหมดไม่สำเร็จ: ' + (err?.message || err));
+                console.error('[ACK TAKEAWAY ERROR]',err);
+                alert('รับออเดอร์ไม่สำเร็จ: '+(err?.message||err));
+                if (btnElement) btnElement.disabled = false;
+                await fetchData();
+            }
+        }
+
+        async function completeTakeawayDelivery(orderId, btnElement) {
+            try {
+                if (btnElement) { btnElement.disabled = true; btnElement.innerText = '⏳ กำลังปิดออเดอร์...'; }
+                const order = newOrders.find(o => o.id === orderId && o.source === 'prepaid');
+                if (!order) throw new Error('ไม่พบออเดอร์นี้');
+
+                const { data,error } = await supabaseClient.from('orders')
+                    .update({ status:'completed' })
+                    .eq('id',orderId)
+                    .eq('status','ready')
+                    .select('id,customer_uid,reference_no,queue_no,status,status_token,branch_id');
+                if (error) throw error;
+
+                if (data && data[0]) {
+                    await notifyTakeawayCustomer({ ...order, ...data[0], source:'prepaid' },'completed');
+                }
+                await fetchData();
+            } catch (err) {
+                console.error('[COMPLETE TAKEAWAY ERROR]',err);
+                alert('ปิดออเดอร์ไม่สำเร็จ: '+(err?.message||err));
+                if (btnElement) btnElement.disabled = false;
                 await fetchData();
             }
         }
@@ -975,25 +949,24 @@
 
                 if (newStatus === 'processing') {
                     let statusToken = String(order.status_token || '').trim();
-
                     if (!statusToken && order.id) {
                         const { data:tokenRow, error:tokenError } = await supabaseClient
-                            .from('orders').select('status_token').eq('id', order.id).maybeSingle();
+                            .from('orders').select('status_token').eq('id',order.id).maybeSingle();
                         if (!tokenError && tokenRow && tokenRow.status_token) {
                             statusToken = String(tokenRow.status_token).trim();
                         }
                     }
 
                     if (statusToken) {
-                        const statusUrl = new URL('order-status.html', window.location.href);
-                        statusUrl.search = '';
-                        statusUrl.hash = '';
-                        statusUrl.searchParams.set('token', statusToken);
-                        orderStatusUrl = statusUrl.toString();
+                        const statusUrl = new URL('order-status.html',window.location.href);
+                        statusUrl.search='';
+                        statusUrl.hash='';
+                        statusUrl.searchParams.set('token',statusToken);
+                        orderStatusUrl=statusUrl.toString();
                     }
                 }
 
-                const payload = {
+                const payload={
                     action:'notify_customer',
                     vendor_id:VENDOR_ID,
                     uid:order.customer_uid,
@@ -1005,88 +978,44 @@
                 };
 
                 if (newStatus === 'processing' && orderStatusUrl) {
-                    payload.order_status_url = orderStatusUrl;
+                    payload.order_status_url=orderStatusUrl;
                 }
 
-                console.log('[CUSTOMER NOTIFY PAYLOAD]', payload);
-
-                const response = await fetch(CONFIG.gasWebhookUrl, {
+                const response=await fetch(CONFIG.gasWebhookUrl,{
                     method:'POST',
                     redirect:'follow',
                     headers:{'Content-Type':'text/plain;charset=utf-8'},
                     body:JSON.stringify(payload)
                 });
-
-                console.log(`[CUSTOMER NOTIFY] ${newStatus}:`, await response.text());
-            } catch (err) {
-                console.error('[CUSTOMER NOTIFY ERROR]', err);
+                console.log(`[CUSTOMER NOTIFY] ${newStatus}:`,await response.text());
+            } catch(err) {
+                console.error('[CUSTOMER NOTIFY ERROR]',err);
             }
         }
 
         async function advanceOrderStatus(orderId, source, btnElement) {
             try {
-                if (btnElement) { btnElement.disabled = true; btnElement.innerText = '⏳ กำลังอัปเดต...'; }
-
-                const order = newOrders.find(o => o.id === orderId && o.source === source);
-                if (!order) throw new Error('ไม่พบออเดอร์นี้ในหน้ารับออเดอร์');
-
-                const currentStatus = String(order.unified_status || order.status || order.order_status || '').toLowerCase();
-
-                if (source === 'dine_in') {
-                    if (currentStatus !== 'ready') throw new Error('รายการอาหารยังไม่เสร็จครบ จึงยังเสิร์ฟไม่ได้');
-                    const { data:statusResult, error:statusRpcError } = await supabaseClient.rpc('update_table_order_status', {
-                        p_order_id:orderId,
-                        p_new_status:'served'
-                    });
-                    if (statusRpcError) throw statusRpcError;
-                    if (!statusResult || statusResult.success !== true) throw new Error(statusResult?.message || 'อัปเดตสถานะ Dine-in ไม่สำเร็จ');
-                    await fetchData();
-                    return;
+                if (source === 'prepaid') {
+                    return completeTakeawayDelivery(orderId,btnElement);
                 }
 
-                if (currentStatus === 'pending' || currentStatus === 'new') {
-                    const normalizedItems = normalizeOrderItemsForStatus(order).map(item => {
-                        const st = String(item.status || 'pending').toLowerCase();
-                        if (st === 'rejected') return item;
-                        if (st === 'pending' || st === 'new' || st === '') return { ...item, status:'accepted' };
-                        return item;
-                    });
+                if (btnElement) { btnElement.disabled=true; btnElement.innerText='⏳ กำลังอัปเดต...'; }
+                const order=newOrders.find(o=>o.id===orderId && o.source===source);
+                if (!order) throw new Error('ไม่พบออเดอร์นี้');
+                const currentStatus=String(order.unified_status || order.order_status || '').toLowerCase();
+                if (currentStatus !== 'ready') throw new Error('รายการอาหารยังไม่เสร็จครบ จึงยังเสิร์ฟไม่ได้');
 
-                    const acceptedCount = normalizedItems.filter(item => String(item.status || '').toLowerCase() !== 'rejected').length;
-                    if (acceptedCount === 0) throw new Error('ทุกรายการถูกปฏิเสธ กรุณาปฏิเสธทั้งออเดอร์แทน');
-
-                    let updateQuery = supabaseClient.from('orders')
-                        .update({ status:'processing', items:normalizedItems })
-                        .eq('id', orderId);
-                    if (currentStatus === 'pending') updateQuery = updateQuery.eq('status','pending');
-                    else if (currentStatus === 'new') updateQuery = updateQuery.eq('status','new');
-
-                    const { data, error } = await updateQuery.select('id, customer_uid, reference_no, queue_no, status, status_token, branch_id');
-                    if (error) throw error;
-                    if (!data || !data[0]) throw new Error('ออเดอร์อาจถูกอัปเดตจากอุปกรณ์อื่นแล้ว');
-
-                    await notifyTakeawayCustomer({ ...order, ...data[0], items:normalizedItems, source:'prepaid' }, 'processing');
-                    await fetchData();
-                    return;
-                }
-
-                if (currentStatus === 'ready') {
-                    const { data, error } = await supabaseClient.from('orders')
-                        .update({ status:'completed' })
-                        .eq('id', orderId)
-                        .eq('status','ready')
-                        .select('id, customer_uid, reference_no, queue_no, status, status_token, branch_id');
-                    if (error) throw error;
-                    if (data && data[0]) await notifyTakeawayCustomer({ ...order, ...data[0], source:'prepaid' }, 'completed');
-                    await fetchData();
-                    return;
-                }
-
-                throw new Error('กรุณาอัปเดตสถานะอาหารให้เสร็จครบก่อน');
-            } catch (err) {
-                console.error('[ADVANCE ORDER STATUS ERROR]', err);
-                alert('อัปเดตไม่สำเร็จ กรุณาลองใหม่\n' + (err?.message || err));
-                if (btnElement) btnElement.disabled = false;
+                const { data:statusResult,error:statusRpcError }=await supabaseClient.rpc('update_table_order_status',{
+                    p_order_id:orderId,
+                    p_new_status:'served'
+                });
+                if (statusRpcError) throw statusRpcError;
+                if (!statusResult || statusResult.success !== true) throw new Error(statusResult?.message || 'อัปเดตสถานะ Dine-in ไม่สำเร็จ');
+                await fetchData();
+            } catch(err) {
+                console.error('[ADVANCE ORDER STATUS ERROR]',err);
+                alert('อัปเดตไม่สำเร็จ: '+(err?.message||err));
+                if (btnElement) btnElement.disabled=false;
                 await fetchData();
             }
         }
