@@ -14,6 +14,7 @@ const CONFIG = {
     liffIdDashboard: '2011794866-5xNLJ6Sa',
     liffIdCustomer: '2011794866-KxUcfGFz',
     liffIdInfluencer: '2011794866-Jw2Icc0b',
+    liffIdDineInShare: "2011794866-TKQxUxmM",
 
 
     // ---------------------------------------------------------
