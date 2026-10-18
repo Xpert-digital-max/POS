@@ -17,6 +17,12 @@
         .store-info img { width: 35px; height: 35px; border-radius: 50%; border: 2px solid white; object-fit: cover;}
         .table-badge { background: white; color: #E91E63; padding: 4px 10px; border-radius: 20px; font-weight: bold; font-size: 13px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
 
+        .header-actions { display: flex; align-items: center; gap: 8px; }
+        .share-store-btn { background: #FF5722; color: #fff; border: none; padding: 7px 10px; border-radius: 18px; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap; box-shadow: 0 2px 5px rgba(255,87,34,0.30); }
+        .share-store-btn:active { transform: scale(0.98); }
+        .share-modal-card { background: white; width: 95%; max-width: 400px; border-radius: 16px; padding: 20px; box-sizing: border-box; text-align: center; position: relative; animation: shareSlideUp 0.25s ease-out; }
+        @keyframes shareSlideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
         /* แถบเครื่องมือ Ordering */
         .ordering-toolbar { position: sticky; top: 59px; z-index: 100; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .action-bar { display: flex; gap: 6px; padding: 10px 12px; border-bottom: 1px solid #eee; }
@@ -190,7 +196,10 @@
                 <span id="branchName" style="font-size: 11px; font-weight: normal;"></span>
             </div>
         </div>
-        <div id="tableNameBadge" class="table-badge">-</div>
+        <div class="header-actions">
+            <button type="button" class="share-store-btn" onclick="openShareModal()">📢 แชร์ร้าน</button>
+            <div id="tableNameBadge" class="table-badge">-</div>
+        </div>
     </div>
 
     <!-- ส่วนที่ 1: หน้าเมนูอาหาร -->
@@ -258,6 +267,36 @@
                 </button>
             </div>
             <button onclick="cancelBillCustomer()" style="width: 100%; padding: 12px; background: transparent; color: #c62828; border: none; font-weight: bold; font-size: 14px; margin-top: 15px; cursor: pointer; text-decoration: underline;">❌ ยกเลิกการชำระเงิน (สั่งต่อ)</button>
+        </div>
+    </div>
+
+    <!-- Modal แชร์แนะนำร้าน / พาร์ทเนอร์ — ใช้ระบบเดียวกับ Takeaway -->
+    <div id="shareOptionsModal" class="modal-overlay" style="align-items: flex-end; padding-bottom: 20px;">
+        <div class="share-modal-card">
+            <button onclick="closeShareModal()" style="position:absolute; top:12px; right:12px; background:none; border:none; font-size:22px; color:#888; cursor:pointer;">✕</button>
+            <h3 style="margin:0 0 8px; color:#333;">แชร์แนะนำร้านนี้</h3>
+            <p style="font-size:13px; color:#666; margin:0 0 18px;">ส่งร้านนี้ให้เพื่อน หรือรับลิงก์พาร์ทเนอร์เพื่อรับค่าคอมมิชชันตามเงื่อนไขของร้าน</p>
+
+            <div style="background:#f8f9fa; border:1px solid #e9ecef; border-radius:12px; padding:15px; margin-bottom:12px; text-align:left;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <h4 style="margin:0; color:#333;">💌 แชร์บอกต่อ (ปกติ)</h4>
+                    <span style="background:#e9ecef; color:#555; padding:3px 8px; border-radius:12px; font-size:11px;">ไม่มีค่าคอม</span>
+                </div>
+                <p style="font-size:12px; color:#666; margin:0 0 10px;">แชร์ลิงก์สั่งอาหาร Takeaway ของร้านเดียวกัน โดยไม่แชร์ลิงก์โต๊ะ</p>
+                <div style="display:flex; gap:8px;">
+                    <button onclick="shareNormalFlex()" style="flex:1; background:#00B900; color:white; border:none; padding:10px; border-radius:8px; font-weight:bold; font-size:13px; cursor:pointer;">📲 ส่งใน LINE</button>
+                    <button onclick="copyNormalLink()" style="flex:1; background:#f1f3f5; color:#333; border:1px solid #dee2e6; padding:10px; border-radius:8px; font-weight:bold; font-size:13px; cursor:pointer;">🔗 คัดลอกลิงก์</button>
+                </div>
+            </div>
+
+            <div style="background:#fff8e1; border:1px solid #ffe0b2; border-radius:12px; padding:15px; text-align:left;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <h4 style="margin:0; color:#e65100;">💰 แชร์เป็นพาร์ทเนอร์</h4>
+                    <span id="shareCommBadge" style="background:#ffe0b2; color:#e65100; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:bold;">มีค่าคอมมิชชัน</span>
+                </div>
+                <p style="font-size:12px; color:#666; margin:0 0 10px;">ใช้ Partner Center เดียวกับ Takeaway และคิดค่าคอมตามออเดอร์สำเร็จจริง</p>
+                <button onclick="handleInfluencerShare()" style="width:100%; background:#ff9800; color:white; border:none; padding:12px; border-radius:8px; font-weight:bold; font-size:14px; cursor:pointer;">🚀 รับลิงก์พาร์ทเนอร์ของฉัน</button>
+            </div>
         </div>
     </div>
 
@@ -1234,6 +1273,137 @@
             btn.innerText = "🚀 ส่งออเดอร์";
             btn.disabled = false; 
         } 
+        // ==================== แชร์แนะนำร้าน / Affiliate (ระบบเดียวกับ Takeaway) ====================
+        let userLineProfile = null;
+
+        function openShareModal() {
+            const modal = document.getElementById('shareOptionsModal');
+            if (!modal || !vendorData) return;
+
+            const commBadge = document.getElementById('shareCommBadge');
+            if (commBadge) {
+                if (Number(vendorData.influencer_comm_value || 0) > 0) {
+                    const commVal = vendorData.influencer_comm_value;
+                    const commType = vendorData.influencer_comm_type === 'percentage' ? '%' : ' บ.';
+                    commBadge.innerText = `รับค่าคอม ${commVal}${commType}`;
+                    commBadge.style.display = 'inline-block';
+                } else {
+                    commBadge.style.display = 'none';
+                }
+            }
+
+            modal.style.display = 'flex';
+
+            if (typeof liff !== 'undefined' && liff.isLoggedIn && liff.isLoggedIn() && !userLineProfile) {
+                liff.getProfile().then(profile => {
+                    userLineProfile = profile;
+                }).catch(err => console.warn('ไม่สามารถดึง LINE profile สำหรับ share:', err));
+            }
+        }
+
+        function closeShareModal() {
+            const modal = document.getElementById('shareOptionsModal');
+            if (modal) modal.style.display = 'none';
+        }
+
+        // สำคัญ: Dine-in ห้ามแชร์ table_token เพราะเป็นลิงก์เฉพาะโต๊ะ
+        // การแชร์ร้านจากหน้านี้จึงส่งไปหน้า Takeaway ของร้านเดียวกัน
+        function getSharedTakeawayUrl() {
+            if (!vendorData || !vendorData.id) return '';
+            const base = new URL('customer.html', window.location.href);
+            base.search = '';
+            base.searchParams.set('vid', vendorData.id);
+            return base.toString();
+        }
+
+        function copyNormalLink() {
+            const url = getSharedTakeawayUrl();
+            if (!url) return alert('ไม่พบข้อมูลร้านค้า');
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(url).then(() => {
+                    alert('คัดลอกลิงก์ร้านเรียบร้อยแล้ว!\nนำไปแชร์ให้เพื่อนได้เลยครับ');
+                    closeShareModal();
+                }).catch(() => fallbackCopy(url));
+            } else {
+                fallbackCopy(url);
+            }
+        }
+
+        function fallbackCopy(url) {
+            const tempInput = document.createElement('input');
+            tempInput.value = url;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+            alert('คัดลอกลิงก์ร้านเรียบร้อยแล้ว!');
+            closeShareModal();
+        }
+
+        function shareNormalFlex() {
+            const url = getSharedTakeawayUrl();
+            if (!url) return alert('ไม่พบข้อมูลร้านค้า');
+
+            const storeName = vendorData?.name || 'ร้านอาหาร';
+            const fallbackToLineShareUrl = () => {
+                const text = `แนะนำร้าน ${storeName}\n${url}`;
+                window.location.href = `https://line.me/R/share?text=${encodeURIComponent(text)}`;
+            };
+
+            try {
+                const heroUrl = vendorData?.line_picture_url || '';
+                const contents = {
+                    type: 'bubble',
+                    body: {
+                        type: 'box', layout: 'vertical', contents: [
+                            { type: 'text', text: storeName, weight: 'bold', size: 'xl', wrap: true },
+                            { type: 'text', text: 'เห็นร้านนี้แล้วน่าทานมาก เลยส่งมาให้ดู สั่งออนไลน์ได้เลยนะ!', size: 'sm', color: '#666666', wrap: true, margin: 'md' }
+                        ]
+                    },
+                    footer: {
+                        type: 'box', layout: 'vertical', spacing: 'sm', contents: [
+                            { type: 'button', style: 'primary', color: '#06C755', action: { type: 'uri', label: '👉 กดดูเมนูเลย', uri: url } }
+                        ]
+                    }
+                };
+                if (heroUrl) contents.hero = { type: 'image', url: heroUrl, size: 'full', aspectRatio: '20:13', aspectMode: 'cover' };
+
+                const flexMessage = { type: 'flex', altText: `แวะมาดูร้าน ${storeName} กัน!`, contents };
+
+                if (typeof liff !== 'undefined' && typeof liff.isApiAvailable === 'function' && liff.isApiAvailable('shareTargetPicker')) {
+                    liff.shareTargetPicker([flexMessage])
+                        .then(() => closeShareModal())
+                        .catch(err => {
+                            console.warn('shareTargetPicker failed, fallback:', err);
+                            fallbackToLineShareUrl();
+                        });
+                } else {
+                    fallbackToLineShareUrl();
+                }
+            } catch (err) {
+                console.warn('Normal share failed, fallback:', err);
+                fallbackToLineShareUrl();
+            }
+        }
+
+        async function handleInfluencerShare() {
+            if (!vendorData || Number(vendorData.influencer_comm_value || 0) <= 0) {
+                alert('ขออภัยครับ ร้านค้านี้ยังไม่ได้เปิดใช้งานระบบให้ค่าคอมมิชชันพาร์ทเนอร์');
+                return;
+            }
+
+            const partnerLiffId = String(CONFIG.liffIdInfluencer || '').trim();
+            if (!partnerLiffId) {
+                alert('ยังไม่ได้ตั้งค่า LIFF สำหรับศูนย์พาร์ทเนอร์');
+                return;
+            }
+
+            closeShareModal();
+            const partnerUrl = `https://liff.line.me/${encodeURIComponent(partnerLiffId)}?vid=${encodeURIComponent(vendorData.id)}`;
+            window.location.href = partnerUrl;
+        }
+
         window.onload = initApp;
     </script>
 </body>
