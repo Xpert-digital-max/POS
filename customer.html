@@ -1178,7 +1178,34 @@
             const referenceNo = insertedOrder.reference_no;
             const queueNo = insertedOrder.queue_no;
 
-            alert(orderStatus === 'processing' ? "✅ รับออเดอร์เรียบร้อย กำลังเตรียมอาหาร!" : "ส่งออเดอร์เรียบร้อยแล้ว!\n(รอร้านตรวจสอบและยืนยันสักครู่นะครับ)");
+            // [TAKEAWAY STATUS ADD-ON] ดึง token สำหรับหน้า Order Status โดยไม่แก้ Flow สร้างออเดอร์เดิม
+            let orderStatusUrl = '';
+            try {
+                let statusToken = insertedOrder.status_token || '';
+                if (!statusToken && customerUid) {
+                    const { data: statusTokenData, error: statusTokenError } = await supabaseClient.rpc(
+                        'get_takeaway_status_token',
+                        {
+                            p_vendor_id: String(vendorId),
+                            p_reference_no: String(referenceNo),
+                            p_customer_uid: String(customerUid)
+                        }
+                    );
+                    if (!statusTokenError && statusTokenData) statusToken = statusTokenData;
+                }
+                if (statusToken) {
+                    const statusPage = new URL('order-status.html', window.location.href);
+                    statusPage.search = '';
+                    statusPage.hash = '';
+                    statusPage.searchParams.set('token', String(statusToken));
+                    orderStatusUrl = statusPage.toString();
+                }
+            } catch (statusErr) {
+                // สำคัญ: หน้า Status เป็น Add-on เท่านั้น ห้ามทำให้การสั่งออเดอร์เดิมล้มเหลว
+                console.warn('[ORDER STATUS ADD-ON] สร้างลิงก์สถานะไม่สำเร็จ:', statusErr);
+            }
+
+            alert(orderStatus === 'processing' ? "✅ ชำระเงินและสร้างออเดอร์เรียบร้อย!\nระบบออกเลขคิวแล้ว กรุณาติดตามสถานะร้าน" : "ส่งออเดอร์เรียบร้อยแล้ว!\n(รอร้านตรวจสอบและยืนยันสักครู่นะครับ)");
             
             if (customerUid && CONFIG.gasWebhookUrl) {
                 // 1. แจ้งเตือนลูกค้าผ่าน LINE
@@ -1191,12 +1218,14 @@
                             action: 'notify_customer', 
                             vendor_id: vendorId, 
                             uid: customerUid, 
-                            order_status: orderStatus, 
+                            order_status: (orderStatus === 'processing' ? 'pending_ack' : orderStatus), 
+                            merchant_acknowledged: false,
                             store_name: vendorData.name, 
                             branch_name: (typeof branchData !== 'undefined' && branchData) ? branchData.branch_name : '',
                             order_ref: referenceNo,
                             queue_num: queueNo,
-                            payment_method: paymentMethod
+                            payment_method: paymentMethod,
+                            order_status_url: orderStatusUrl
                         })
                     });
                 } catch (e) {
