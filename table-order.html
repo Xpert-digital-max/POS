@@ -522,8 +522,8 @@
                     }
                 }
 
-                // 4) หน้าอาหารใช้งานได้ตามปกติ และค่อยถามเพิ่มเพื่อนแบบ Optional
-                setTimeout(maybeShowLineFriendPrompt, 350);
+                // 4) หน้าอาหารใช้งานได้ทันที — ไม่ถามเพิ่มเพื่อนตอนสแกนโต๊ะ
+                //    การเข้า LIFF / ตรวจ friendship จะทำเฉพาะตอนผู้ใช้กดแชร์เท่านั้น
                 pollingInterval = setInterval(pollSessionStatus, 3000);
 
             } catch (err) {
@@ -1357,15 +1357,42 @@
             closeShareModal();
         }
 
+        function getShareHandoffLiffUrl() {
+            if (!vendorData || !vendorData.id) return '';
+
+            const liffId = vendorData.liff_customer_id
+                ? String(vendorData.liff_customer_id).trim()
+                : String(CONFIG.liffIdCustomer || '').trim();
+
+            if (!liffId) return '';
+
+            const sharedBranchId = tableData?.branch_id || tableData?.branches?.id || null;
+            const params = new URLSearchParams();
+            params.set('vid', vendorData.id);
+            if (sharedBranchId) params.set('bid', sharedBranchId);
+            params.set('share', '1');
+            params.set('share_source', 'dinein');
+
+            // สำคัญ: ไม่มี table_token / table_id / table_session_id ออกไปจาก Dine-in
+            return `https://liff.line.me/${encodeURIComponent(liffId)}?${params.toString()}`;
+        }
+
+        function handoffShareToCustomerLiff() {
+            const handoffUrl = getShareHandoffLiffUrl();
+            if (!handoffUrl) {
+                alert('ยังไม่พบ LIFF สำหรับลูกค้า จึงไม่สามารถเปิด Flex Share ได้ในขณะนี้');
+                return;
+            }
+
+            closeShareModal();
+            window.location.href = handoffUrl;
+        }
+
         async function shareNormalFlex() {
             const url = getSharedTakeawayUrl();
             if (!url) return alert('ไม่พบข้อมูลร้านค้า');
 
             const storeName = vendorData?.name || 'ร้านอาหาร';
-            const fallbackToLineShareUrl = () => {
-                const text = `แนะนำร้าน ${storeName}\n${url}`;
-                window.location.href = `https://line.me/R/share?text=${encodeURIComponent(text)}`;
-            };
 
             try {
                 const heroUrl = vendorData?.line_picture_url || '';
@@ -1387,6 +1414,7 @@
 
                 const flexMessage = { type: 'flex', altText: `แวะมาดูร้าน ${storeName} กัน!`, contents };
 
+                // ถ้า Dine-in เปิดอยู่ใน LIFF context ที่ shareTargetPicker ใช้ได้ ให้แชร์ทันที
                 if (typeof liff !== 'undefined' &&
                     typeof liff.isApiAvailable === 'function' &&
                     liff.isApiAvailable('shareTargetPicker')) {
@@ -1395,20 +1423,16 @@
                         closeShareModal();
                         return;
                     } catch (err) {
-                        console.warn('shareTargetPicker failed, fallback:', err);
-                        fallbackToLineShareUrl();
-                        return;
+                        console.warn('Dine-in shareTargetPicker failed; handoff to Customer LIFF:', err);
                     }
                 }
 
-                console.warn('shareTargetPicker unavailable', {
-                    inClient: typeof liff !== 'undefined' && typeof liff.isInClient === 'function' ? liff.isInClient() : false,
-                    loggedIn: typeof liff !== 'undefined' && typeof liff.isLoggedIn === 'function' ? liff.isLoggedIn() : false
-                });
-                fallbackToLineShareUrl();
+                // ถ้าเปิดโต๊ะจาก Web URL ปกติ ให้พาเข้า Customer LIFF เฉพาะตอนกดแชร์
+                // หน้า customer.html จะรับ share=1 แล้วตรวจ friendship / เปิด Flex Share ต่อให้เอง
+                handoffShareToCustomerLiff();
             } catch (err) {
-                console.warn('Normal share failed, fallback:', err);
-                fallbackToLineShareUrl();
+                console.warn('Dine-in share failed; handoff to Customer LIFF:', err);
+                handoffShareToCustomerLiff();
             }
         }
 
