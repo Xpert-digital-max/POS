@@ -196,6 +196,82 @@
         let staffBranchId = null;
         let isAutoPrint = localStorage.getItem('auto_print_kitchen') === 'true';
 
+        // ===== TAKEAWAY ACK/ALARM ADD-ON (ไม่แตะ status เดิม) =====
+        let takeawayAlarmTimer = null;
+        let lastCustomerReminderSeen = {};
+        const TAKEAWAY_ESCALATE_SECONDS = 180; // 3 นาที
+
+        function getUnacknowledgedTakeawayOrders() {
+            return (newOrders || []).filter(o => {
+                if (o.source !== 'prepaid') return false;
+                if (o.merchant_acknowledged_at) return false;
+                const st = String(o.status || o.unified_status || '').toLowerCase();
+                return !['completed','cancelled','rejected'].includes(st);
+            });
+        }
+
+        function playUrgentTakeawayBurst() {
+            if (!audioContext) return;
+            if (audioContext.state === 'suspended') audioContext.resume();
+            [0, 0.22, 0.44, 0.80].forEach((delay, idx) => {
+                const osc = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                osc.connect(gain); gain.connect(audioContext.destination);
+                osc.type = idx === 3 ? 'square' : 'sine';
+                osc.frequency.setValueAtTime(idx === 3 ? 660 : 920, audioContext.currentTime + delay);
+                gain.gain.setValueAtTime(0.75, audioContext.currentTime + delay);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + delay + 0.18);
+                osc.start(audioContext.currentTime + delay);
+                osc.stop(audioContext.currentTime + delay + 0.2);
+            });
+        }
+
+        function syncTakeawayAlarm() {
+            const now = Date.now();
+            const urgent = getUnacknowledgedTakeawayOrders().filter(o =>
+                (now - new Date(o.created_at).getTime()) >= TAKEAWAY_ESCALATE_SECONDS * 1000
+            );
+
+            // ถ้าลูกค้ากด "แจ้งร้านอีกครั้ง" ให้ดังทันที แม้รอบ alarm ยังไม่ถึง
+            urgent.forEach(o => {
+                const stamp = o.customer_last_reminder_at || '';
+                if (stamp && lastCustomerReminderSeen[o.id] !== stamp) {
+                    lastCustomerReminderSeen[o.id] = stamp;
+                    playUrgentTakeawayBurst();
+                }
+            });
+
+            if (urgent.length > 0 && !takeawayAlarmTimer) {
+                playUrgentTakeawayBurst();
+                takeawayAlarmTimer = setInterval(playUrgentTakeawayBurst, 7000);
+            } else if (urgent.length === 0 && takeawayAlarmTimer) {
+                clearInterval(takeawayAlarmTimer);
+                takeawayAlarmTimer = null;
+            }
+        }
+
+        async function acknowledgeTakeawayOrder(orderId, btnElement) {
+            if (btnElement) { btnElement.disabled = true; btnElement.innerText = '⏳ กำลังรับทราบ...'; }
+            try {
+                let staffName = 'staff';
+                try {
+                    const session = JSON.parse(localStorage.getItem('staff_session') || '{}');
+                    staffName = session.displayName || session.name || session.username || 'staff';
+                } catch(e) {}
+
+                const { error } = await supabaseClient.from('orders').update({
+                    merchant_acknowledged_at: new Date().toISOString(),
+                    merchant_acknowledged_by: staffName
+                }).eq('id', orderId);
+                if (error) throw error;
+                await fetchData();
+            } catch (e) {
+                console.error('[TAKEAWAY ACK ERROR]', e);
+                alert('รับทราบออเดอร์ไม่สำเร็จ: ' + e.message);
+                if (btnElement) { btnElement.disabled = false; btnElement.innerText = '👀 เห็นออเดอร์แล้ว'; }
+            }
+        }
+
         // สร้าง UUID สำหรับ table_token
         function generateUUID() {
             return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -297,6 +373,7 @@
                     if (hasNewAlert) playAlertSound('order');
                 }
                 newOrders = combinedOrders;
+                syncTakeawayAlarm();
 
                 const { data: reqData } = await supabaseClient.from('table_service_requests').select('*, restaurant_tables(table_name)').eq('vendor_id', VENDOR_ID).eq('status', 'pending');
                 if (reqData && serviceRequests.length < reqData.length) { playAlertSound('call'); }
@@ -499,12 +576,23 @@
                     }
                 }
 
+                const acknowledgeButton = (order.source === 'prepaid' && !order.merchant_acknowledged_at)
+                    ? `<button class="ticket-btn btn-accept" onclick="acknowledgeTakeawayOrder('${order.id}', this)" style="background:#ff9800;color:#fff;">👀 เห็นออเดอร์แล้ว</button>`
+                    : '';
+
+                const ackBadge = (order.source === 'prepaid')
+                    ? (order.merchant_acknowledged_at
+                        ? '<span style="display:inline-block;margin-top:6px;background:#e8f5e9;color:#2e7d32;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:bold;">👀 ร้านรับทราบแล้ว</span>'
+                        : '<span style="display:inline-block;margin-top:6px;background:#fff3e0;color:#e65100;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:bold;">🔔 ยังไม่กดรับทราบ</span>')
+                    : '';
+
                 html += `
                 <div class="ticket" style="${allItemsDone ? 'border-left: 5px solid #06C755; background: #fafffa;' : ''}">
                     <div class="ticket-header" style="${ticketHeaderStyle}">
                         <div>
                             <h4 class="ticket-table" style="${allItemsDone ? 'color: #06C755;' : ''}">${order.displayTitle}</h4>
                             ${order.badgeHtml}
+                            ${ackBadge}
                         </div>
                         <div style="text-align: right;">
                             <span class="ticket-time">เวลา ${time}</span>
@@ -513,6 +601,7 @@
                     </div>
                     <div>${itemsHtml}</div>
                     <div class="ticket-actions">
+                        ${acknowledgeButton}
                         <button class="ticket-btn btn-print" onclick="printKitchenTicket('${safeOrderData}', false)">🖨 พิมพ์</button>
                         <button class="ticket-btn btn-cancel" onclick="cancelOrder('${order.id}', '${safeOrderData}', '${order.source}')">❌ ยกเลิก</button>
                         <button class="ticket-btn btn-accept" onclick="advanceOrderStatus('${order.id}', '${order.source}', this)" style="${allItemsDone ? 'box-shadow: 0 0 10px rgba(6,199,85,0.5);' : ''}">${btnText}</button>
