@@ -88,13 +88,14 @@ async function startShare(){
     const storeName = params.get('name') || 'ร้านอาหาร';
     const heroUrl = params.get('img') || '';
 
-    if(!vid || !bid) throw new Error('ไม่พบข้อมูลร้านหรือสาขา');
+    // NPX rule: สาขาหลักไม่มี bid; สาขาย่อยจึงจะมี bid
+    if(!vid) throw new Error('ไม่พบข้อมูลร้านค้า');
 
     const takeaway = new URL('customer.html', location.href);
     takeaway.search = '';
     takeaway.hash = '';
     takeaway.searchParams.set('vid', vid);
-    takeaway.searchParams.set('bid', bid);
+    if (bid) takeaway.searchParams.set('bid', bid);
     ['table_token','table_id','table_session_id'].forEach(k => takeaway.searchParams.delete(k));
 
     const bubble = {
