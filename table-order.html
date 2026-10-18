@@ -1315,12 +1315,20 @@
         }
 
         // สำคัญ: Dine-in ห้ามแชร์ table_token เพราะเป็นลิงก์เฉพาะโต๊ะ
-        // การแชร์ร้านจากหน้านี้จึงส่งไปหน้า Takeaway ของร้านเดียวกัน
+        // แชร์ออกไปเป็น Takeaway ของร้าน + สาขาเดียวกันเท่านั้น
         function getSharedTakeawayUrl() {
             if (!vendorData || !vendorData.id) return '';
+
             const base = new URL('customer.html', window.location.href);
+            const sharedBranchId = tableData?.branch_id || tableData?.branches?.id || null;
+
             base.search = '';
+            base.hash = '';
             base.searchParams.set('vid', vendorData.id);
+            if (sharedBranchId) {
+                base.searchParams.set('bid', sharedBranchId);
+            }
+
             return base.toString();
         }
 
