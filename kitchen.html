@@ -126,66 +126,79 @@
 
         async function fetchOrders() {
             try {
-                const { data: dineInData, error: errDineIn } = await supabaseClient.from('table_orders')
+                // Resolve Branch จริงก่อน เพื่อไม่พลาด Takeaway สาขาหลักที่มี UUID
+                const { data:branchData } = await supabaseClient
+                    .from('branches')
+                    .select('id, branch_name')
+                    .eq('vendor_id',VENDOR_ID);
+
+                const branches=branchData || [];
+                const branchNameMap={};
+                branches.forEach(b=>{ branchNameMap[b.id]=b.branch_name || 'สาขา'; });
+
+                if (!staffBranchId) {
+                    const mainBranch=branches.find(b=>b.branch_name==='สาขาหลัก') || branches[0] || null;
+                    if (mainBranch) staffBranchId=mainBranch.id;
+                }
+
+                let dineQuery=supabaseClient.from('table_orders')
                     .select('*, restaurant_tables(table_name)')
-                    .eq('vendor_id', VENDOR_ID)
-                    .in('order_status', ['new', 'preparing']);
-                if (errDineIn) console.error(errDineIn);
+                    .eq('vendor_id',VENDOR_ID)
+                    .in('order_status',['new','preparing']);
+                if (staffBranchId) dineQuery=dineQuery.eq('branch_id',staffBranchId);
+                const { data:dineInData,error:errDineIn }=await dineQuery;
+                if (errDineIn) console.error('[KDS DINE-IN]',errDineIn);
 
-                let prepaidQuery = supabaseClient.from('orders')
+                // Takeaway เข้า KDS หลังร้านกด "เห็นออเดอร์แล้ว" เท่านั้น
+                let prepaidQuery=supabaseClient.from('orders')
                     .select('*')
-                    .eq('vendor_id', VENDOR_ID)
-                    .in('status', ['pending', 'processing']); 
-                if (staffBranchId) { prepaidQuery = prepaidQuery.eq('branch_id', staffBranchId); } 
-                else { prepaidQuery = prepaidQuery.is('branch_id', null); }
-                const { data: prepaidData, error: errPrepaid } = await prepaidQuery;
-                if (errPrepaid) console.error(errPrepaid);
+                    .eq('vendor_id',VENDOR_ID)
+                    .eq('status','processing')
+                    .not('merchant_acknowledged_at','is',null);
+                if (staffBranchId) prepaidQuery=prepaidQuery.eq('branch_id',staffBranchId);
+                const { data:prepaidData,error:errPrepaid }=await prepaidQuery;
+                if (errPrepaid) console.error('[KDS TAKEAWAY]',errPrepaid);
 
-                let normalizedOrders = [];
+                const normalizedOrders=[];
 
-                if (dineInData) {
-                    dineInData.forEach(o => {
-                        o.source = 'dine_in';
-                        o.displayTitle = 'โต๊ะ ' + (o.restaurant_tables ? o.restaurant_tables.table_name : '-');
-                        o.badgeHtml = '<span class="source-badge" style="color:#b388ff; border: 1px solid #b388ff;">🟣 Dine-in</span>';
-                        o.unified_status = o.order_status;
-                        
-                        let items = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
-                        o.items = Array.isArray(items) ? items : Object.values(items);
-                        normalizedOrders.push(o);
-                    });
-                }
+                (dineInData || []).forEach(o=>{
+                    o.source='dine_in';
+                    o.displayTitle='โต๊ะ '+(o.restaurant_tables ? o.restaurant_tables.table_name : '-');
+                    o.branchName=branchNameMap[o.branch_id] || 'สาขาหลัก';
+                    o.badgeHtml='<span class="source-badge" style="color:#b388ff;border:1px solid #b388ff;">🟣 Dine-in</span>';
+                    o.unified_status=o.order_status;
+                    let items=typeof o.items==='string' ? JSON.parse(o.items) : o.items;
+                    if (!Array.isArray(items)) items=items && typeof items==='object' ? Object.values(items) : [];
+                    o.items=items.map(i=>({ ...i,status:i.status || 'pending' }));
+                    normalizedOrders.push(o);
+                });
 
-                if (prepaidData) {
-                    prepaidData.forEach(o => {
-                        o.source = 'prepaid';
-                        let q = o.queue_no ? `(คิว ${o.queue_no})` : '';
-                        let ref = o.reference_no ? o.reference_no : o.id.substring(0,6).toUpperCase();
-                        o.displayTitle = `กลับบ้าน ${q}`;
-                        o.badgeHtml = `<span class="source-badge" style="color:#69f0ae; border: 1px solid #69f0ae;">🟢 Prepaid [${ref}]</span>`;
-                        o.unified_status = o.status === 'pending' ? 'new' : 'preparing';
-                        
-                        let items = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
-                        o.items = Array.isArray(items) ? items : Object.values(items);
-                        normalizedOrders.push(o);
-                    });
-                }
+                (prepaidData || []).forEach(o=>{
+                    o.source='prepaid';
+                    const ref=o.reference_no || o.id.substring(0,6).toUpperCase();
+                    o.displayTitle=o.queue_no ? `คิว ${o.queue_no}` : 'Takeaway';
+                    o.branchName=branchNameMap[o.branch_id] || 'สาขาหลัก';
+                    o.badgeHtml=`<span class="source-badge" style="color:#69f0ae;border:1px solid #69f0ae;">🟢 Takeaway [${ref}]</span>`;
+                    o.unified_status='preparing';
+                    let items=typeof o.items==='string' ? JSON.parse(o.items) : o.items;
+                    if (!Array.isArray(items)) items=items && typeof items==='object' ? Object.values(items) : [];
+                    o.items=items.map(i=>({ ...i,status:i.status || 'pending' }));
+                    normalizedOrders.push(o);
+                });
 
-                normalizedOrders.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+                normalizedOrders.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
 
-                let hasNewOrder = false;
-                normalizedOrders.forEach(order => {
-                    const existingOrder = activeOrders.find(o => o.id === order.id);
-                    if (!existingOrder && order.unified_status === 'new') {
-                        hasNewOrder = true;
-                    }
+                let hasNewOrder=false;
+                normalizedOrders.forEach(order=>{
+                    if (!activeOrders.find(o=>o.id===order.id)) hasNewOrder=true;
                 });
                 if (hasNewOrder) playAlertSound();
-                
-                activeOrders = normalizedOrders;
-                renderOrders();
 
-            } catch (err) { console.error("Fetch Error:", err); }
+                activeOrders=normalizedOrders;
+                renderOrders();
+            } catch(err) {
+                console.error('Fetch Error:',err);
+            }
         }
 
         function playAlertSound() {
@@ -205,102 +218,112 @@
         }
 
         function renderOrders() {
-            const container = document.getElementById('orderGrid');
-            if (activeOrders.length === 0) { 
-                container.innerHTML = '<div class="empty-state">🎉 เยี่ยมมาก! ไม่มีออเดอร์ค้างในครัวเลย</div>'; return; 
+            const container=document.getElementById('orderGrid');
+            if (activeOrders.length===0) {
+                container.innerHTML='<div class="empty-state">🎉 เยี่ยมมาก! ไม่มีออเดอร์ค้างในครัวเลย</div>';
+                return;
             }
 
-            let html = '';
-            activeOrders.forEach(order => {
-                const timeStr = new Date(order.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-                
-                const waitTimeMin = Math.floor((new Date() - new Date(order.created_at)) / 60000);
-                const waitTimeDisplay = waitTimeMin > 0 ? `(รอ ${waitTimeMin} นาที)` : '(เพิ่งสั่ง)';
-                const timeColor = waitTimeMin > 15 ? 'color: #ff5252;' : ''; 
+            let html='';
 
-                let itemsHtml = '';
-                let items = order.items;
-                let allFinished = true; // เสร็จ, เสิร์ฟแล้ว หรือ ถูกปฏิเสธ
-                let hasNew = false;
+            activeOrders.forEach(order=>{
+                const timeStr=new Date(order.created_at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+                const waitTimeMin=Math.floor((new Date()-new Date(order.created_at))/60000);
+                const waitTimeDisplay=waitTimeMin>0 ? `(รอ ${waitTimeMin} นาที)` : '(เพิ่งสั่ง)';
+                const timeColor=waitTimeMin>15 ? 'color:#ff5252;' : '';
 
-                items.forEach((item, index) => {
-                    let iStatus = item.status || 'new';
-                    
-                    if (iStatus !== 'served' && iStatus !== 'done' && iStatus !== 'rejected') allFinished = false;
-                    if (iStatus === 'new' || iStatus === 'pending') hasNew = true;
+                let itemsHtml='';
+                const items=Array.isArray(order.items) ? order.items : [];
 
-                    let optStr = item.option ? `<span class="item-option">👉 ${item.option}</span>` : '';
-                    let noteStr = item.note ? `<span class="item-note">📝 ** ${item.note}</span>` : '';
-                    let rejectStr = (iStatus === 'rejected' && item.reject_reason) ? `<span class="item-note" style="margin-top: 8px;">❌ ปฏิเสธ: ${item.reject_reason}</span>` : '';
-                    
-                    let itemBtn = '';
-                    if (iStatus === 'new' || iStatus === 'pending') {
-                        itemBtn = `
-                            <div style="display: flex; gap: 8px; flex-direction: column;">
-                                <button onclick="updateItemStatus('${order.id}', ${index}, 'cooking')" class="item-action-btn btn-item-start">🔥 รับทำ</button>
-                                <button onclick="openRejectModal('${order.id}', ${index}, '${item.name.replace(/'/g, "\\'")}')" class="item-action-btn" style="background: #333; color: #ff5252; border: 1px solid #ff5252;">❌ ปฏิเสธ</button>
-                            </div>
-                        `;
-                    } else if (iStatus === 'cooking' || iStatus === 'preparing') {
-                        itemBtn = `<button onclick="updateItemStatus('${order.id}', ${index}, 'done')" class="item-action-btn btn-item-done" style="height: 100%; padding: 10px 20px;">✅ เสร็จ</button>`;
+                items.forEach((item,index)=>{
+                    const st=String(item.status || 'pending').toLowerCase();
+                    const isFinished=['done','served','rejected'].includes(st);
+                    const optStr=item.option ? `<span class="item-option">👉 ${item.option}</span>` : '';
+                    const noteStr=item.note ? `<span class="item-note">📝 ${item.note}</span>` : '';
+                    const rejectStr=(st==='rejected' && item.reject_reason) ? `<span class="item-note" style="margin-top:8px;">❌ ปฏิเสธ: ${item.reject_reason}</span>` : '';
+
+                    let itemBtn='';
+                    if (!isFinished) {
+                        itemBtn=`
+                            <div style="display:flex;gap:8px;flex-direction:column;">
+                                <button onclick="finishKitchenItem('${order.id}',${index},this)" class="item-action-btn btn-item-done">✅ เสร็จ</button>
+                                <button onclick="openRejectModal('${order.id}',${index},'${String(item.name||'รายการ').replace(/'/g,"\\'")}')" class="item-action-btn" style="background:#333;color:#ff5252;border:1px solid #ff5252;">❌ ปฏิเสธ</button>
+                            </div>`;
+                    } else if (st==='done' || st==='served') {
+                        itemBtn='<span style="color:#69f0ae;font-weight:bold;">✅ เสร็จแล้ว</span>';
+                    } else {
+                        itemBtn='<span style="color:#ff5252;font-weight:bold;">❌ ปฏิเสธ</span>';
                     }
 
-                    const opacity = (iStatus === 'done' || iStatus === 'served' || iStatus === 'rejected') ? '0.4' : '1';
-                    const strike = iStatus === 'rejected' ? 'text-decoration: line-through; color: #888;' : '';
-
-                    itemsHtml += `
-                    <div class="item-row" style="opacity: ${opacity};">
-                        <div>
-                            <div style="${strike}"><span class="item-qty">${item.qty}x</span> <span class="item-name">${item.name}</span></div>
-                            ${optStr} ${noteStr} ${rejectStr}
-                        </div>
-                        <div>${itemBtn}</div>
-                    </div>`;
+                    itemsHtml+=`
+                        <div class="item-row" style="opacity:${isFinished ? '.55':'1'};">
+                            <div>
+                                <div><span class="item-qty">${item.qty || 1}x</span> <span class="item-name">${item.name || 'รายการอาหาร'}</span></div>
+                                ${optStr}${noteStr}${rejectStr}
+                            </div>
+                            <div>${itemBtn}</div>
+                        </div>`;
                 });
 
-                // ถ้ารายการในใบนี้เสร็จหรือถูกปฏิเสธครบหมดแล้ว
-                if (allFinished) {
-                    updateOrderToServed(order.id, order.source);
-                    return; 
-                }
-
-                const isNew = hasNew && order.unified_status === 'new';
-                const cardClass = isNew ? 'status-new' : 'status-preparing';
-                
-                let orderActionBtn = '';
-                if (hasNew) {
-                    orderActionBtn = `<button id="btn_${order.id}" onclick="updateAllItemsStatus('${order.id}', 'cooking', this)" class="btn-large btn-start">รับทำทั้งหมด</button>`;
-                } else {
-                    orderActionBtn = `<button id="btn_${order.id}" onclick="updateAllItemsStatus('${order.id}', 'done', this)" class="btn-large btn-done">เสร็จทั้งหมด</button>`;
-                }
-
-                html += `
-                <div class="ticket ${cardClass}">
-                    <div>
-                        <div class="ticket-header">
-                            <div>
-                                <h3 class="table-name">${order.displayTitle}</h3>
-                                ${order.badgeHtml}
+                const cardClass='status-preparing';
+                html+=`
+                    <div class="ticket ${cardClass}">
+                        <div>
+                            <div class="ticket-header">
+                                <div>
+                                    <h3 class="table-name">${order.displayTitle}</h3>
+                                    <div style="margin-top:6px;font-size:12px;color:#aaa;">🏬 ${order.branchName || 'สาขาหลัก'}</div>
+                                    ${order.badgeHtml}
+                                </div>
+                                <div style="text-align:right;">
+                                    <span class="order-time">⏰ ${timeStr}</span>
+                                    <div style="font-size:13px;margin-top:5px;${timeColor}">${waitTimeDisplay}</div>
+                                </div>
                             </div>
-                            <div style="text-align: right;">
-                                <span class="order-time">⏰ ${timeStr}</span>
-                                <div style="font-size: 12px; margin-top: 4px; ${timeColor}">${waitTimeDisplay}</div>
-                            </div>
+                            <div class="items-container">${itemsHtml}</div>
                         </div>
-                        <div class="items-container">
-                            ${itemsHtml}
-                        </div>
-                    </div>
-                    <div>
-                        ${items.length > 0 ? orderActionBtn : ''}
-                    </div>
-                </div>`;
+                    </div>`;
             });
 
-            container.innerHTML = html;
+            container.innerHTML=html;
         }
 
-        // ==================== REJECT MODAL LOGIC ====================
+        async function saveKitchenItems(order,items) {
+            const accepted=items.filter(i=>String(i.status || 'pending').toLowerCase()!=='rejected');
+            const allDone=accepted.length>0 && accepted.every(i=>['done','served'].includes(String(i.status || '').toLowerCase()));
+
+            if (order.source==='dine_in') {
+                const nextStatus=allDone ? 'ready' : 'preparing';
+                const { error }=await supabaseClient.from('table_orders')
+                    .update({items,order_status:nextStatus})
+                    .eq('id',order.id);
+                if (error) throw error;
+            } else {
+                const nextStatus=allDone ? 'ready' : 'processing';
+                const { error }=await supabaseClient.from('orders')
+                    .update({items,status:nextStatus})
+                    .eq('id',order.id);
+                if (error) throw error;
+            }
+        }
+
+        async function finishKitchenItem(orderId,itemIndex,btnElement) {
+            try {
+                if (btnElement) { btnElement.disabled=true; btnElement.innerText='...'; }
+                const order=activeOrders.find(o=>o.id===orderId);
+                if (!order) throw new Error('ไม่พบออเดอร์นี้');
+                const items=order.items.map(i=>({...i}));
+                if (!items[itemIndex]) throw new Error('ไม่พบรายการอาหารนี้');
+                items[itemIndex].status='done';
+                await saveKitchenItems(order,items);
+                await fetchOrders();
+            } catch(err) {
+                console.error('[KDS FINISH ITEM]',err);
+                alert('อัปเดตรายการไม่สำเร็จ: '+(err?.message||err));
+                await fetchOrders();
+            }
+        }
+
         function openRejectModal(orderId, itemIndex, itemName) {
             pendingReject = { orderId, itemIndex };
             document.getElementById('rejectItemName').innerText = itemName;
@@ -326,284 +349,64 @@
         }
 
         async function confirmRejectItem() {
-            let reason = document.getElementById('rejectReasonSelect').value;
-            if (reason === 'custom') {
-                reason = document.getElementById('rejectReasonCustom').value.trim();
-                if (!reason) { alert("กรุณาพิมพ์เหตุผลที่ปฏิเสธ"); return; }
+            let reason=document.getElementById('rejectReasonSelect').value;
+            if (reason==='custom') {
+                reason=document.getElementById('rejectReasonCustom').value.trim();
+                if (!reason) { alert('กรุณาพิมพ์เหตุผลที่ปฏิเสธ'); return; }
             }
 
-            const { orderId, itemIndex } = pendingReject;
+            const { orderId,itemIndex }=pendingReject;
             closeRejectModal();
 
             try {
-                const order = activeOrders.find(o => o.id === orderId);
-                let items = order.items;
-                items[itemIndex].status = 'rejected';
-                items[itemIndex].reject_reason = reason;
-
-                await saveItemUpdate(order, items);
+                const order=activeOrders.find(o=>o.id===orderId);
+                if (!order) throw new Error('ไม่พบออเดอร์นี้');
+                const items=order.items.map(i=>({...i}));
+                items[itemIndex].status='rejected';
+                items[itemIndex].reject_reason=reason || 'ร้านไม่สามารถทำรายการนี้ได้';
+                await saveKitchenItems(order,items);
+                await fetchOrders();
             } catch(e) {
-                alert("เกิดข้อผิดพลาด: " + e.message);
+                alert('เกิดข้อผิดพลาด: '+e.message);
                 fetchOrders();
             }
         }
 
-        // ==================== STATUS UPDATE LOGIC ====================
-        async function updateItemStatus(orderId, itemIndex, newStatus) {
-            try {
-                const order = activeOrders.find(o => o.id === orderId);
-                let items = order.items;
-                items[itemIndex].status = newStatus;
-                
-                await saveItemUpdate(order, items);
-            } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); fetchOrders(); }
+        // ==================== STATUS UPDATE LOGIC (compatibility) ====================
+        // เก็บชื่อฟังก์ชันเดิมไว้เผื่อมีปุ่ม/โค้ดเก่าเรียก แต่ Flow ใหม่ใช้ finishKitchenItem / saveKitchenItems
+        async function updateItemStatus(orderId,itemIndex,newStatus) {
+            const order=activeOrders.find(o=>o.id===orderId);
+            if (!order) return;
+            const items=order.items.map(i=>({...i}));
+            if (!items[itemIndex]) return;
+            items[itemIndex].status=(newStatus==='done' ? 'done' : 'pending');
+            await saveKitchenItems(order,items);
+            await fetchOrders();
         }
 
-        async function notifyTakeawayCustomer(order, newStatus) {
-            if (!order || order.source !== 'prepaid') return;
-            if (!order.customer_uid) return;
-            if (!['processing', 'completed'].includes(newStatus)) return;
-            if (!CONFIG.gasWebhookUrl) {
-                console.warn('[CUSTOMER NOTIFY] ไม่พบ CONFIG.gasWebhookUrl');
-                return;
-            }
-
-            try {
-                const response = await fetch(CONFIG.gasWebhookUrl, {
-                    method: 'POST',
-                    redirect: 'follow',
-                    headers: {
-                        "Content-Type": "text/plain;charset=utf-8"
-                    },
-                    body: JSON.stringify({
-                        action: 'notify_customer',
-                        vendor_id: VENDOR_ID,
-                        uid: order.customer_uid,
-                        order_status: newStatus,
-                        store_name: order.store_name || "ร้านอาหาร",
-                        order_ref: order.reference_no || order.id || '-',
-                        queue_num: order.queue_no || '-'
-                    })
-                });
-
-                const responseText = await response.text();
-                console.log(
-                    `[CUSTOMER NOTIFY] ${newStatus}:`,
-                    responseText
-                );
-            } catch (err) {
-                // การแจ้ง LINE ล้มเหลวต้องไม่ทำให้สถานะออเดอร์ย้อนกลับ
-                console.error(
-                    '[CUSTOMER NOTIFY ERROR]',
-                    err
-                );
-            }
+        async function saveItemUpdate(order,items) {
+            await saveKitchenItems(order,items);
         }
 
-        async function saveItemUpdate(order, items) {
-            let allFinished = true;
-            let hasNew = false;
-
-            items.forEach(i => {
-                const st = i.status || 'new';
-
-                if (
-                    st !== 'done' &&
-                    st !== 'served' &&
-                    st !== 'rejected'
-                ) {
-                    allFinished = false;
-                }
-
-                if (
-                    st === 'new' ||
-                    st === 'pending'
-                ) {
-                    hasNew = true;
-                }
-            });
-
-            const previousUnifiedStatus =
-                order.unified_status;
-
-            let nextDbStatus = 'preparing';
-
-            if (allFinished) {
-                nextDbStatus = 'served';
-            } else if (
-                hasNew &&
-                order.unified_status === 'new'
-            ) {
-                nextDbStatus = 'new';
-            }
-
-            if (order.source === 'dine_in') {
-                const { error } =
-                    await supabaseClient
-                        .from('table_orders')
-                        .update({
-                            items: items,
-                            order_status: nextDbStatus
-                        })
-                        .eq('id', order.id);
-
-                if (error) throw error;
-
-            } else {
-                // Takeaway / Prepaid เท่านั้น
-                const preStatus =
-                    nextDbStatus === 'served'
-                        ? 'completed'
-                        : (
-                            nextDbStatus === 'preparing'
-                                ? 'processing'
-                                : 'pending'
-                        );
-
-                const previousPreStatus =
-                    previousUnifiedStatus === 'new'
-                        ? 'pending'
-                        : (
-                            previousUnifiedStatus === 'preparing'
-                                ? 'processing'
-                                : (
-                                    previousUnifiedStatus === 'served'
-                                        ? 'completed'
-                                        : previousUnifiedStatus
-                                )
-                        );
-
-                const { error } =
-                    await supabaseClient
-                        .from('orders')
-                        .update({
-                            items: items,
-                            status: preStatus
-                        })
-                        .eq('id', order.id);
-
-                if (error) throw error;
-
-                // ส่ง LINE เฉพาะตอนสถานะเปลี่ยนจริง
-                if (
-                    preStatus !== previousPreStatus &&
-                    (
-                        preStatus === 'processing' ||
-                        preStatus === 'completed'
-                    )
-                ) {
-                    await notifyTakeawayCustomer(
-                        order,
-                        preStatus
-                    );
-                }
-            }
-
-            // อัปเดต local state หลัง DB สำเร็จ
-            order.items = items;
-            order.unified_status = nextDbStatus;
-
-            renderOrders();
-        }
-
-        async function updateAllItemsStatus(orderId, newStatus, btnElement) {
+        async function updateAllItemsStatus(orderId,newStatus,btnElement) {
             try {
-                if (btnElement) {
-                    btnElement.innerText = "กำลังอัปเดต...";
-                    btnElement.className = "btn-large btn-loading";
-                    btnElement.disabled = true;
-                }
-
-                const order =
-                    activeOrders.find(
-                        o => o.id === orderId
-                    );
-
-                if (!order) {
-                    throw new Error(
-                        "ไม่พบออเดอร์นี้ในหน้าครัว"
-                    );
-                }
-
-                const items = order.items;
-
-                // อัปเดตเฉพาะรายการที่ยังไม่ได้ถูกปฏิเสธ
-                items.forEach(i => {
-                    if (i.status !== 'rejected') {
-                        i.status = newStatus;
-                    }
-                });
-
-                await saveItemUpdate(
-                    order,
-                    items
-                );
-
+                if (btnElement) { btnElement.disabled=true; btnElement.innerText='กำลังอัปเดต...'; }
+                const order=activeOrders.find(o=>o.id===orderId);
+                if (!order) throw new Error('ไม่พบออเดอร์นี้ในหน้าครัว');
+                const items=order.items.map(i=>String(i.status||'pending').toLowerCase()==='rejected' ? {...i} : ({...i,status:'done'}));
+                await saveKitchenItems(order,items);
                 await fetchOrders();
-
-            } catch (err) {
-                alert(
-                    "เกิดข้อผิดพลาด: " +
-                    err.message
-                );
-
+            } catch(err) {
+                alert('เกิดข้อผิดพลาด: '+err.message);
                 fetchOrders();
             }
         }
 
-        async function updateOrderToServed(orderId, source) {
-            try {
-                if (source === 'dine_in') {
-                    await supabaseClient
-                        .from('table_orders')
-                        .update({
-                            order_status: 'served'
-                        })
-                        .eq('id', orderId);
-
-                } else {
-                    // เผื่อกรณี UI พบว่าอาหารเสร็จครบ
-                    // แต่ status ใน orders ยังไม่ completed
-                    const { data, error } =
-                        await supabaseClient
-                            .from('orders')
-                            .update({
-                                status: 'completed'
-                            })
-                            .eq('id', orderId)
-                            .neq('status', 'completed')
-                            .select(
-                                'id, customer_uid, reference_no, queue_no, status'
-                            );
-
-                    if (error) throw error;
-
-                    if (
-                        data &&
-                        data.length > 0
-                    ) {
-                        await notifyTakeawayCustomer(
-                            {
-                                ...data[0],
-                                source: 'prepaid'
-                            },
-                            'completed'
-                        );
-                    }
-                }
-
-                await fetchOrders();
-
-            } catch (err) {
-                console.error(
-                    '[ORDER SERVED ERROR]',
-                    err
-                );
-
-                fetchOrders();
-            }
+        async function updateOrderToServed(orderId,source) {
+            // Flow ใหม่ไม่ปิดออเดอร์จาก KDS อัตโนมัติ
+            // KDS ทำหน้าที่จนถึง READY เท่านั้น แล้วหน้าพนักงานเป็นผู้ส่งมอบ/เสิร์ฟ
+            await fetchOrders();
         }
-
 
         // ==================== AUTH GUARD ====================
         let authCheckTimer = null;
