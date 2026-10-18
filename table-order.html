@@ -1343,13 +1343,15 @@
             const storeName = vendorData?.name || 'ร้านอาหาร';
             const heroUrl = vendorData?.line_picture_url || '';
 
-            if (!vid || !bid) {
-                return alert('ไม่พบรหัสร้านหรือสาขา');
+            // NPX rule: สาขาหลักใช้ bid = null / ว่าง, สาขาย่อยเท่านั้นที่มี bid
+            // ดังนั้นต้องบังคับเฉพาะ vid; ถ้ามี bid ค่อยส่งไป
+            if (!vid) {
+                return alert('ไม่พบรหัสร้านค้า');
             }
 
             const params = new URLSearchParams();
             params.set('vid', vid);
-            params.set('bid', String(bid));
+            if (bid) params.set('bid', String(bid));
             params.set('name', storeName);
             if (heroUrl) params.set('img', heroUrl);
 
