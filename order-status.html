@@ -1,74 +1,2607 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
+
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ติดตามสถานะออเดอร์ - NPX POS ORDER</title>
+
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1.0"
+>
+
+<title>
+ติดตามสถานะออเดอร์ - NPX POS ORDER
+</title>
+
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <script src="config.js"></script>
+
+
 <style>
-*{box-sizing:border-box}body{margin:0;background:#f4f6f8;font-family:Arial,"Noto Sans Thai",sans-serif;color:#222}.wrap{max-width:560px;margin:0 auto;padding:18px}.card{background:#fff;border-radius:20px;padding:22px;box-shadow:0 4px 18px rgba(0,0,0,.08);margin-bottom:14px}.brand{font-size:13px;color:#777}.title{font-size:23px;font-weight:800;margin:7px 0}.queue{font-size:64px;font-weight:900;color:#06C755;line-height:1}.row{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:10px 0;border-bottom:1px solid #eee}.row:last-child{border:0}.muted{color:#777}.small{font-size:13px;line-height:1.6}.hidden{display:none!important}.loader{text-align:center;padding:60px 20px;color:#777}.statusBox{border-radius:16px;padding:18px;text-align:center}.waiting{background:#fff8e1;color:#8d5b00}.ack{background:#e8f5e9;color:#176b2c}.ready{background:#e0f7fa;color:#006064}.danger{background:#ffebee;color:#b71c1c}.elapsed{font-size:12px;color:#888;margin-top:8px}.actions{display:grid;gap:10px;margin-top:16px}.btn{width:100%;border:0;border-radius:13px;padding:14px 16px;font-size:16px;font-weight:800;cursor:pointer;text-decoration:none;text-align:center;display:block}.btn-remind{background:#ff9800;color:#fff}.btn-call{background:#06C755;color:#fff}.btn-line{background:#00B900;color:#fff}.btn-refresh{background:#eef1f4;color:#333}.items-title{font-size:18px;font-weight:800;margin-bottom:5px}.item-row{padding:14px 0;border-bottom:1px solid #eee}.item-row:last-child{border-bottom:0}.item-main{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.item-left{flex:1;min-width:0}.item-name{font-size:15px;font-weight:800;line-height:1.5}.item-qty{display:inline-block;background:#eef1f4;border-radius:999px;padding:3px 9px;font-size:12px;font-weight:800;margin-right:5px}.item-total{font-weight:800;white-space:nowrap}.item-option{font-size:13px;color:#0097A7;margin-top:5px}.item-note{font-size:13px;color:#D84315;margin-top:5px}.item-bottom{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:9px}.badge{display:inline-block;border-radius:999px;padding:5px 9px;font-size:12px;font-weight:800}.badge-wait{background:#f3f4f6;color:#666}.badge-cooking{background:#fff3e0;color:#e65100}.badge-done{background:#e8f5e9;color:#137333}.badge-reject{background:#ffebee;color:#b71c1c}.progress{height:8px;border-radius:999px;background:#eceff1;overflow:hidden;margin-top:12px}.progress-bar{height:100%;background:#06C755;width:0%;transition:width .2s ease}.progress-text{font-size:12px;color:#777;margin-top:7px;text-align:right}.reminder-info{font-size:12px;color:#888;text-align:center;margin-top:8px}
+
+* {
+  box-sizing: border-box;
+}
+
+
+body {
+
+  margin: 0;
+
+  background: #f4f6f8;
+
+  font-family:
+    Arial,
+    "Noto Sans Thai",
+    sans-serif;
+
+  color: #222;
+
+}
+
+
+.wrap {
+
+  max-width: 560px;
+
+  margin: 0 auto;
+
+  padding: 18px;
+
+}
+
+
+.card {
+
+  background: #fff;
+
+  border-radius: 20px;
+
+  padding: 22px;
+
+  box-shadow:
+    0 4px 18px
+    rgba(0,0,0,.08);
+
+  margin-bottom: 14px;
+
+}
+
+
+.brand {
+
+  font-size: 13px;
+
+  color: #777;
+
+}
+
+
+.title {
+
+  font-size: 23px;
+
+  font-weight: 800;
+
+  margin: 7px 0;
+
+}
+
+
+.queue {
+
+  font-size: 64px;
+
+  font-weight: 900;
+
+  color: #06C755;
+
+  line-height: 1;
+
+}
+
+
+.row {
+
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  gap: 15px;
+
+  padding: 10px 0;
+
+  border-bottom:
+    1px solid #eee;
+
+}
+
+
+.row:last-child {
+
+  border: 0;
+
+}
+
+
+.muted {
+
+  color: #777;
+
+}
+
+
+.small {
+
+  font-size: 13px;
+
+  line-height: 1.6;
+
+}
+
+
+.hidden {
+
+  display: none !important;
+
+}
+
+
+.loader {
+
+  text-align: center;
+
+  padding: 60px 20px;
+
+  color: #777;
+
+}
+
+
+
+/* ==================================================
+   รายการอาหาร
+================================================== */
+
+.items-title {
+
+  font-size: 18px;
+
+  font-weight: 800;
+
+  margin-bottom: 6px;
+
+}
+
+
+.item-row {
+
+  padding: 14px 0;
+
+  border-bottom:
+    1px solid #eee;
+
+}
+
+
+.item-row:last-child {
+
+  border-bottom: 0;
+
+}
+
+
+.item-main {
+
+  display: flex;
+
+  align-items: flex-start;
+
+  justify-content: space-between;
+
+  gap: 12px;
+
+}
+
+
+.item-left {
+
+  flex: 1;
+
+  min-width: 0;
+
+}
+
+
+.item-name {
+
+  font-size: 15px;
+
+  font-weight: 800;
+
+  color: #333;
+
+  line-height: 1.5;
+
+}
+
+
+.item-qty {
+
+  display: inline-block;
+
+  padding: 3px 9px;
+
+  margin-right: 6px;
+
+  background: #eef1f4;
+
+  border-radius: 999px;
+
+  font-size: 12px;
+
+  font-weight: 800;
+
+}
+
+
+.item-total {
+
+  font-size: 15px;
+
+  font-weight: 800;
+
+  white-space: nowrap;
+
+}
+
+
+.item-option {
+
+  margin-top: 6px;
+
+  color: #0097A7;
+
+  font-size: 13px;
+
+  line-height: 1.5;
+
+}
+
+
+.item-note {
+
+  margin-top: 5px;
+
+  color: #D84315;
+
+  font-size: 13px;
+
+  line-height: 1.5;
+
+}
+
+
+.item-price-detail {
+
+  margin-top: 5px;
+
+  color: #888;
+
+  font-size: 12px;
+
+}
+
+
+
+/* ==================================================
+   STATUS
+================================================== */
+
+.statusBox {
+
+  border-radius: 16px;
+
+  padding: 18px;
+
+  text-align: center;
+
+}
+
+
+.waiting {
+
+  background: #fff8e1;
+
+  color: #8d5b00;
+
+}
+
+
+.ack {
+
+  background: #e8f5e9;
+
+  color: #176b2c;
+
+}
+
+
+.ready {
+
+  background: #e0f7fa;
+
+  color: #006064;
+
+}
+
+
+.danger {
+
+  background: #ffebee;
+
+  color: #b71c1c;
+
+}
+
+
+.elapsed {
+
+  font-size: 12px;
+
+  color: #888;
+
+  margin-top: 8px;
+
+}
+
+
+
+/* ==================================================
+   ACTIONS
+================================================== */
+
+.actions {
+
+  display: grid;
+
+  gap: 10px;
+
+  margin-top: 16px;
+
+}
+
+
+.btn {
+
+  width: 100%;
+
+  border: 0;
+
+  border-radius: 13px;
+
+  padding: 14px 16px;
+
+  font-size: 16px;
+
+  font-weight: 800;
+
+  cursor: pointer;
+
+  text-decoration: none;
+
+  text-align: center;
+
+  display: block;
+
+}
+
+
+.btn-remind {
+
+  background: #ff9800;
+
+  color: #fff;
+
+}
+
+
+.btn-call {
+
+  background: #06C755;
+
+  color: #fff;
+
+}
+
+
+.btn-line {
+
+  background: #00B900;
+
+  color: #fff;
+
+}
+
+
+.btn-refresh {
+
+  background: #eef1f4;
+
+  color: #333;
+
+}
+
+
+.reminder-info {
+
+  font-size: 12px;
+
+  color: #888;
+
+  text-align: center;
+
+  margin-top: 8px;
+
+}
+
+
+
+/* ===== Phase 2.3: Item Tracking ===== */
+.item-status-row {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  margin-top:9px;
+}
+.item-status-badge {
+  display:inline-block;
+  border-radius:999px;
+  padding:5px 9px;
+  font-size:12px;
+  font-weight:800;
+}
+.item-status-wait { background:#f3f4f6; color:#666; }
+.item-status-cooking { background:#fff3e0; color:#e65100; }
+.item-status-done { background:#e8f5e9; color:#137333; }
+.item-status-rejected { background:#ffebee; color:#b71c1c; }
+.item-progress-wrap { margin-top:14px; padding-top:12px; border-top:1px solid #eee; }
+.item-progress-track { height:8px; background:#eceff1; border-radius:999px; overflow:hidden; }
+.item-progress-bar { height:100%; width:0%; background:#06C755; transition:width .25s ease; }
+.item-progress-text { margin-top:7px; text-align:right; color:#777; font-size:12px; }
+
 </style>
+
 </head>
+
+
 <body>
+
+
 <div class="wrap">
-  <div id="loading" class="card loader">กำลังโหลดสถานะออเดอร์...</div>
-  <div id="app" class="hidden">
-    <div class="card">
-      <div class="brand">NPX POS ORDER • Takeaway</div>
-      <div id="storeName" class="title">ร้านอาหาร</div>
-      <div id="branchName" class="muted">สาขาหลัก</div>
-      <div style="margin-top:20px" class="row"><span class="muted">หมายเลขอ้างอิง</span><b id="referenceNo">-</b></div>
-      <div class="row"><span class="muted">คิวที่</span><span id="queueNo" class="queue">-</span></div>
-      <div class="row"><span class="muted">ยอดออเดอร์</span><b id="totalPrice">฿0.00</b></div>
-    </div>
 
-    <div class="card">
-      <div class="items-title">🧾 รายการอาหาร</div>
-      <div class="small muted">ติดตามความคืบหน้าของแต่ละรายการ</div>
-      <div id="orderItems"></div>
-      <div id="itemProgressWrap" class="hidden">
-        <div class="progress"><div id="itemProgressBar" class="progress-bar"></div></div>
-        <div id="itemProgressText" class="progress-text"></div>
-      </div>
-    </div>
 
-    <div class="card">
-      <div id="statusBox" class="statusBox waiting">
-        <div id="statusIcon" style="font-size:32px">⏳</div>
-        <div id="statusTitle" style="font-size:20px;font-weight:800;margin-top:5px">ส่งออเดอร์เข้าร้านแล้ว</div>
-        <div id="statusDesc" class="small" style="margin-top:8px">กำลังรอร้านตรวจสอบรายการ</div>
-        <div id="elapsed" class="elapsed"></div>
-      </div>
-      <div id="actions" class="actions">
-        <button id="remindBtn" class="btn btn-remind hidden" onclick="remindStore()">🔔 แจ้งร้านอีกครั้ง</button>
-        <a id="callBtn" class="btn btn-call hidden">📞 ติดต่อร้าน</a>
-        <a id="lineBtn" class="btn btn-line hidden" target="_blank" rel="noopener">💬 แชตร้านผ่าน LINE</a>
-        <button id="refreshBtn" class="btn btn-refresh" onclick="loadStatus()">🔄 อัปเดตสถานะ</button>
-      </div>
-      <div id="reminderInfo" class="reminder-info hidden"></div>
-      <div id="contactHint" class="small muted hidden" style="margin-top:12px;text-align:center">ร้านยังไม่ได้รับทราบออเดอร์เกิน 5 นาที คุณสามารถติดต่อร้านได้โดยตรง</div>
-    </div>
+  <!-- ==================================================
+       LOADING
+  =================================================== -->
+
+  <div
+    id="loading"
+    class="card loader"
+  >
+    กำลังโหลดสถานะออเดอร์...
   </div>
+
+
+
+  <div
+    id="app"
+    class="hidden"
+  >
+
+
+    <!-- ==================================================
+         ORDER SUMMARY
+    =================================================== -->
+
+    <div class="card">
+
+
+      <div class="brand">
+
+        NPX POS ORDER • Takeaway
+
+      </div>
+
+
+      <div
+        id="storeName"
+        class="title"
+      >
+
+        ร้านอาหาร
+
+      </div>
+
+
+      <div
+        id="branchName"
+        class="muted"
+      >
+
+        สาขาหลัก
+
+      </div>
+
+
+
+      <div
+        class="row"
+        style="margin-top:20px"
+      >
+
+        <span class="muted">
+
+          หมายเลขอ้างอิง
+
+        </span>
+
+
+        <b id="referenceNo">
+
+          -
+
+        </b>
+
+      </div>
+
+
+
+      <div class="row">
+
+        <span class="muted">
+
+          คิวที่
+
+        </span>
+
+
+        <span
+          id="queueNo"
+          class="queue"
+        >
+
+          -
+
+        </span>
+
+      </div>
+
+
+
+      <div class="row">
+
+        <span class="muted">
+
+          ยอดออเดอร์
+
+        </span>
+
+
+        <b id="totalPrice">
+
+          ฿0.00
+
+        </b>
+
+      </div>
+
+
+    </div>
+
+
+
+    <!-- ==================================================
+         ORDER ITEMS
+    =================================================== -->
+
+    <div class="card">
+
+
+      <div class="items-title">
+
+        🧾 รายการอาหาร
+
+      </div>
+
+
+      <div
+        class="small muted"
+        style="margin-bottom:8px"
+      >
+
+        ตรวจสอบรายการที่สั่งทั้งหมด
+
+      </div>
+
+
+      <div id="orderItems">
+
+        <div class="small muted">
+
+          กำลังโหลดรายการอาหาร...
+
+        </div>
+
+      </div>
+
+      <div id="itemProgressWrap" class="item-progress-wrap hidden">
+        <div class="item-progress-track">
+          <div id="itemProgressBar" class="item-progress-bar"></div>
+        </div>
+        <div id="itemProgressText" class="item-progress-text"></div>
+      </div>
+
+
+    </div>
+
+
+
+    <!-- ==================================================
+         ORDER STATUS
+    =================================================== -->
+
+    <div class="card">
+
+
+      <div
+        id="statusBox"
+        class="statusBox waiting"
+      >
+
+
+        <div
+          id="statusIcon"
+          style="font-size:32px"
+        >
+
+          ⏳
+
+        </div>
+
+
+        <div
+          id="statusTitle"
+          style="
+            font-size:20px;
+            font-weight:800;
+            margin-top:5px;
+          "
+        >
+
+          ส่งออเดอร์เข้าร้านแล้ว
+
+        </div>
+
+
+        <div
+          id="statusDesc"
+          class="small"
+          style="margin-top:8px"
+        >
+
+          กำลังรอร้านตรวจสอบรายการ
+
+        </div>
+
+
+        <div
+          id="elapsed"
+          class="elapsed"
+        ></div>
+
+
+      </div>
+
+
+
+      <!-- ==================================================
+           ACTION BUTTONS
+      =================================================== -->
+
+      <div
+        id="actions"
+        class="actions"
+      >
+
+
+        <button
+          id="remindBtn"
+          class="
+            btn
+            btn-remind
+            hidden
+          "
+          onclick="remindStore()"
+        >
+
+          🔔 แจ้งร้านอีกครั้ง
+
+        </button>
+
+
+
+        <a
+          id="callBtn"
+          class="
+            btn
+            btn-call
+            hidden
+          "
+        >
+
+          📞 ติดต่อร้าน
+
+        </a>
+
+
+
+        <a
+          id="lineBtn"
+          class="
+            btn
+            btn-line
+            hidden
+          "
+          target="_blank"
+          rel="noopener"
+        >
+
+          💬 แชตร้านผ่าน LINE
+
+        </a>
+
+
+
+        <button
+          id="refreshBtn"
+          class="
+            btn
+            btn-refresh
+          "
+          onclick="loadStatus()"
+        >
+
+          🔄 อัปเดตสถานะ
+
+        </button>
+
+
+      </div>
+
+
+
+      <div
+        id="reminderInfo"
+        class="
+          reminder-info
+          hidden
+        "
+      ></div>
+
+
+
+      <div
+        id="contactHint"
+        class="
+          small
+          muted
+          hidden
+        "
+        style="
+          margin-top:12px;
+          text-align:center;
+        "
+      >
+
+        ร้านยังไม่ได้รับทราบออเดอร์เกิน 5 นาที
+        คุณสามารถติดต่อร้านได้โดยตรง
+
+      </div>
+
+
+    </div>
+
+
+  </div>
+
+
 </div>
+
+
+
 <script>
-const supabaseClient=window.supabase.createClient(CONFIG.supabaseUrl,CONFIG.supabaseKey);
-const token=new URLSearchParams(location.search).get('token');
-let pollTimer=null;
-function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;')}
-function safePhone(raw){return String(raw||'').replace(/[^0-9+]/g,'')}
-function isSafeLineUrl(raw){try{const u=new URL(raw);return u.protocol==='https:'||u.protocol==='http:'}catch(e){return false}}
-function ageSeconds(dateStr){const t=new Date(dateStr).getTime();return Number.isFinite(t)?Math.max(0,Math.floor((Date.now()-t)/1000)):0}
-function fmtElapsed(sec){const m=Math.floor(sec/60),s=sec%60;return `ผ่านไป ${m} นาที ${String(s).padStart(2,'0')} วินาที`}
-function normalizeItems(raw){if(Array.isArray(raw))return raw;if(raw&&typeof raw==='object')return Object.values(raw);if(typeof raw==='string'){try{const p=JSON.parse(raw);return Array.isArray(p)?p:(p&&typeof p==='object'?Object.values(p):[])}catch(e){}}return []}
-function cleanNote(raw){return String(raw||'').replace(/(^|\s*\|\s*)💵\s*ชำระเงินสดหน้าร้าน\s*\(กรุณาเก็บเงินก่อนยืนยันออเดอร์\)\s*/g,'').replace(/^\s*\|\s*/,'').replace(/\s*\|\s*$/,'').trim()}
-function itemStatusMeta(raw){const st=String(raw||'pending').toLowerCase();if(st==='cooking'||st==='preparing')return{label:'👨‍🍳 กำลังทำ',cls:'badge badge-cooking',done:false};if(st==='done'||st==='served')return{label:'✅ เสร็จแล้ว',cls:'badge badge-done',done:true};if(st==='rejected')return{label:'❌ ปฏิเสธ',cls:'badge badge-reject',done:true};return{label:'⏳ รอทำ',cls:'badge badge-wait',done:false}}
-function renderItems(raw){const box=document.getElementById('orderItems');const items=normalizeItems(raw);if(!items.length){box.innerHTML='<div class="small muted" style="padding-top:12px;">ไม่พบรายละเอียดรายการอาหาร</div>';document.getElementById('itemProgressWrap').classList.add('hidden');return}let done=0;box.innerHTML=items.map(item=>{const qty=Math.max(1,Number(item.qty??item.quantity??1)||1);const price=Number(item.price??item.unit_price??0)||0;const meta=itemStatusMeta(item.status);if(meta.done)done++;let option=item.option??item.options??'';if(Array.isArray(option))option=option.join(', ');const note=cleanNote(item.note);return `<div class="item-row"><div class="item-main"><div class="item-left"><div class="item-name"><span class="item-qty">${qty}x</span>${esc(item.name||item.product_name||'รายการอาหาร')}</div>${option?`<div class="item-option">👉 ${esc(option)}</div>`:''}${note?`<div class="item-note">📝 ${esc(note)}</div>`:''}</div><div class="item-total">฿${(price*qty).toFixed(2)}</div></div><div class="item-bottom"><span class="${meta.cls}">${meta.label}</span>${qty>1?`<span class="small muted">฿${price.toFixed(2)} × ${qty}</span>`:''}</div></div>`}).join('');const pct=Math.round(done/items.length*100);document.getElementById('itemProgressWrap').classList.remove('hidden');document.getElementById('itemProgressBar').style.width=pct+'%';document.getElementById('itemProgressText').textContent=`เสร็จแล้ว ${done}/${items.length} รายการ`}
-async function loadStatus(){if(!token)return showError('ลิงก์ติดตามออเดอร์ไม่ถูกต้อง');try{const{data,error}=await supabaseClient.rpc('get_takeaway_order_public_status',{p_token:token});if(error)throw error;const row=Array.isArray(data)?data[0]:data;if(!row||!row.reference_no)return showError('ไม่พบออเดอร์นี้');render(row)}catch(e){console.error(e);showError('ไม่สามารถโหลดสถานะได้ กรุณาลองใหม่อีกครั้ง')}}
-function render(o){document.getElementById('loading').classList.add('hidden');document.getElementById('app').classList.remove('hidden');document.getElementById('storeName').textContent=o.store_name||'ร้านอาหาร';document.getElementById('branchName').textContent=o.branch_name||'สาขาหลัก';document.getElementById('referenceNo').textContent=o.reference_no||'-';document.getElementById('queueNo').textContent=o.queue_no??'-';document.getElementById('totalPrice').textContent='฿'+Number(o.total_price||0).toFixed(2);renderItems(o.items);const status=String(o.status||'').toLowerCase();const sec=ageSeconds(o.created_at);const ack=!!o.merchant_acknowledged_at;const completed=status==='completed';const closed=['completed','cancelled','rejected'].includes(status);const box=document.getElementById('statusBox'),icon=document.getElementById('statusIcon'),title=document.getElementById('statusTitle'),desc=document.getElementById('statusDesc'),elapsed=document.getElementById('elapsed');box.className='statusBox ';if(status==='cancelled'||status==='rejected'){box.classList.add('danger');icon.textContent='❌';title.textContent='ออเดอร์ถูกยกเลิก';desc.textContent='กรุณาติดต่อร้านหากต้องการสอบถามเพิ่มเติม'}else if(completed){box.classList.add('ack');icon.textContent='✅';title.textContent='ออเดอร์เสร็จสิ้น';desc.textContent='ขอบคุณที่ใช้บริการครับ'}else if(status==='ready'){box.classList.add('ready');icon.textContent='🥡';title.textContent='อาหารพร้อมรับแล้ว';desc.textContent='รายการอาหารเสร็จครบแล้ว กรุณาไปรับออเดอร์ที่ร้าน'}else if(status==='processing'){box.classList.add('ack');icon.textContent='👨‍🍳';title.textContent='ร้านกำลังทำอาหาร';desc.textContent='ดูความคืบหน้าของแต่ละรายการได้ด้านบน'}else if(ack){box.classList.add('ack');icon.textContent='👀';title.textContent='ร้านเห็นออเดอร์แล้ว';desc.textContent='กำลังเตรียมออเดอร์ของคุณ'}else if(sec>=300){box.classList.add('waiting');icon.textContent='📞';title.textContent='ร้านยังไม่ได้รับทราบ';desc.textContent='ระบบแจ้งเตือนร้านแล้ว คุณสามารถติดต่อร้านได้โดยตรง'}else if(sec>=180){box.classList.add('waiting');icon.textContent='🔔';title.textContent='กำลังแจ้งเตือนร้าน';desc.textContent='ร้านยังไม่ได้กดรับทราบ ระบบกำลังเตือนหน้ารับออเดอร์ของร้าน'}else{box.classList.add('waiting');icon.textContent='⏳';title.textContent='ส่งออเดอร์เข้าร้านแล้ว';desc.textContent='กำลังรอร้านตรวจสอบรายการ กรุณารอสักครู่'}if(completed){elapsed.textContent='';elapsed.classList.add('hidden')}else{elapsed.textContent=fmtElapsed(sec);elapsed.classList.remove('hidden')}const remind=document.getElementById('remindBtn'),call=document.getElementById('callBtn'),line=document.getElementById('lineBtn'),hint=document.getElementById('contactHint'),refresh=document.getElementById('refreshBtn'),actions=document.getElementById('actions'),reminderInfo=document.getElementById('reminderInfo');if(completed){[remind,call,line,hint,reminderInfo,refresh].forEach(el=>el.classList.add('hidden'));actions.classList.add('hidden');if(pollTimer){clearInterval(pollTimer);pollTimer=null}return}actions.classList.remove('hidden');refresh.classList.remove('hidden');const canRemind=!ack&&!closed&&sec>=180;remind.classList.toggle('hidden',!canRemind);const showContact=!ack&&!closed&&sec>=300;const phone=safePhone(o.contact_phone);if(showContact&&phone){call.href='tel:'+phone;call.classList.remove('hidden')}else call.classList.add('hidden');if(showContact&&isSafeLineUrl(o.line_url)){line.href=o.line_url;line.classList.remove('hidden')}else line.classList.add('hidden');const hasContact=!!phone||isSafeLineUrl(o.line_url);hint.classList.toggle('hidden',!(showContact&&hasContact));const count=Number(o.customer_reminder_count||0);if(count>0&&!ack&&!closed){reminderInfo.textContent=`🔔 คุณแจ้งร้านเพิ่มเติมแล้ว ${count} ครั้ง`;reminderInfo.classList.remove('hidden')}else reminderInfo.classList.add('hidden')}
-async function remindStore(){const btn=document.getElementById('remindBtn');btn.disabled=true;btn.textContent='⏳ กำลังแจ้งร้าน...';try{const{data,error}=await supabaseClient.rpc('customer_ping_takeaway_order',{p_token:token});if(error)throw error;const r=Array.isArray(data)?data[0]:data;if(r&&r.success)alert('🔔 ส่งสัญญาณแจ้งร้านอีกครั้งแล้วครับ');else if(r&&r.message==='COOLDOWN')alert('เพิ่งแจ้งร้านไปเมื่อสักครู่ กรุณารออีกนิดครับ');else if(r&&r.message==='ALREADY_ACKNOWLEDGED')alert('ร้านรับทราบออเดอร์แล้วครับ');else if(r&&r.message==='TOO_EARLY')alert('ระบบกำลังแจ้งร้านให้อัตโนมัติ กรุณารอสักครู่ครับ');else alert('ยังไม่สามารถแจ้งซ้ำได้ในขณะนี้');await loadStatus()}catch(e){console.error(e);alert('แจ้งร้านไม่สำเร็จ กรุณาลองใหม่')}finally{btn.disabled=false;btn.textContent='🔔 แจ้งร้านอีกครั้ง'}}
-function showError(msg){document.getElementById('loading').innerHTML=`<b style="color:#c62828">${esc(msg)}</b>`}
-loadStatus();pollTimer=setInterval(loadStatus,5000);
+
+
+/* =========================================================
+   SUPABASE
+========================================================= */
+
+const supabaseClient =
+  window.supabase.createClient(
+
+    CONFIG.supabaseUrl,
+
+    CONFIG.supabaseKey
+
+  );
+
+
+
+const token =
+
+  new URLSearchParams(
+
+    window.location.search
+
+  ).get('token');
+
+
+
+let current = null;
+
+let pollTimer = null;
+
+
+
+/* =========================================================
+   HELPER
+========================================================= */
+
+function safePhone(raw) {
+
+  return String(
+    raw || ''
+  )
+  .replace(
+    /[^0-9+]/g,
+    ''
+  );
+
+}
+
+
+
+function isSafeLineUrl(raw) {
+
+  try {
+
+    const u =
+      new URL(raw);
+
+
+    return (
+
+      u.protocol === 'https:' ||
+
+      u.protocol === 'http:'
+
+    );
+
+  }
+  catch(e) {
+
+    return false;
+
+  }
+
+}
+
+
+
+function ageSeconds(dateStr) {
+
+  const created =
+    new Date(dateStr)
+      .getTime();
+
+
+  if (
+    !Number.isFinite(created)
+  ) {
+
+    return 0;
+
+  }
+
+
+  return Math.max(
+
+    0,
+
+    Math.floor(
+
+      (
+        Date.now() -
+        created
+      )
+      / 1000
+
+    )
+
+  );
+
+}
+
+
+
+function fmtElapsed(sec) {
+
+  const m =
+    Math.floor(
+      sec / 60
+    );
+
+
+  const s =
+    sec % 60;
+
+
+  return (
+
+    `ผ่านไป ${m} นาที ` +
+
+    `${String(s)
+      .padStart(
+        2,
+        '0'
+      )} วินาที`
+
+  );
+
+}
+
+
+
+function escapeHtml(value) {
+
+  return String(
+    value ?? ''
+  )
+
+  .replace(
+    /&/g,
+    '&amp;'
+  )
+
+  .replace(
+    /</g,
+    '&lt;'
+  )
+
+  .replace(
+    />/g,
+    '&gt;'
+  )
+
+  .replace(
+    /"/g,
+    '&quot;'
+  )
+
+  .replace(
+    /'/g,
+    '&#039;'
+  );
+
+}
+
+
+
+function normalizeItems(raw) {
+
+
+  if (
+    Array.isArray(raw)
+  ) {
+
+    return raw;
+
+  }
+
+
+
+  if (
+    raw &&
+    typeof raw ===
+    'object'
+  ) {
+
+    return Object.values(
+      raw
+    );
+
+  }
+
+
+
+  if (
+    typeof raw ===
+    'string'
+  ) {
+
+    try {
+
+      const parsed =
+        JSON.parse(raw);
+
+
+      if (
+        Array.isArray(parsed)
+      ) {
+
+        return parsed;
+
+      }
+
+
+      if (
+        parsed &&
+        typeof parsed ===
+        'object'
+      ) {
+
+        return Object.values(
+          parsed
+        );
+
+      }
+
+    }
+    catch(e) {
+
+      console.warn(
+
+        '[ORDER ITEMS PARSE ERROR]',
+
+        e
+
+      );
+
+    }
+
+  }
+
+
+  return [];
+
+}
+
+
+
+/*
+  ตัดข้อความระบบการชำระเงินออกจาก note
+*/
+function cleanCustomerNote(raw) {
+
+
+  let text =
+    String(
+      raw || ''
+    )
+    .trim();
+
+
+
+  text =
+    text.replace(
+
+      /(^|\s*\|\s*)💵\s*ชำระเงินสดหน้าร้าน\s*\(กรุณาเก็บเงินก่อนยืนยันออเดอร์\)\s*/g,
+
+      ''
+
+    );
+
+
+
+  text =
+    text
+    .replace(
+      /^\s*\|\s*/,
+      ''
+    )
+    .replace(
+      /\s*\|\s*$/,
+      ''
+    )
+    .trim();
+
+
+  return text;
+
+}
+
+
+
+/* =========================================================
+   ORDER ITEMS
+========================================================= */
+
+function getCustomerItemStatusMeta(rawStatus) {
+
+  const st =
+    String(rawStatus || 'pending')
+      .toLowerCase();
+
+
+  if (
+    st === 'cooking' ||
+    st === 'preparing'
+  ) {
+
+    return {
+      label: '👨‍🍳 กำลังทำ',
+      cls: 'item-status-badge item-status-cooking',
+      done: false
+    };
+
+  }
+
+
+  if (
+    st === 'done' ||
+    st === 'served'
+  ) {
+
+    return {
+      label: '✅ เสร็จแล้ว',
+      cls: 'item-status-badge item-status-done',
+      done: true
+    };
+
+  }
+
+
+  if (
+    st === 'rejected'
+  ) {
+
+    return {
+      label: '❌ ปฏิเสธ',
+      cls: 'item-status-badge item-status-rejected',
+      done: true
+    };
+
+  }
+
+
+  return {
+    label: '⏳ รอทำ',
+    cls: 'item-status-badge item-status-wait',
+    done: false
+  };
+
+}
+
+
+function renderOrderItems(
+  rawItems
+) {
+
+
+  const container =
+    document.getElementById(
+      'orderItems'
+    );
+
+
+  const progressWrap =
+    document.getElementById(
+      'itemProgressWrap'
+    );
+
+
+  const progressBar =
+    document.getElementById(
+      'itemProgressBar'
+    );
+
+
+  const progressText =
+    document.getElementById(
+      'itemProgressText'
+    );
+
+
+  if (!container) {
+    return;
+  }
+
+
+  const items =
+    normalizeItems(
+      rawItems
+    );
+
+
+  if (
+    items.length === 0
+  ) {
+
+    container.innerHTML = `
+      <div class="small muted">
+        ไม่พบรายละเอียดรายการอาหาร
+      </div>
+    `;
+
+    if (progressWrap) {
+      progressWrap.classList.add('hidden');
+    }
+
+    return;
+  }
+
+
+  let html = '';
+  let doneCount = 0;
+
+
+  items.forEach(
+    (item,index) => {
+
+      const qty =
+        Math.max(
+          1,
+          Number(
+            item.qty ??
+            item.quantity ??
+            1
+          ) || 1
+        );
+
+
+      const unitPrice =
+        Number(
+          item.price ??
+          item.unit_price ??
+          0
+        ) || 0;
+
+
+      const itemTotal =
+        unitPrice * qty;
+
+
+      const name =
+        escapeHtml(
+          item.name ||
+          item.product_name ||
+          'รายการอาหาร'
+        );
+
+
+      let optionRaw =
+        item.option ??
+        item.options ??
+        '';
+
+
+      if (
+        Array.isArray(optionRaw)
+      ) {
+        optionRaw = optionRaw.join(', ');
+      }
+
+
+      const option =
+        escapeHtml(optionRaw);
+
+
+      const note =
+        escapeHtml(
+          cleanCustomerNote(
+            item.note
+          )
+        );
+
+
+      const itemStatus =
+        getCustomerItemStatusMeta(
+          item.status
+        );
+
+
+      if (itemStatus.done) {
+        doneCount++;
+      }
+
+
+      const rejectReason =
+        String(item.status || '').toLowerCase() === 'rejected' && item.reject_reason
+          ? escapeHtml(item.reject_reason)
+          : '';
+
+
+      html += `
+        <div class="item-row">
+
+          <div class="item-main">
+
+            <div class="item-left">
+
+              <div class="item-name">
+                <span class="item-qty">${qty}x</span>
+                ${name}
+              </div>
+
+              ${
+                option
+                ? `<div class="item-option">👉 ${option}</div>`
+                : ''
+              }
+
+              ${
+                note
+                ? `<div class="item-note">📝 ${note}</div>`
+                : ''
+              }
+
+              ${
+                rejectReason
+                ? `<div class="item-note">❌ เหตุผล: ${rejectReason}</div>`
+                : ''
+              }
+
+              ${
+                qty > 1
+                ? `<div class="item-price-detail">฿${unitPrice.toFixed(2)} × ${qty}</div>`
+                : ''
+              }
+
+            </div>
+
+            <div class="item-total">
+              ฿${itemTotal.toFixed(2)}
+            </div>
+
+          </div>
+
+          <div class="item-status-row">
+            <span class="${itemStatus.cls}">${itemStatus.label}</span>
+          </div>
+
+        </div>
+      `;
+
+    }
+  );
+
+
+  container.innerHTML = html;
+
+
+  if (
+    progressWrap &&
+    progressBar &&
+    progressText
+  ) {
+
+    const pct =
+      Math.round(
+        (doneCount / items.length) * 100
+      );
+
+    progressBar.style.width = pct + '%';
+    progressText.textContent =
+      `เสร็จแล้ว ${doneCount}/${items.length} รายการ`;
+
+    progressWrap.classList.remove('hidden');
+  }
+
+}
+
+
+/* =========================================================
+   LOAD STATUS
+========================================================= */
+
+async function loadStatus() {
+
+
+  if (!token) {
+
+    return showError(
+
+      'ลิงก์ติดตามออเดอร์ไม่ถูกต้อง'
+
+    );
+
+  }
+
+
+
+  try {
+
+
+    const {
+
+      data,
+
+      error
+
+    } =
+
+      await supabaseClient.rpc(
+
+        'get_takeaway_order_public_status',
+
+        {
+
+          p_token: token
+
+        }
+
+      );
+
+
+
+    if (error) {
+
+      throw error;
+
+    }
+
+
+
+    const row =
+
+      Array.isArray(data)
+
+        ? data[0]
+
+        : data;
+
+
+
+    if (
+
+      !row ||
+
+      !row.reference_no
+
+    ) {
+
+
+      return showError(
+
+        'ไม่พบออเดอร์นี้'
+
+      );
+
+    }
+
+
+
+    current =
+      row;
+
+
+
+    render(
+      row
+    );
+
+
+  }
+  catch(e) {
+
+
+    console.error(
+
+      '[ORDER STATUS LOAD ERROR]',
+
+      e
+
+    );
+
+
+    showError(
+
+      'ไม่สามารถโหลดสถานะได้ กรุณาลองใหม่อีกครั้ง'
+
+    );
+
+  }
+
+}
+
+
+
+/* =========================================================
+   RENDER STATUS
+========================================================= */
+
+function render(o) {
+
+
+  document
+    .getElementById(
+      'loading'
+    )
+    .classList
+    .add(
+      'hidden'
+    );
+
+
+
+  document
+    .getElementById(
+      'app'
+    )
+    .classList
+    .remove(
+      'hidden'
+    );
+
+
+
+  document
+    .getElementById(
+      'storeName'
+    )
+    .textContent =
+
+      o.store_name ||
+
+      'ร้านอาหาร';
+
+
+
+  document
+    .getElementById(
+      'branchName'
+    )
+    .textContent =
+
+      o.branch_name ||
+
+      'สาขาหลัก';
+
+
+
+  document
+    .getElementById(
+      'referenceNo'
+    )
+    .textContent =
+
+      o.reference_no ||
+
+      '-';
+
+
+
+  document
+    .getElementById(
+      'queueNo'
+    )
+    .textContent =
+
+      o.queue_no ??
+
+      '-';
+
+
+
+  document
+    .getElementById(
+      'totalPrice'
+    )
+    .textContent =
+
+      '฿' +
+
+      Number(
+        o.total_price || 0
+      )
+      .toFixed(2);
+
+
+
+  /* รายการอาหาร */
+
+  renderOrderItems(
+
+    o.items
+
+  );
+
+
+
+  const sec =
+
+    ageSeconds(
+
+      o.created_at
+
+    );
+
+
+
+  const ack =
+
+    !!o
+      .merchant_acknowledged_at;
+
+
+
+  const status =
+
+    String(
+
+      o.status || ''
+
+    )
+    .toLowerCase();
+
+
+
+  const completed =
+
+    status ===
+    'completed';
+
+
+
+  const cancelled =
+
+    status ===
+    'cancelled';
+
+
+
+  const rejected =
+
+    status ===
+    'rejected';
+
+
+
+  const closed =
+
+    completed ||
+
+    cancelled ||
+
+    rejected;
+
+
+
+  const ready =
+
+    status ===
+    'ready';
+
+
+
+  const box =
+
+    document.getElementById(
+      'statusBox'
+    );
+
+
+
+  const icon =
+
+    document.getElementById(
+      'statusIcon'
+    );
+
+
+
+  const title =
+
+    document.getElementById(
+      'statusTitle'
+    );
+
+
+
+  const desc =
+
+    document.getElementById(
+      'statusDesc'
+    );
+
+
+
+  const elapsedEl =
+
+    document.getElementById(
+      'elapsed'
+    );
+
+
+
+  const refreshBtn =
+
+    document.getElementById(
+      'refreshBtn'
+    );
+
+
+
+  const actions =
+
+    document.getElementById(
+      'actions'
+    );
+
+
+
+  /*
+    ออเดอร์ยังไม่จบ
+    ให้แสดงเวลาที่ผ่านไป
+  */
+
+  if (!completed) {
+
+
+    elapsedEl.textContent =
+
+      fmtElapsed(
+        sec
+      );
+
+
+    elapsedEl.classList.remove(
+      'hidden'
+    );
+
+
+  }
+  else {
+
+
+    /*
+      เมื่อ Completed แล้ว
+      หยุดแสดงเวลา
+    */
+
+    elapsedEl.textContent =
+      '';
+
+
+    elapsedEl.classList.add(
+      'hidden'
+    );
+
+
+  }
+
+
+
+  box.className =
+    'statusBox ';
+
+
+
+  /* =====================================================
+     CANCEL / REJECT
+  ===================================================== */
+
+  if (
+    rejected ||
+    cancelled
+  ) {
+
+
+    box.classList.add(
+      'danger'
+    );
+
+
+    icon.textContent =
+      '❌';
+
+
+    title.textContent =
+      'ออเดอร์ถูกยกเลิก';
+
+
+    desc.textContent =
+      'กรุณาติดต่อร้านหากต้องการสอบถามเพิ่มเติม';
+
+
+  }
+
+
+  /* =====================================================
+     COMPLETED
+  ===================================================== */
+
+  else if (
+    completed
+  ) {
+
+
+    box.classList.add(
+      'ack'
+    );
+
+
+    icon.textContent =
+      '✅';
+
+
+    title.textContent =
+      'ออเดอร์เสร็จสิ้น';
+
+
+    desc.textContent =
+      'ขอบคุณที่ใช้บริการครับ';
+
+
+  }
+
+
+  /* =====================================================
+     READY
+  ===================================================== */
+
+  else if (
+    ready
+  ) {
+
+
+    box.classList.add(
+      'ready'
+    );
+
+
+    icon.textContent =
+      '🥡';
+
+
+    title.textContent =
+      'อาหารพร้อมรับแล้ว';
+
+
+    desc.textContent =
+      'กรุณาไปรับออเดอร์ที่ร้าน';
+
+
+  }
+
+
+  /* =====================================================
+     PROCESSING / MERCHANT ACK
+  ===================================================== */
+
+  else if (
+    status === 'processing'
+  ) {
+
+    box.classList.add(
+      'ack'
+    );
+
+    icon.textContent =
+      '👨‍🍳';
+
+    title.textContent =
+      'ร้านกำลังทำอาหาร';
+
+    desc.textContent =
+      'ติดตามความคืบหน้าของแต่ละรายการได้ด้านบน';
+
+  }
+
+  else if (
+    ack
+  ) {
+
+    box.classList.add(
+      'ack'
+    );
+
+    icon.textContent =
+      '👀';
+
+    title.textContent =
+      'ร้านเห็นออเดอร์แล้ว';
+
+    desc.textContent =
+      'ร้านกำลังดำเนินการออเดอร์ของคุณ';
+
+  }
+
+
+  /* =====================================================
+     > 5 MINUTES
+  ===================================================== */
+
+  else if (
+    sec >= 300
+  ) {
+
+
+    box.classList.add(
+      'waiting'
+    );
+
+
+    icon.textContent =
+      '📞';
+
+
+    title.textContent =
+      'ร้านยังไม่ได้รับทราบ';
+
+
+    desc.textContent =
+      'ระบบแจ้งเตือนร้านแล้ว หากต้องการคุณสามารถติดต่อร้านได้โดยตรง';
+
+
+  }
+
+
+  /* =====================================================
+     > 3 MINUTES
+  ===================================================== */
+
+  else if (
+    sec >= 180
+  ) {
+
+
+    box.classList.add(
+      'waiting'
+    );
+
+
+    icon.textContent =
+      '🔔';
+
+
+    title.textContent =
+      'กำลังแจ้งเตือนร้าน';
+
+
+    desc.textContent =
+      'ร้านยังไม่ได้กดรับทราบ ระบบกำลังเตือนหน้ารับออเดอร์ของร้าน';
+
+
+  }
+
+
+  /* =====================================================
+     NEW ORDER
+  ===================================================== */
+
+  else {
+
+
+    box.classList.add(
+      'waiting'
+    );
+
+
+    icon.textContent =
+      '⏳';
+
+
+    title.textContent =
+      'ส่งออเดอร์เข้าร้านแล้ว';
+
+
+    desc.textContent =
+      'กำลังรอร้านตรวจสอบรายการ กรุณารอสักครู่';
+
+
+  }
+
+
+
+  /* =====================================================
+     ACTION ELEMENTS
+  ===================================================== */
+
+  const remind =
+
+    document.getElementById(
+      'remindBtn'
+    );
+
+
+
+  const call =
+
+    document.getElementById(
+      'callBtn'
+    );
+
+
+
+  const line =
+
+    document.getElementById(
+      'lineBtn'
+    );
+
+
+
+  const hint =
+
+    document.getElementById(
+      'contactHint'
+    );
+
+
+
+  const reminderInfo =
+
+    document.getElementById(
+      'reminderInfo'
+    );
+
+
+
+  /* =====================================================
+     COMPLETED MODE
+  ===================================================== */
+
+  if (
+    completed
+  ) {
+
+
+    /*
+      จบออเดอร์แล้ว
+      ไม่ต้องมี Action ใดอีก
+    */
+
+    remind.classList.add(
+      'hidden'
+    );
+
+
+    call.classList.add(
+      'hidden'
+    );
+
+
+    line.classList.add(
+      'hidden'
+    );
+
+
+    hint.classList.add(
+      'hidden'
+    );
+
+
+    reminderInfo.classList.add(
+      'hidden'
+    );
+
+
+    refreshBtn.classList.add(
+      'hidden'
+    );
+
+
+    /*
+      ซ่อนพื้นที่ Action ทั้งหมด
+      เพื่อไม่เหลือช่องว่าง
+    */
+
+    actions.classList.add(
+      'hidden'
+    );
+
+
+    /*
+      หยุด Polling
+      เพราะออเดอร์จบแล้ว
+    */
+
+    if (
+      pollTimer
+    ) {
+
+
+      clearInterval(
+        pollTimer
+      );
+
+
+      pollTimer =
+        null;
+
+    }
+
+
+    return;
+
+  }
+
+
+
+  /* =====================================================
+     ยังไม่ Completed
+  ===================================================== */
+
+  actions.classList.remove(
+    'hidden'
+  );
+
+
+  refreshBtn.classList.remove(
+    'hidden'
+  );
+
+
+
+  /*
+    หลัง 3 นาที
+    แสดงปุ่มแจ้งร้านอีกครั้ง
+  */
+
+  const canRemind =
+
+    !ack &&
+
+    !closed &&
+
+    sec >= 180;
+
+
+
+  remind.classList.toggle(
+
+    'hidden',
+
+    !canRemind
+
+  );
+
+
+
+  /*
+    หลัง 5 นาที
+    เริ่มแสดงช่องทางติดต่อร้าน
+  */
+
+  const showContact =
+
+    !ack &&
+
+    !closed &&
+
+    sec >= 300;
+
+
+
+  const phone =
+
+    safePhone(
+
+      o.contact_phone
+
+    );
+
+
+
+  if (
+
+    showContact &&
+
+    phone
+
+  ) {
+
+
+    call.href =
+
+      'tel:' +
+      phone;
+
+
+    call.classList.remove(
+      'hidden'
+    );
+
+
+  }
+  else {
+
+
+    call.classList.add(
+      'hidden'
+    );
+
+
+  }
+
+
+
+  /* =====================================================
+     LINE
+  ===================================================== */
+
+  if (
+
+    showContact &&
+
+    isSafeLineUrl(
+      o.line_url
+    )
+
+  ) {
+
+
+    line.href =
+
+      o.line_url;
+
+
+    line.classList.remove(
+      'hidden'
+    );
+
+
+  }
+  else {
+
+
+    line.classList.add(
+      'hidden'
+    );
+
+
+  }
+
+
+
+  /* =====================================================
+     CONTACT HINT
+  ===================================================== */
+
+  const hasContact =
+
+    !!phone ||
+
+    isSafeLineUrl(
+      o.line_url
+    );
+
+
+
+  hint.classList.toggle(
+
+    'hidden',
+
+    !(
+      showContact &&
+      hasContact
+    )
+
+  );
+
+
+
+  /* =====================================================
+     REMINDER COUNT
+  ===================================================== */
+
+  const reminderCount =
+
+    Number(
+
+      o.customer_reminder_count ||
+
+      0
+
+    );
+
+
+
+  if (
+
+    reminderCount > 0 &&
+
+    !ack &&
+
+    !closed
+
+  ) {
+
+
+    reminderInfo.textContent =
+
+      `🔔 คุณแจ้งร้านเพิ่มเติมแล้ว ${reminderCount} ครั้ง`;
+
+
+    reminderInfo.classList.remove(
+      'hidden'
+    );
+
+
+  }
+  else {
+
+
+    reminderInfo.classList.add(
+      'hidden'
+    );
+
+
+  }
+
+
+}
+
+
+
+/* =========================================================
+   CUSTOMER REMIND STORE
+========================================================= */
+
+async function remindStore() {
+
+
+  const btn =
+
+    document.getElementById(
+      'remindBtn'
+    );
+
+
+
+  btn.disabled =
+    true;
+
+
+
+  btn.textContent =
+    '⏳ กำลังแจ้งร้าน...';
+
+
+
+  try {
+
+
+    const {
+
+      data,
+
+      error
+
+    } =
+
+      await supabaseClient.rpc(
+
+        'customer_ping_takeaway_order',
+
+        {
+
+          p_token:
+            token
+
+        }
+
+      );
+
+
+
+    if (error) {
+
+      throw error;
+
+    }
+
+
+
+    const r =
+
+      Array.isArray(data)
+
+        ? data[0]
+
+        : data;
+
+
+
+    if (
+
+      r &&
+
+      r.success
+
+    ) {
+
+
+      alert(
+
+        '🔔 ส่งสัญญาณแจ้งร้านอีกครั้งแล้วครับ'
+
+      );
+
+
+    }
+
+
+    else if (
+
+      r &&
+
+      r.message ===
+      'COOLDOWN'
+
+    ) {
+
+
+      alert(
+
+        'เพิ่งแจ้งร้านไปเมื่อสักครู่ กรุณารออีกนิดครับ'
+
+      );
+
+
+    }
+
+
+    else if (
+
+      r &&
+
+      r.message ===
+      'ALREADY_ACKNOWLEDGED'
+
+    ) {
+
+
+      alert(
+
+        'ร้านรับทราบออเดอร์แล้วครับ'
+
+      );
+
+
+    }
+
+
+    else if (
+
+      r &&
+
+      r.message ===
+      'TOO_EARLY'
+
+    ) {
+
+
+      alert(
+
+        'ระบบกำลังแจ้งร้านให้อัตโนมัติ กรุณารอสักครู่ครับ'
+
+      );
+
+
+    }
+
+
+    else {
+
+
+      alert(
+
+        'ยังไม่สามารถแจ้งซ้ำได้ในขณะนี้'
+
+      );
+
+
+    }
+
+
+
+    await loadStatus();
+
+
+  }
+  catch(e) {
+
+
+    console.error(
+
+      '[CUSTOMER REMINDER ERROR]',
+
+      e
+
+    );
+
+
+    alert(
+
+      'แจ้งร้านไม่สำเร็จ กรุณาลองใหม่'
+
+    );
+
+
+  }
+  finally {
+
+
+    btn.disabled =
+      false;
+
+
+    btn.textContent =
+      '🔔 แจ้งร้านอีกครั้ง';
+
+
+  }
+
+
+}
+
+
+
+/* =========================================================
+   ERROR
+========================================================= */
+
+function showError(msg) {
+
+
+  document
+    .getElementById(
+      'loading'
+    )
+    .innerHTML =
+
+      `<b style="color:#c62828">
+
+        ${escapeHtml(msg)}
+
+      </b>`;
+
+
+}
+
+
+
+/* =========================================================
+   START
+========================================================= */
+
+loadStatus();
+
+
+
+pollTimer =
+
+  setInterval(
+
+    loadStatus,
+
+    5000
+
+  );
+
+
 </script>
+
+
 </body>
+
 </html>
