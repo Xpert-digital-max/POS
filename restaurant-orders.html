@@ -687,48 +687,185 @@
         }
 
         async function notifyTakeawayCustomer(order, newStatus) {
-            if (!order || order.source !== 'prepaid') return;
-            if (!order.customer_uid) return;
-            if (!['processing', 'completed'].includes(newStatus)) return;
-            if (!CONFIG.gasWebhookUrl) {
-                console.warn('[CUSTOMER NOTIFY] ไม่พบ CONFIG.gasWebhookUrl');
-                return;
-            }
 
-            try {
-                const response = await fetch(CONFIG.gasWebhookUrl, {
-                    method: 'POST',
-                    redirect: 'follow',
-                    headers: {
-                        "Content-Type": "text/plain;charset=utf-8"
-                    },
-                    body: JSON.stringify({
-                        action: 'notify_customer',
-                        vendor_id: VENDOR_ID,
-                        uid: order.customer_uid,
-                        order_status: newStatus,
-                        store_name: order.store_name || "ร้านอาหาร",
-                        order_ref: order.reference_no || order.id || '-',
-                        queue_num: order.queue_no || '-'
-                    })
-                });
+    // ใช้เฉพาะ Takeaway / Prepaid
+    if (!order || order.source !== 'prepaid') {
+        return;
+    }
 
-                const responseText =
-                    await response.text();
+    // ไม่มี LINE User ID ก็ส่ง Flex ไม่ได้
+    if (!order.customer_uid) {
+        console.warn(
+            '[CUSTOMER NOTIFY] ไม่มี customer_uid',
+            order
+        );
+        return;
+    }
 
-                console.log(
-                    `[CUSTOMER NOTIFY] ${newStatus}:`,
-                    responseText
+    // ปัจจุบันส่งแจ้งลูกค้าเฉพาะ
+    // processing = ร้านรับออเดอร์ / เริ่มทำ
+    // completed  = ออเดอร์เสร็จสิ้น
+    if (
+        ![
+            'processing',
+            'completed'
+        ].includes(newStatus)
+    ) {
+        return;
+    }
+
+
+    if (!CONFIG.gasWebhookUrl) {
+
+        console.warn(
+            '[CUSTOMER NOTIFY] ไม่พบ CONFIG.gasWebhookUrl'
+        );
+
+        return;
+    }
+
+
+    try {
+
+        // =====================================================
+        // ORDER STATUS URL
+        //
+        // orders ถูก select('*') อยู่แล้ว
+        // ดังนั้นมี status_token ติดมากับ order
+        //
+        // ใช้ token ของออเดอร์นี้โดยตรง
+        // ทำให้แต่ละคิว / แต่ละร้านมีลิงก์ของตัวเอง
+        // =====================================================
+
+        let orderStatusUrl = '';
+
+
+        if (
+            order.status_token &&
+            String(order.status_token).trim() !== ''
+        ) {
+
+            const statusUrl =
+                new URL(
+                    'order-status.html',
+                    window.location.href
                 );
 
-            } catch (err) {
-                // LINE ส่งไม่สำเร็จ ไม่ควรทำให้สถานะออเดอร์ย้อนกลับ
-                console.error(
-                    '[CUSTOMER NOTIFY ERROR]',
-                    err
-                );
-            }
+
+            // ล้าง query เดิม เช่น vid / bid
+            statusUrl.search = '';
+
+            statusUrl.hash = '';
+
+
+            // ใส่ Token ของออเดอร์นั้น
+            statusUrl.searchParams.set(
+                'token',
+                String(order.status_token).trim()
+            );
+
+
+            orderStatusUrl =
+                statusUrl.toString();
+
         }
+
+
+        console.log(
+            '[CUSTOMER NOTIFY] status URL:',
+            orderStatusUrl
+        );
+
+
+        // =====================================================
+        // SEND TO GAS
+        // =====================================================
+
+        const response =
+            await fetch(
+                CONFIG.gasWebhookUrl,
+                {
+
+                    method: 'POST',
+
+                    redirect: 'follow',
+
+                    headers: {
+
+                        "Content-Type":
+                            "text/plain;charset=utf-8"
+
+                    },
+
+                    body: JSON.stringify({
+
+                        action:
+                            'notify_customer',
+
+                        vendor_id:
+                            VENDOR_ID,
+
+                        uid:
+                            order.customer_uid,
+
+                        order_status:
+                            newStatus,
+
+                        store_name:
+                            order.store_name ||
+                            "ร้านอาหาร",
+
+                        branch_name:
+                            order.branch_name ||
+                            '',
+
+                        order_ref:
+                            order.reference_no ||
+                            order.id ||
+                            '-',
+
+                        queue_num:
+                            order.queue_no ||
+                            '-',
+
+                        // สำคัญ:
+                        // ทำให้ Flex ที่ร้านกดรับเงินสด
+                        // มีปุ่ม "ดูสถานะออเดอร์"
+                        order_status_url:
+                            orderStatusUrl
+
+                    })
+
+                }
+            );
+
+
+        const responseText =
+            await response.text();
+
+
+        console.log(
+            `[CUSTOMER NOTIFY] ${newStatus}:`,
+            responseText
+        );
+
+
+    }
+    catch (err) {
+
+        /*
+          LINE ส่งไม่สำเร็จ
+          ห้ามทำให้สถานะออเดอร์ย้อนกลับ
+        */
+
+        console.error(
+            '[CUSTOMER NOTIFY ERROR]',
+            err
+        );
+
+    }
+
+}
 
         async function advanceOrderStatus(orderId, source, btnElement) {
             try {
