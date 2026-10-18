@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>แชร์ร้านใน LINE</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="config.js"></script>
+  <style>
+    body{font-family:Arial,sans-serif;background:#f6f7f8;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;color:#222}
+    .card{width:min(92%,420px);background:#fff;border-radius:20px;padding:28px;box-sizing:border-box;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.08)}
+    .icon{font-size:48px;margin-bottom:8px}.title{font-size:22px;font-weight:700;margin:0 0 8px}.desc{font-size:14px;color:#666;line-height:1.6;margin:0 0 20px}
+    button{width:100%;border:0;border-radius:12px;padding:14px;font-size:16px;font-weight:700;cursor:pointer}.primary{background:#06C755;color:#fff}.secondary{background:#eee;color:#444;margin-top:10px}
+    #retryBtn,#closeBtn{display:none}.status{font-size:13px;color:#777;margin-top:14px;word-break:break-word}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">💌</div>
+    <h1 class="title">กำลังเปิดรายชื่อสำหรับแชร์</h1>
+    <p class="desc">เลือกเพื่อนหรือกลุ่มใน LINE แล้วส่งร้านนี้ได้ทันที</p>
+    <button id="retryBtn" class="primary" onclick="startShare()">แชร์ใน LINE</button>
+    <button id="closeBtn" class="secondary" onclick="closeSharePage()">กลับ</button>
+    <div id="status" class="status">กำลังเตรียมระบบแชร์...</div>
+  </div>
+<script>
+let shareBusy = false;
+let initialized = false;
+
+function setStatus(msg){ document.getElementById('status').textContent = msg || ''; }
+function showRetry(msg){
+  setStatus(msg || 'กรุณากดแชร์อีกครั้ง');
+  document.getElementById('retryBtn').style.display = 'block';
+  document.getElementById('closeBtn').style.display = 'block';
+}
+function closeSharePage(){
+  try { if (liff.isInClient()) return liff.closeWindow(); } catch(e) {}
+  history.length > 1 ? history.back() : (location.href = 'about:blank');
+}
+
+async function initShareApp(){
+  try{
+    const liffId = String(CONFIG.liffIdDineInShare || '').trim();
+    if(!liffId) throw new Error('ยังไม่ได้ตั้ง CONFIG.liffIdDineInShare');
+
+    // สำคัญ: ต้อง init ให้เสร็จก่อนอ่าน query เพราะ LIFF อาจเก็บข้อมูลไว้ใน liff.state ชั่วคราว
+    await liff.init({ liffId });
+    initialized = true;
+
+    if(!liff.isLoggedIn()){
+      liff.login({ redirectUri: location.href });
+      return;
+    }
+
+    if(typeof liff.isApiAvailable !== 'function' || !liff.isApiAvailable('shareTargetPicker')){
+      throw new Error('LIFF นี้ยังไม่ได้เปิด Share Target Picker หรืออุปกรณ์ไม่รองรับ');
+    }
+
+    // ให้ LIFF restore query params ให้เสร็จก่อน แล้วเปิด picker อัตโนมัติ
+    setTimeout(startShare, 250);
+  }catch(err){
+    console.error('[DINEIN SHARE INIT]', err);
+    showRetry('เปิดระบบแชร์ไม่สำเร็จ: ' + (err?.message || err));
+  }
+}
+
+async function startShare(){
+  if(shareBusy) return;
+  shareBusy = true;
+  document.getElementById('retryBtn').style.display = 'none';
+  setStatus('กำลังเปิดรายชื่อเพื่อนและกลุ่ม...');
+
+  try{
+    if(!initialized){
+      shareBusy = false;
+      return initShareApp();
+    }
+
+    if(!liff.isLoggedIn()){
+      shareBusy = false;
+      liff.login({ redirectUri: location.href });
+      return;
+    }
+
+    const params = new URLSearchParams(location.search);
+    const vid = params.get('vid') || '';
+    const bid = params.get('bid') || '';
+    const storeName = params.get('name') || 'ร้านอาหาร';
+    const heroUrl = params.get('img') || '';
+
+    if(!vid || !bid) throw new Error('ไม่พบข้อมูลร้านหรือสาขา');
+
+    const takeaway = new URL('customer.html', location.href);
+    takeaway.search = '';
+    takeaway.hash = '';
+    takeaway.searchParams.set('vid', vid);
+    takeaway.searchParams.set('bid', bid);
+    ['table_token','table_id','table_session_id'].forEach(k => takeaway.searchParams.delete(k));
+
+    const bubble = {
+      type:'bubble',
+      body:{type:'box',layout:'vertical',contents:[
+        {type:'text',text:storeName,weight:'bold',size:'xl',wrap:true},
+        {type:'text',text:'แนะนำร้านนี้ครับ 👋 ดูเมนูและสั่งอาหารได้เลย',size:'sm',color:'#666666',wrap:true,margin:'md'}
+      ]},
+      footer:{type:'box',layout:'vertical',contents:[
+        {type:'button',style:'primary',color:'#06C755',action:{type:'uri',label:'ดูเมนู / สั่งอาหาร',uri:takeaway.toString()}}
+      ]}
+    };
+    if(heroUrl && /^https:\/\//i.test(heroUrl)){
+      bubble.hero={type:'image',url:heroUrl,size:'full',aspectRatio:'20:13',aspectMode:'cover'};
+    }
+
+    const message={type:'flex',altText:`แนะนำร้าน ${storeName} — ดูเมนูและสั่งอาหารได้เลย`,contents:bubble};
+    const result = await liff.shareTargetPicker([message],{isMultiple:true});
+    console.log('[DINEIN SHARE RESULT]', result);
+
+    if(result){
+      setStatus('แชร์เรียบร้อยแล้ว');
+      setTimeout(closeSharePage, 450);
+    }else{
+      // ผู้ใช้กดยกเลิก picker ไม่ถือเป็น error
+      shareBusy=false;
+      showRetry('ยังไม่ได้ส่งข้อความ คุณสามารถกดแชร์ใหม่ได้');
+    }
+  }catch(err){
+    console.error('[DINEIN SHARE TARGET PICKER]', err);
+    shareBusy=false;
+    showRetry('ไม่สามารถเปิดรายชื่อสำหรับแชร์ได้: ' + (err?.message || err));
+  }
+}
+
+document.addEventListener('DOMContentLoaded', initShareApp);
+</script>
+</body>
+</html>
