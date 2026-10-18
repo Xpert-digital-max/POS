@@ -1141,6 +1141,19 @@ function getCustomerItemStatusMeta(rawStatus) {
 
 
   if (
+    st === 'accepted'
+  ) {
+
+    return {
+      label: '✅ ร้านรับรายการแล้ว',
+      cls: 'item-status-badge item-status-wait',
+      done: false
+    };
+
+  }
+
+
+  if (
     st === 'cooking' ||
     st === 'preparing'
   ) {
