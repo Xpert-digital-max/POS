@@ -102,10 +102,10 @@ async function startShare(){
       type:'bubble',
       body:{type:'box',layout:'vertical',contents:[
         {type:'text',text:storeName,weight:'bold',size:'xl',wrap:true},
-        {type:'text',text:'แนะนำร้านนี้ครับ 👋 ดูเมนูและสั่งอาหารได้เลย',size:'sm',color:'#666666',wrap:true,margin:'md'}
+        {type:'text',text:'แนะนำร้านนี้ 👋 ดูเมนูแล้วน่าสนใจเลยส่งมาให้ดู สั่งออนไลน์ได้นะ',size:'sm',color:'#666666',wrap:true,margin:'md'}
       ]},
       footer:{type:'box',layout:'vertical',contents:[
-        {type:'button',style:'primary',color:'#06C755',action:{type:'uri',label:'ดูเมนู / สั่งอาหาร',uri:takeaway.toString()}}
+        {type:'button',style:'primary',color:'#06C755',action:{type:'uri',label:'กดดูเมนู / สั่งออนไลน์',uri:takeaway.toString()}}
       ]}
     };
     if(heroUrl && /^https:\/\//i.test(heroUrl)){
