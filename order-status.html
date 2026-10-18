@@ -1135,71 +1135,30 @@ function cleanCustomerNote(raw) {
 
 function getCustomerItemStatusMeta(rawStatus) {
 
-  const st =
-    String(rawStatus || 'pending')
-      .toLowerCase();
+  const st = String(rawStatus || 'pending').toLowerCase();
 
-
-  if (
-    st === 'accepted'
-  ) {
-
-    return {
-      label: '✅ ร้านรับรายการแล้ว',
-      cls: 'item-status-badge item-status-wait',
-      done: false
-    };
-
-  }
-
-
-  if (
-    st === 'cooking' ||
-    st === 'preparing'
-  ) {
-
-    return {
-      label: '👨‍🍳 กำลังทำ',
-      cls: 'item-status-badge item-status-cooking',
-      done: false
-    };
-
-  }
-
-
-  if (
-    st === 'done' ||
-    st === 'served'
-  ) {
-
+  if (st === 'done' || st === 'served') {
     return {
       label: '✅ เสร็จแล้ว',
       cls: 'item-status-badge item-status-done',
       done: true
     };
-
   }
 
-
-  if (
-    st === 'rejected'
-  ) {
-
+  if (st === 'rejected') {
     return {
       label: '❌ ปฏิเสธ',
       cls: 'item-status-badge item-status-rejected',
       done: true
     };
-
   }
 
-
+  // pending / accepted / cooking / preparing ใช้ข้อความเดียวกันให้ลูกค้าเข้าใจง่าย
   return {
     label: '⏳ รอทำ',
     cls: 'item-status-badge item-status-wait',
     done: false
   };
-
 }
 
 
@@ -1911,10 +1870,10 @@ function render(o) {
       '👨‍🍳';
 
     title.textContent =
-      'ร้านกำลังทำอาหาร';
+      'ร้านรับออเดอร์แล้ว';
 
     desc.textContent =
-      'ติดตามความคืบหน้าของแต่ละรายการได้ด้านบน';
+      'รายการอาหารอยู่ในคิวรอทำ ติดตามแต่ละรายการได้ด้านบน';
 
   }
 
