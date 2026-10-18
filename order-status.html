@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ติดตามสถานะออเดอร์ - NPX POS ORDER</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f6f8;font-family:Arial,"Noto Sans Thai",sans-serif;color:#222}.wrap{max-width:560px;margin:0 auto;padding:18px}.card{background:#fff;border-radius:20px;padding:22px;box-shadow:0 4px 18px rgba(0,0,0,.08);margin-bottom:14px}.brand{font-size:13px;color:#777}.title{font-size:23px;font-weight:800;margin:7px 0}.queue{font-size:64px;font-weight:900;color:#06C755;line-height:1}.row{display:flex;justify-content:space-between;gap:15px;padding:10px 0;border-bottom:1px solid #eee}.row:last-child{border:0}.muted{color:#777}.statusBox{border-radius:16px;padding:18px;text-align:center}.waiting{background:#fff8e1;color:#8d5b00}.ack{background:#e8f5e9;color:#176b2c}.ready{background:#e0f7fa;color:#006064}.danger{background:#ffebee;color:#b71c1c}.actions{display:grid;gap:10px;margin-top:16px}.btn{width:100%;border:0;border-radius:13px;padding:14px 16px;font-size:16px;font-weight:800;cursor:pointer;text-decoration:none;text-align:center;display:block}.btn-remind{background:#ff9800;color:#fff}.btn-call{background:#06C755;color:#fff}.btn-line{background:#00B900;color:#fff}.btn-refresh{background:#eef1f4;color:#333}.small{font-size:13px;line-height:1.6}.hidden{display:none!important}.loader{text-align:center;padding:60px 20px;color:#777}.pill{display:inline-block;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700;background:#eee}.elapsed{font-size:12px;color:#888;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="loading" class="card loader">กำลังโหลดสถานะออเดอร์...</div>
+  <div id="app" class="hidden">
+    <div class="card">
+      <div class="brand">NPX POS ORDER • Takeaway</div>
+      <div id="storeName" class="title">ร้านอาหาร</div>
+      <div id="branchName" class="muted">สาขาหลัก</div>
+      <div style="margin-top:20px" class="row"><span class="muted">หมายเลขอ้างอิง</span><b id="referenceNo">-</b></div>
+      <div class="row"><span class="muted">คิวที่</span><span id="queueNo" class="queue">-</span></div>
+      <div class="row"><span class="muted">ยอดออเดอร์</span><b id="totalPrice">฿0.00</b></div>
+    </div>
+
+    <div class="card">
+      <div id="statusBox" class="statusBox waiting">
+        <div id="statusIcon" style="font-size:32px">⏳</div>
+        <div id="statusTitle" style="font-size:20px;font-weight:800;margin-top:5px">ส่งออเดอร์เข้าร้านแล้ว</div>
+        <div id="statusDesc" class="small" style="margin-top:8px">กำลังรอร้านตรวจสอบรายการ</div>
+        <div id="elapsed" class="elapsed"></div>
+      </div>
+      <div id="actions" class="actions">
+        <button id="remindBtn" class="btn btn-remind hidden" onclick="remindStore()">🔔 แจ้งร้านอีกครั้ง</button>
+        <a id="callBtn" class="btn btn-call hidden">📞 ติดต่อร้าน</a>
+        <a id="lineBtn" class="btn btn-line hidden" target="_blank" rel="noopener">💬 แชตร้านผ่าน LINE</a>
+        <button class="btn btn-refresh" onclick="loadStatus()">🔄 อัปเดตสถานะ</button>
+      </div>
+      <div id="contactHint" class="small muted hidden" style="margin-top:12px;text-align:center">ร้านยังไม่ได้รับทราบออเดอร์เกิน 5 นาที คุณสามารถติดต่อร้านได้โดยตรง</div>
+    </div>
+  </div>
+</div>
+<script>
+const supabaseClient = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
+const token = new URLSearchParams(location.search).get('token');
+let current = null;
+let pollTimer = null;
+
+function safePhone(raw){ return String(raw||'').replace(/[^0-9+]/g,''); }
+function isSafeLineUrl(raw){ try{ const u=new URL(raw); return u.protocol==='https:' || u.protocol==='http:'; }catch(e){ return false; } }
+function ageSeconds(dateStr){ return Math.max(0, Math.floor((Date.now()-new Date(dateStr).getTime())/1000)); }
+function fmtElapsed(sec){ const m=Math.floor(sec/60), s=sec%60; return `ผ่านไป ${m} นาที ${String(s).padStart(2,'0')} วินาที`; }
+
+async function loadStatus(){
+  if(!token){ return showError('ลิงก์ติดตามออเดอร์ไม่ถูกต้อง'); }
+  try{
+    const {data,error}=await supabaseClient.rpc('get_takeaway_order_public_status',{p_token:token});
+    if(error) throw error;
+    const row = Array.isArray(data) ? data[0] : data;
+    if(!row || !row.reference_no) return showError('ไม่พบออเดอร์นี้');
+    current=row; render(row);
+  }catch(e){ console.error(e); showError('ไม่สามารถโหลดสถานะได้ กรุณาลองใหม่อีกครั้ง'); }
+}
+
+function render(o){
+  document.getElementById('loading').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('storeName').textContent=o.store_name||'ร้านอาหาร';
+  document.getElementById('branchName').textContent=o.branch_name||'สาขาหลัก';
+  document.getElementById('referenceNo').textContent=o.reference_no||'-';
+  document.getElementById('queueNo').textContent=(o.queue_no ?? '-');
+  document.getElementById('totalPrice').textContent='฿'+Number(o.total_price||0).toFixed(2);
+
+  const sec=ageSeconds(o.created_at);
+  const ack=!!o.merchant_acknowledged_at;
+  const closed=['completed','cancelled','rejected'].includes(String(o.status||'').toLowerCase());
+  const ready=String(o.status||'').toLowerCase()==='ready';
+  const box=document.getElementById('statusBox');
+  const icon=document.getElementById('statusIcon');
+  const title=document.getElementById('statusTitle');
+  const desc=document.getElementById('statusDesc');
+  document.getElementById('elapsed').textContent=fmtElapsed(sec);
+  box.className='statusBox ';
+
+  if(String(o.status||'').toLowerCase()==='rejected' || String(o.status||'').toLowerCase()==='cancelled'){
+    box.classList.add('danger'); icon.textContent='❌'; title.textContent='ออเดอร์ถูกยกเลิก'; desc.textContent='กรุณาติดต่อร้านหากต้องการสอบถามเพิ่มเติม';
+  }else if(String(o.status||'').toLowerCase()==='completed'){
+    box.classList.add('ack'); icon.textContent='✅'; title.textContent='ออเดอร์เสร็จสิ้น'; desc.textContent='ขอบคุณที่ใช้บริการครับ';
+  }else if(ready){
+    box.classList.add('ready'); icon.textContent='🥡'; title.textContent='อาหารพร้อมรับแล้ว'; desc.textContent='กรุณาไปรับออเดอร์ที่ร้าน';
+  }else if(ack){
+    box.classList.add('ack'); icon.textContent='👀'; title.textContent='ร้านเห็นออเดอร์แล้ว'; desc.textContent='ร้านกำลังดำเนินการออเดอร์ของคุณ';
+  }else if(sec>=180){
+    box.classList.add('waiting'); icon.textContent='🔔'; title.textContent='กำลังแจ้งเตือนร้าน'; desc.textContent='ร้านยังไม่ได้กดรับทราบ ระบบกำลังเตือนหน้ารับออเดอร์ของร้าน';
+  }else{
+    box.classList.add('waiting'); icon.textContent='⏳'; title.textContent='ส่งออเดอร์เข้าร้านแล้ว'; desc.textContent='กำลังรอร้านตรวจสอบรายการ กรุณารอสักครู่';
+  }
+
+  const remind=document.getElementById('remindBtn');
+  const call=document.getElementById('callBtn');
+  const line=document.getElementById('lineBtn');
+  const hint=document.getElementById('contactHint');
+  remind.classList.toggle('hidden', ack || closed || sec<180);
+
+  const showContact=!ack && !closed && sec>=300;
+  const phone=safePhone(o.contact_phone);
+  if(showContact && phone){ call.href='tel:'+phone; call.classList.remove('hidden'); } else call.classList.add('hidden');
+  if(showContact && isSafeLineUrl(o.line_url)){ line.href=o.line_url; line.classList.remove('hidden'); } else line.classList.add('hidden');
+  hint.classList.toggle('hidden', !showContact);
+}
+
+async function remindStore(){
+  const btn=document.getElementById('remindBtn');
+  btn.disabled=true; btn.textContent='กำลังแจ้งร้าน...';
+  try{
+    const {data,error}=await supabaseClient.rpc('customer_ping_takeaway_order',{p_token:token});
+    if(error) throw error;
+    const r=Array.isArray(data)?data[0]:data;
+    if(r && r.success){ alert('🔔 แจ้งหน้ารับออเดอร์ของร้านอีกครั้งแล้วครับ'); }
+    else if(r && r.message==='COOLDOWN') alert('เพิ่งแจ้งร้านไปเมื่อสักครู่ กรุณารออีกนิดครับ');
+    else if(r && r.message==='ALREADY_ACKNOWLEDGED') alert('ร้านรับทราบออเดอร์แล้วครับ');
+    else alert('ยังไม่สามารถแจ้งซ้ำได้ในขณะนี้');
+    await loadStatus();
+  }catch(e){ console.error(e); alert('แจ้งร้านไม่สำเร็จ กรุณาลองใหม่'); }
+  finally{ btn.disabled=false; btn.textContent='🔔 แจ้งร้านอีกครั้ง'; }
+}
+
+function showError(msg){ document.getElementById('loading').innerHTML=`<b style="color:#c62828">${msg}</b>`; }
+loadStatus();
+pollTimer=setInterval(loadStatus,5000);
+</script>
+</body>
+</html>
