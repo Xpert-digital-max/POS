@@ -425,7 +425,7 @@
                 // ---------------------------------------------------------
                 // 2) เตรียม CTA โดยไม่ให้การหา token ไปขวาง Flex แจกคิว
                 // ---------------------------------------------------------
-                let statusToken = String(statusTokenFromOrder || '').trim();
+                let statusToken = String(data.status_token || statusTokenFromOrder || '').trim();
                 let orderStatusUrl = '';
 
                 if (newStatus === 'processing') {
@@ -535,8 +535,13 @@ if (newStatus === 'processing') {
                         notifyResult = JSON.parse(notifyText);
                     } catch (_) {}
 
-                    if (notifyResult && notifyResult.status === 'error') {
-                        console.error('[GAS NOTIFY ERROR]', notifyResult);
+                    if (!notifyResponse.ok || !notifyResult || notifyResult.status !== 'success') {
+                        alert('อัปเดตออเดอร์ ' + finalReferenceNo + ' สำเร็จแล้ว แต่แจ้ง LINE ไม่สำเร็จ\n' +
+                            ((notifyResult && notifyResult.msg) || 'ระบบแจ้งเตือนไม่ได้ตอบกลับเป็น JSON') +
+                            (notifyResult && notifyResult.line_status ? ' (LINE ' + notifyResult.line_status + ')' : '') +
+                            '\nไม่ต้องกดรับออเดอร์ซ้ำ');
+                    } else if (notifyResult.cta_warning) {
+                        alert('ส่ง Flex แล้ว แต่ปุ่มดูสถานะยังไม่พร้อม: ' + notifyResult.cta_warning);
                     }
                 }
 
