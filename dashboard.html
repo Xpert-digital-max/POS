@@ -1417,6 +1417,161 @@ async function shareStaffFlex() {
     }
 }
 
+        async function shareBranchStaffFlex(branchId) {
+            if (!vendorData || !vendorData.id) {
+                return alert("กรุณารอระบบโหลดข้อมูลร้านค้าให้เสร็จก่อน");
+            }
+
+            const branch = (branchListData || []).find(
+                b => String(b.id) === String(branchId)
+            );
+
+            if (!branch) {
+                return alert("ไม่พบข้อมูลสาขานี้ กรุณารีเฟรชหน้าแล้วลองใหม่");
+            }
+
+            const branchName = branch.branch_name || "สาขา";
+            const storeName = vendorData.name || "ร้านของเรา";
+            const staffUrl = `${getBasePath()}/branch-orders.html?bid=${encodeURIComponent(branch.id)}`;
+
+            const passwordHint = branch.staff_password_hash
+                ? "ร้านตั้งรหัสผ่านสาขานี้ไว้แล้ว กรุณาขอรหัสจากผู้ดูแลร้าน"
+                : "สาขานี้ยังไม่ได้ตั้งรหัสผ่าน กรุณาให้ผู้ดูแลร้านตั้งรหัสก่อนใช้งาน";
+
+            const flexMessage = {
+                type: "flex",
+                altText: `หน้าพนักงาน ${storeName} - ${branchName}`,
+                contents: {
+                    type: "bubble",
+                    size: "mega",
+                    header: {
+                        type: "box",
+                        layout: "vertical",
+                        backgroundColor: "#1A237E",
+                        paddingAll: "18px",
+                        contents: [
+                            {
+                                type: "text",
+                                text: "👨‍🍳 หน้าพนักงานร้านอาหาร",
+                                color: "#FFFFFF",
+                                weight: "bold",
+                                size: "xl",
+                                wrap: true
+                            },
+                            {
+                                type: "text",
+                                text: storeName,
+                                color: "#E8EAF6",
+                                size: "sm",
+                                margin: "sm",
+                                wrap: true
+                            }
+                        ]
+                    },
+                    body: {
+                        type: "box",
+                        layout: "vertical",
+                        spacing: "md",
+                        paddingAll: "18px",
+                        contents: [
+                            {
+                                type: "text",
+                                text: `🏬 ${branchName}`,
+                                weight: "bold",
+                                size: "xl",
+                                color: "#333333",
+                                wrap: true
+                            },
+                            { type: "separator", margin: "sm" },
+                            {
+                                type: "text",
+                                text: "ใช้สำหรับเปิดหน้ารับออเดอร์ของพนักงานประจำสาขานี้",
+                                size: "sm",
+                                color: "#555555",
+                                wrap: true
+                            },
+                            {
+                                type: "box",
+                                layout: "vertical",
+                                backgroundColor: "#FFF8E1",
+                                cornerRadius: "10px",
+                                paddingAll: "12px",
+                                contents: [
+                                    { type: "text", text: "🔐 การเข้าใช้งาน", weight: "bold", size: "sm", color: "#E65100" },
+                                    { type: "text", text: passwordHint, size: "xs", color: "#666666", wrap: true, margin: "sm" }
+                                ]
+                            },
+                            {
+                                type: "text",
+                                text: "ลิงก์นี้ผูกกับสาขานี้โดยเฉพาะ ไม่ควรส่งต่อให้พนักงานสาขาอื่น",
+                                size: "xs",
+                                color: "#999999",
+                                wrap: true
+                            }
+                        ]
+                    },
+                    footer: {
+                        type: "box",
+                        layout: "vertical",
+                        spacing: "sm",
+                        paddingAll: "16px",
+                        contents: [
+                            {
+                                type: "button",
+                                style: "primary",
+                                color: "#06C755",
+                                height: "sm",
+                                action: {
+                                    type: "uri",
+                                    label: (`เปิดหน้าพนักงาน ${branchName}`).slice(0, 40),
+                                    uri: staffUrl
+                                }
+                            }
+                        ]
+                    }
+                }
+            };
+
+            try {
+                if (
+                    typeof liff !== "undefined" &&
+                    liff.isLoggedIn() &&
+                    liff.isApiAvailable("shareTargetPicker")
+                ) {
+                    const result = await liff.shareTargetPicker([flexMessage]);
+                    if (result) {
+                        alert(`✅ ส่ง Flex หน้าพนักงาน ${branchName} เรียบร้อยแล้ว`);
+                    }
+                    return;
+                }
+
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(staffUrl);
+                } else {
+                    const ta = document.createElement("textarea");
+                    ta.value = staffUrl;
+                    ta.style.position = "fixed";
+                    ta.style.opacity = "0";
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand("copy");
+                    ta.remove();
+                }
+
+                alert("อุปกรณ์นี้ไม่รองรับ Share Target Picker\nระบบคัดลอกลิงก์หน้าพนักงานของสาขานี้ให้แล้ว");
+            } catch (err) {
+                console.error("[BRANCH STAFF FLEX SHARE ERROR]", err);
+
+                try {
+                    if (navigator.clipboard && window.isSecureContext) {
+                        await navigator.clipboard.writeText(staffUrl);
+                    }
+                } catch (_) {}
+
+                alert("ส่ง Flex ไม่สำเร็จ\nระบบพยายามคัดลอกลิงก์สาขาให้แล้ว");
+            }
+        }
+
         async function safeLoad(label, fn) {
             try {
                 await fn();
@@ -1837,11 +1992,18 @@ async function loadVendorData(uid) {
                                 💾 บันทึกรหัส
                             </button>
                         </div>
-                        <button type="button"
-                                onclick="navigator.clipboard.writeText('${mainStaffLink}'); alert('คัดลอกลิงก์ให้พนักงานสำเร็จ!');"
-                                style="width:100%;margin-top:7px;background:#fff;color:#e65100;border:1px solid #ff9800;padding:8px;border-radius:5px;font-size:12px;font-weight:bold;">
-                            📋 คัดลอกลิงก์หน้ารับออเดอร์สาขาหลัก
-                        </button>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:7px;">
+                            <button type="button"
+                                    onclick="navigator.clipboard.writeText('${mainStaffLink}'); alert('คัดลอกลิงก์ให้พนักงานสำเร็จ!');"
+                                    style="width:100%;background:#fff;color:#e65100;border:1px solid #ff9800;padding:8px;border-radius:5px;font-size:12px;font-weight:bold;">
+                                📋 คัดลอกลิงก์
+                            </button>
+                            <button type="button"
+                                    onclick="shareBranchStaffFlex('${mainBranchObj.id}')"
+                                    style="width:100%;background:#06C755;color:#fff;border:none;padding:8px;border-radius:5px;font-size:12px;font-weight:bold;">
+                                💬 ส่ง LINE ให้พนักงาน
+                            </button>
+                        </div>
                     `;
                 }
             } else {
@@ -1960,12 +2122,22 @@ async function loadVendorData(uid) {
 
                         <div style="background:#fff8e1;padding:10px;border-radius:6px;margin-bottom:10px;border:1px dashed #ff9800;">
                             <label style="font-size:12px;font-weight:bold;color:#e65100;">👨‍🍳 3. หน้ารับออเดอร์ของพนักงาน</label>
-                            <p style="font-size:11px;margin:3px 0 8px 0;color:#555;">สถานะ: ${isPasswordSet}</p>
+                            <p style="font-size:11px;margin:3px 0 4px 0;color:#555;">สถานะ: ${isPasswordSet}</p>
+                            <p style="font-size:10px;margin:0 0 8px 0;color:#777;">ส่ง Flex ให้พนักงานผ่าน LINE ได้โดยตรง ลิงก์จะผูกกับสาขานี้อัตโนมัติ</p>
                             <div style="display:flex;gap:5px;">
                                 <input type="password" id="pw_${b.id}" placeholder="ตั้งรหัสผ่านสาขา" style="flex:1;min-width:0;padding:7px;border:1px solid #ddd;border-radius:4px;font-size:12px;">
                                 <button onclick="setBranchPassword('${b.id}')" style="background:#ff9800;color:white;border:none;padding:7px 10px;border-radius:4px;font-size:12px;font-weight:bold;">💾 บันทึกรหัส</button>
                             </div>
-                            <button onclick="navigator.clipboard.writeText('${staffLink}'); alert('คัดลอกลิงก์ให้พนักงานสำเร็จ!');" style="width:100%;margin-top:8px;background:#fff;color:#ff9800;border:1px solid #ff9800;padding:8px;border-radius:4px;font-size:12px;font-weight:bold;">📋 คัดลอกลิงก์ให้พนักงาน</button>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;">
+                                <button onclick="navigator.clipboard.writeText('${staffLink}'); alert('คัดลอกลิงก์ให้พนักงานสำเร็จ!');"
+                                        style="width:100%;background:#fff;color:#ff9800;border:1px solid #ff9800;padding:8px;border-radius:4px;font-size:12px;font-weight:bold;">
+                                    📋 คัดลอกลิงก์
+                                </button>
+                                <button onclick="shareBranchStaffFlex('${b.id}')"
+                                        style="width:100%;background:#06C755;color:white;border:none;padding:8px;border-radius:4px;font-size:12px;font-weight:bold;">
+                                    💬 ส่ง LINE ให้พนักงาน
+                                </button>
+                            </div>
                         </div>
 
                         ${branchSubscriptionUI}
