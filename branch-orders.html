@@ -313,31 +313,57 @@
                 }
 
                 let orderStatusUrl = '';
-                if (newStatus === 'processing' && customerUid && currentVendorId && finalReferenceNo && finalReferenceNo !== '-') {
+                let statusToken = '';
+
+                if (
+                    newStatus === 'processing' &&
+                    customerUid &&
+                    currentVendorId &&
+                    finalReferenceNo &&
+                    finalReferenceNo !== '-'
+                ) {
                     try {
-                        const { data: statusTokenData, error: statusTokenError } = await supabaseClient.rpc(
-                            'get_takeaway_status_token',
-                            {
-                                p_vendor_id: String(currentVendorId),
-                                p_reference_no: String(finalReferenceNo),
-                                p_customer_uid: String(customerUid)
-                            }
-                        );
-                        if (statusTokenError) console.error('[ORDER STATUS TOKEN ERROR]', statusTokenError);
-                        const statusToken = statusTokenData ? String(statusTokenData).trim() : '';
+                        const { data: statusTokenData, error: statusTokenError } =
+                            await supabaseClient.rpc(
+                                'get_takeaway_status_token',
+                                {
+                                    p_vendor_id: String(currentVendorId),
+                                    p_reference_no: String(finalReferenceNo),
+                                    p_customer_uid: String(customerUid)
+                                }
+                            );
+
+                        if (statusTokenError) {
+                            console.error('[ORDER STATUS TOKEN ERROR]', statusTokenError);
+                        }
+
+                        statusToken = statusTokenData
+                            ? String(statusTokenData).trim()
+                            : '';
+
                         if (statusToken) {
-                            const statusPage = new URL('order-status.html', window.location.href);
+                            const statusPage = new URL(
+                                'order-status.html',
+                                window.location.href
+                            );
+
                             statusPage.search = '';
                             statusPage.hash = '';
                             statusPage.searchParams.set('token', statusToken);
+
                             orderStatusUrl = statusPage.toString();
                         }
+
                     } catch (statusErr) {
                         console.error('[ORDER STATUS URL ERROR]', statusErr);
                     }
                 }
 
-                if (newStatus === 'processing' && customerUid && !orderStatusUrl) {
+                if (
+                    newStatus === 'processing' &&
+                    customerUid &&
+                    (!statusToken || !orderStatusUrl)
+                ) {
                     console.error('[CTA REQUIRED] ไม่พบ order_status_url', {orderId, vendorId: currentVendorId, referenceNo: finalReferenceNo, customerUid, assignedQueue});
                     alert(
                         "⚠️ ร้านรับออเดอร์และออกเลขคิวแล้ว\n" +
@@ -360,8 +386,16 @@
                         order_ref: finalReferenceNo,
                         queue_num: newStatus === 'processing' ? assignedQueue : (assignedQueue || queueNum || '-')
                     };
-                    if (newStatus === 'processing' && orderStatusUrl) {
+                    if (newStatus === 'processing') {
+                        // CTA เป็นข้อมูลบังคับสำหรับ Flex ใบเลขคิว
                         notifyPayload.order_status_url = orderStatusUrl;
+                        notifyPayload.status_token = statusToken;
+
+                        // ส่ง base URL ไปให้ GAS เป็น fallback ชั้นที่ 2
+                        const statusBase = new URL('order-status.html', window.location.href);
+                        statusBase.search = '';
+                        statusBase.hash = '';
+                        notifyPayload.status_page_base_url = statusBase.toString();
                     }
                     console.log('[BRANCH NOTIFY CUSTOMER PAYLOAD]', notifyPayload);
                     const notifyResponse = await fetch(CONFIG.gasWebhookUrl, {
