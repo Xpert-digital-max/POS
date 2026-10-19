@@ -1207,10 +1207,14 @@
 
             alert(orderStatus === 'processing' ? "✅ ชำระเงินและสร้างออเดอร์เรียบร้อย!\nระบบออกเลขคิวแล้ว กรุณาติดตามสถานะร้าน" : "ส่งออเดอร์เรียบร้อยแล้ว!\n(รอร้านตรวจสอบและยืนยันสักครู่นะครับ)");
             
+            let customerNotifyWarning = '';
+            if (!customerUid || !CONFIG.gasWebhookUrl) {
+                customerNotifyWarning = 'ไม่มี LINE userId หรือยังไม่ได้ตั้งค่าลิงก์แจ้งเตือน';
+            }
             if (customerUid && CONFIG.gasWebhookUrl) {
                 // 1. แจ้งเตือนลูกค้าผ่าน LINE
                 try {
-                    await fetch(CONFIG.gasWebhookUrl, {
+                    const notifyResponse = await fetch(CONFIG.gasWebhookUrl, {
                         method: 'POST', 
                         redirect: 'follow', 
                         headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -1225,10 +1229,22 @@
                             order_ref: referenceNo,
                             queue_num: queueNo,
                             payment_method: paymentMethod,
-                            order_status_url: orderStatusUrl
+                            order_status_url: orderStatusUrl,
+                            status_token: insertedOrder.status_token || '',
+                            status_page_base_url: new URL('order-status.html', window.location.href).origin + new URL('order-status.html', window.location.href).pathname
                         })
                     });
+                    const notifyText = await notifyResponse.text();
+                    let result;
+                    try { result = JSON.parse(notifyText); }
+                    catch (_) { throw new Error('ระบบแจ้งเตือนไม่ได้ตอบกลับเป็น JSON กรุณาตรวจ deployment ของ Apps Script'); }
+                    if (!notifyResponse.ok || result.status !== 'success') {
+                        throw new Error((result.msg || 'ส่ง LINE ไม่สำเร็จ') +
+                            (result.line_status ? ' (LINE ' + result.line_status + ')' : ''));
+                    }
+                    if (result.cta_warning) customerNotifyWarning = result.cta_warning;
                 } catch (e) {
+                    customerNotifyWarning = e.message || 'ติดต่อระบบแจ้งเตือนไม่สำเร็จ';
                     console.error("Notify Customer Error:", e);
                 }
             }
@@ -1253,6 +1269,10 @@
                 }).catch(e => console.log("Notify Vendor Error:", e));
             }
 
+            if (customerNotifyWarning) {
+                alert('บันทึกออเดอร์ ' + referenceNo + ' สำเร็จแล้ว ไม่ต้องสั่งซ้ำ\n' +
+                    'การแจ้งเตือน LINE: ' + customerNotifyWarning + '\nกรุณาแจ้งหมายเลขออเดอร์กับร้าน');
+            }
             clearSlipPreview();
             clearSavedCart();
             if (liff.isInClient()) { 
