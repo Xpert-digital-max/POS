@@ -492,15 +492,44 @@
             document.body.appendChild(message);
         }
 
+        function isStorePackageExpired(data) {
+            if (!data || !data.subscription_expires_at) return false;
+            const expiresAt = new Date(data.subscription_expires_at).getTime();
+            return Number.isFinite(expiresAt) && expiresAt <= Date.now();
+        }
+
+        let tableSubscriptionClosed = false;
+
+        function showTableSubscriptionClosed() {
+            tableSubscriptionClosed = true;
+            const loader = document.getElementById('loader');
+            loader.innerHTML = '<h2 style="color:#f44336;">🔴 ร้านปิดรับออเดอร์</h2><p>ขณะนี้ร้านยังไม่พร้อมให้บริการ</p>';
+            loader.style.zIndex = '10001';
+            loader.style.display = 'flex';
+        }
+
         async function ensureStoreAvailable(silent = false) {
             if (storeUnavailable || !vendorData || !vendorData.id) return false;
             try {
                 const { data, error } = await supabaseClient.from('vendors')
-                    .select('id, is_subscription_active').eq('id', vendorData.id).single();
+                    .select('id, is_subscription_active, subscription_expires_at').eq('id', vendorData.id).single();
                 if (error) throw error;
                 if (!data || data.is_subscription_active === false) {
                     showStoreUnavailable();
                     return false;
+                }
+                vendorData.subscription_expires_at = data.subscription_expires_at;
+                if (isStorePackageExpired(vendorData)) {
+                    showTableSubscriptionClosed();
+                    return false;
+                }
+                if (tableSubscriptionClosed) {
+                    tableSubscriptionClosed = false;
+                    if (!sessionData) {
+                        await loadTableAndSession();
+                        return !!sessionData && !tableSubscriptionClosed && !storeUnavailable;
+                    }
+                    document.getElementById('loader').style.display = 'none';
                 }
                 return !storeUnavailable;
             } catch (error) {
@@ -564,6 +593,10 @@
                     return;
                 }
                 startStoreAvailabilityWatch();
+                if (isStorePackageExpired(vendorData)) {
+                    showTableSubscriptionClosed();
+                    return;
+                }
                 if (vendorData.restaurant_mode_enabled !== true) { throw new Error("ร้านค้านี้ยังไม่ได้เปิดใช้งานโหมดสั่งอาหารที่โต๊ะ"); } 
                 document.getElementById('storeName').innerText = vendorData.name; 
                 if (vendorData.line_picture_url) { document.getElementById('storeLogo').src = vendorData.line_picture_url; document.getElementById('storeLogo').style.display = 'block'; } 
