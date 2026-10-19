@@ -78,6 +78,14 @@
             background: #f8fafc !important;
         }
 
+        /* จางเฉพาะข้อความในช่องข้อมูลที่บันทึกแล้ว ไม่จางปุ่มหรือกรอบ */
+        #storeSettingsGroup.npx-settings-locked input:not([type="button"]):not([type="submit"]):not([type="reset"]),
+        #storeSettingsGroup.npx-settings-locked textarea,
+        #storeSettingsGroup.npx-settings-locked select {
+            color: #9ca3af !important;
+            -webkit-text-fill-color: #9ca3af !important;
+        }
+
 </style>
 </head>
 <body>
@@ -4123,13 +4131,37 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
         // ==================== ระบบตั้งค่าทั่วไป ====================
         function setPaymentFieldsState(isEditing) {
             const group = document.getElementById('storeSettingsGroup'); const btn = document.getElementById('saveSettingsBtn');
+            if (group) {
+                // ล็อกเฉพาะช่องกรอก ปุ่มส่ง LINE / คัดลอก / แชร์ / QR ยังคงใช้ได้
+                group.style.opacity = '1';
+                group.style.pointerEvents = 'auto';
+                group.classList.toggle('npx-settings-locked', !isEditing);
+                group.querySelectorAll('input, textarea, select').forEach(field => {
+                    if (field.matches('input[type="button"], input[type="submit"], input[type="reset"], input[type="hidden"]')) return;
+                    if (isEditing) {
+                        // คืนเฉพาะค่าที่ฟังก์ชันนี้ล็อกไว้ ไม่ปลด readonly เดิมของลิงก์/พิกัด
+                        if (field.hasAttribute('data-npx-settings-readonly')) {
+                            field.readOnly = false;
+                            field.removeAttribute('data-npx-settings-readonly');
+                        }
+                        if (field.hasAttribute('data-npx-settings-disabled')) {
+                            field.disabled = false;
+                            field.removeAttribute('data-npx-settings-disabled');
+                        }
+                    } else if (field.matches('textarea, input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"])')) {
+                        if (!field.readOnly) {
+                            field.readOnly = true;
+                            field.setAttribute('data-npx-settings-readonly', '');
+                        }
+                    } else if (!field.disabled) {
+                        field.disabled = true;
+                        field.setAttribute('data-npx-settings-disabled', '');
+                    }
+                });
+            }
             if (isEditing) {
-                if(group) { group.style.opacity = '1'; group.style.pointerEvents = 'auto'; }
-                document.getElementById('settingStoreName').readOnly = false; document.getElementById('settingPhone').readOnly = false; document.getElementById('settingPromptpay').readOnly = false; document.getElementById('settingBankInfo').readOnly = false;
                 if(btn) { btn.innerText = "💾 บันทึกข้อมูลร้านค้า"; btn.style.background = "#06C755"; }
             } else {
-                if(group) { group.style.opacity = '0.6'; group.style.pointerEvents = 'none'; }
-                document.getElementById('settingStoreName').readOnly = true; document.getElementById('settingPhone').readOnly = true; document.getElementById('settingPromptpay').readOnly = true; document.getElementById('settingBankInfo').readOnly = true;
                 if(btn) { btn.innerText = "✏️ แก้ไขข้อมูลร้านค้า"; btn.style.background = "#f59e0b"; }
             }
         }
