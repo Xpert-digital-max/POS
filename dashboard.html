@@ -693,6 +693,47 @@
                 </div>
             </div>
 
+                    <!-- ===== PHASE 2.1: สาขาหลักรวมทุกอย่างไว้จุดเดียว ===== -->
+                    <div id="mainBranchSection" style="background:#f8f5ff;border:2px solid #7e57c2;border-radius:12px;padding:14px;margin-bottom:15px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
+                            <div>
+                                <div style="font-size:17px;font-weight:900;color:#6a1b9a;">👑 สาขาหลัก</div>
+                                <div style="font-size:11px;color:#777;margin-top:2px;">ตั้งค่าช่องทางสั่งอาหาร ตำแหน่ง และการเข้าถึงของพนักงานในที่เดียว</div>
+                            </div>
+                            <span style="background:#e1bee7;color:#6a1b9a;padding:4px 9px;border-radius:999px;font-size:11px;font-weight:bold;white-space:nowrap;">MAIN</span>
+                        </div>
+
+                        <div style="background:#f4fdf6;padding:10px;border-radius:8px;border:1px dashed #00B900;margin-bottom:10px;">
+                            <label style="font-size:12px;font-weight:bold;color:#008a3b;">🍔 ช่องทางสั่งกลับบ้าน / ล่วงหน้า (Takeaway)</label>
+                            <div style="display:flex;gap:6px;margin-top:7px;">
+                                <input type="text" id="customerLinkText" readonly style="flex:1;min-width:0;padding:9px;border:1px solid #b7dfc4;border-radius:6px;font-size:11px;background:#fff;color:#333;">
+                                <button type="button" onclick="copyCustomerLink()" style="background:#00838F;color:white;border:none;padding:9px 12px;border-radius:6px;font-size:12px;font-weight:bold;">คัดลอก</button>
+                            </div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px;">
+                                <button type="button" onclick="shareCustomerFlex()" style="background:#00B900;color:white;border:none;padding:10px;border-radius:6px;font-size:12px;font-weight:bold;">📲 ส่งให้ลูกค้า</button>
+                                <button type="button" onclick="showCustomerQr()" style="background:#00BCD4;color:white;border:none;padding:10px;border-radius:6px;font-size:12px;font-weight:bold;">📷 QR สั่งกลับบ้าน</button>
+                            </div>
+                        </div>
+
+                        <div style="background:#eef7ff;padding:10px;border-radius:8px;border:1px dashed #2196F3;margin-bottom:10px;">
+                            <label style="font-size:12px;font-weight:bold;color:#1565c0;">📍 ที่อยู่สั้นและตำแหน่งสาขาหลัก</label>
+                            <textarea id="settingAddress" rows="2" placeholder="เช่น คีรีการ ใกล้ตลาด / ปากซอย..." style="width:100%;padding:9px;margin-top:7px;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:6px;resize:none;"></textarea>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px;">
+                                <input type="text" id="settingLat" placeholder="Latitude" readonly style="width:100%;padding:9px;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;">
+                                <input type="text" id="settingLng" placeholder="Longitude" readonly style="width:100%;padding:9px;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;">
+                            </div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px;">
+                                <button type="button" onclick="getCurrentGPS()" style="background:#2196F3;color:#fff;border:none;padding:9px;border-radius:6px;font-size:12px;font-weight:bold;"><span id="gpsIcon">📍</span> ดึงพิกัด</button>
+                                <button type="button" onclick="saveMainBranchLocation()" style="background:#1565c0;color:#fff;border:none;padding:9px;border-radius:6px;font-size:12px;font-weight:bold;">💾 บันทึกตำแหน่ง</button>
+                            </div>
+                        </div>
+
+                        <div style="background:#fff8e1;padding:10px;border-radius:8px;border:1px dashed #ff9800;">
+                            <label style="font-size:12px;font-weight:bold;color:#e65100;">👨‍🍳 หน้ารับออเดอร์ของพนักงาน (สาขาหลัก)</label>
+                            <div id="mainBranchStaffAccess" style="margin-top:7px;font-size:12px;color:#666;">กำลังโหลดข้อมูลสาขาหลัก...</div>
+                        </div>
+                    </div>
+
             <!-- ====== การตั้งค่าข้อมูลทั่วไปของร้านค้า และช่องทางรับเงิน ====== -->
             <div class="card" style="background: #f9f9f9; border: 1px dashed #ccc;">
                 <h3 style="margin-top: 0; color: #333;">⚙️ ข้อมูลร้านค้าและช่องทางรับเงิน (สาขาหลัก)</h3>
@@ -749,48 +790,6 @@
                         อนุญาตให้ลูกค้ารับชำระด้วยเงินสดที่หน้าร้าน
                     </label>
 
-                    <!-- ===== PHASE 2.1: สาขาหลักรวมทุกอย่างไว้จุดเดียว ===== -->
-                    <div class="section-divider"></div>
-                    <div style="background:#f8f5ff;border:2px solid #7e57c2;border-radius:12px;padding:14px;margin-bottom:15px;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
-                            <div>
-                                <div style="font-size:17px;font-weight:900;color:#6a1b9a;">👑 สาขาหลัก</div>
-                                <div style="font-size:11px;color:#777;margin-top:2px;">ตั้งค่าช่องทางสั่งอาหาร ตำแหน่ง และการเข้าถึงของพนักงานในที่เดียว</div>
-                            </div>
-                            <span style="background:#e1bee7;color:#6a1b9a;padding:4px 9px;border-radius:999px;font-size:11px;font-weight:bold;white-space:nowrap;">MAIN</span>
-                        </div>
-
-                        <div style="background:#f4fdf6;padding:10px;border-radius:8px;border:1px dashed #00B900;margin-bottom:10px;">
-                            <label style="font-size:12px;font-weight:bold;color:#008a3b;">🍔 ช่องทางสั่งกลับบ้าน / ล่วงหน้า (Takeaway)</label>
-                            <div style="display:flex;gap:6px;margin-top:7px;">
-                                <input type="text" id="customerLinkText" readonly style="flex:1;min-width:0;padding:9px;border:1px solid #b7dfc4;border-radius:6px;font-size:11px;background:#fff;color:#333;">
-                                <button type="button" onclick="copyCustomerLink()" style="background:#00838F;color:white;border:none;padding:9px 12px;border-radius:6px;font-size:12px;font-weight:bold;">คัดลอก</button>
-                            </div>
-                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px;">
-                                <button type="button" onclick="shareCustomerFlex()" style="background:#00B900;color:white;border:none;padding:10px;border-radius:6px;font-size:12px;font-weight:bold;">📲 ส่งให้ลูกค้า</button>
-                                <button type="button" onclick="showCustomerQr()" style="background:#00BCD4;color:white;border:none;padding:10px;border-radius:6px;font-size:12px;font-weight:bold;">📷 QR สั่งกลับบ้าน</button>
-                            </div>
-                        </div>
-
-                        <div style="background:#eef7ff;padding:10px;border-radius:8px;border:1px dashed #2196F3;margin-bottom:10px;">
-                            <label style="font-size:12px;font-weight:bold;color:#1565c0;">📍 ที่อยู่สั้นและตำแหน่งสาขาหลัก</label>
-                            <textarea id="settingAddress" rows="2" placeholder="เช่น คีรีการ ใกล้ตลาด / ปากซอย..." style="width:100%;padding:9px;margin-top:7px;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:6px;resize:none;"></textarea>
-                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px;">
-                                <input type="text" id="settingLat" placeholder="Latitude" readonly style="width:100%;padding:9px;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;">
-                                <input type="text" id="settingLng" placeholder="Longitude" readonly style="width:100%;padding:9px;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;">
-                            </div>
-                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px;">
-                                <button type="button" onclick="getCurrentGPS()" style="background:#2196F3;color:#fff;border:none;padding:9px;border-radius:6px;font-size:12px;font-weight:bold;"><span id="gpsIcon">📍</span> ดึงพิกัด</button>
-                                <button type="button" onclick="saveMainBranchLocation()" style="background:#1565c0;color:#fff;border:none;padding:9px;border-radius:6px;font-size:12px;font-weight:bold;">💾 บันทึกตำแหน่ง</button>
-                            </div>
-                        </div>
-
-                        <div style="background:#fff8e1;padding:10px;border-radius:8px;border:1px dashed #ff9800;">
-                            <label style="font-size:12px;font-weight:bold;color:#e65100;">👨‍🍳 หน้ารับออเดอร์ของพนักงาน (สาขาหลัก)</label>
-                            <div id="mainBranchStaffAccess" style="margin-top:7px;font-size:12px;color:#666;">กำลังโหลดข้อมูลสาขาหลัก...</div>
-                        </div>
-                    </div>
-                </div>
                 <!-- เริ่มต้น: ส่วนตั้งค่า Marketplace -->
 <div class="section-divider"></div>
 
@@ -945,6 +944,8 @@
     </div>
 <!-- สิ้นสุด: ส่วนตั้งค่า Marketplace -->
 
+                </div>
+                </div>
                 <button onclick="updateStoreSettings(this)" id="saveSettingsBtn" style="background: #06C755; color: white; border: none; padding: 12px; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold;">💾 บันทึกข้อมูลร้านค้า</button>
             </div>
 
@@ -2098,8 +2099,9 @@ async function loadVendorData(uid) {
                             <label style="font-size:12px;font-weight:bold;color:#e65100;">📞 เบอร์โทรติดต่อสาขานี้</label>
                             <div style="display:flex;gap:6px;margin-top:6px;">
                                 <input type="tel" id="branchPhone_${b.id}" value="${String(b.customer_contact_phone || '').replace(/"/g,'&quot;')}" placeholder="เช่น 0812345678"
+                                       ${String(b.customer_contact_phone || '').trim() ? 'readonly class="npx-saved-readonly"' : ''}
                                        style="flex:1;min-width:0;padding:8px;border:1px solid #ddd;border-radius:5px;font-size:12px;">
-                                <button type="button" onclick="saveBranchContactPhone('${b.id}')" style="background:#ff9800;color:#fff;border:none;padding:8px 10px;border-radius:5px;font-size:12px;font-weight:bold;">💾 บันทึก</button>
+                                <button type="button" id="branchPhoneSave_${b.id}" onclick="saveBranchContactPhone('${b.id}')" style="background:#ff9800;color:#fff;border:none;padding:8px 10px;border-radius:5px;font-size:12px;font-weight:bold;">${String(b.customer_contact_phone || '').trim() ? '✏️ แก้ไข' : '💾 บันทึก'}</button>
                             </div>
                             <div style="font-size:10px;color:#777;margin-top:5px;">ใช้เป็นปุ่มโทรในหน้าติดตามสถานะของลูกค้า</div>
                         </div>
@@ -2212,6 +2214,14 @@ async function loadVendorData(uid) {
 
         async function saveBranchContactPhone(branchId) {
             const input = document.getElementById(`branchPhone_${branchId}`);
+            const button = document.getElementById(`branchPhoneSave_${branchId}`);
+            if (input && input.readOnly) {
+                input.readOnly = false;
+                input.classList.remove('npx-saved-readonly');
+                if (button) button.innerText = '💾 บันทึก';
+                input.focus();
+                return;
+            }
             const phone = (input?.value || '').trim();
             if (!phone) return alert('กรุณากรอกเบอร์โทรติดต่อสาขา');
 
@@ -2221,6 +2231,9 @@ async function loadVendorData(uid) {
                     .update({ customer_contact_phone: phone })
                     .eq('id', branchId);
                 if (error) throw error;
+                input.readOnly = true;
+                input.classList.add('npx-saved-readonly');
+                if (button) button.innerText = '✏️ แก้ไข';
                 alert('✅ บันทึกเบอร์โทรติดต่อสาขาแล้ว');
                 await loadBranches();
             } catch (err) {
