@@ -444,17 +444,37 @@
             document.body.appendChild(message);
         }
 
+        function isStorePackageExpired(data) {
+            if (!data || !data.subscription_expires_at) return false;
+            const expiresAt = new Date(data.subscription_expires_at).getTime();
+            return Number.isFinite(expiresAt) && expiresAt <= Date.now();
+        }
+
+        function syncCustomerStoreStatus() {
+            const expired = isStorePackageExpired(vendorData);
+            const open = vendorData.is_open && !expired;
+            const badge = document.getElementById('storeStatus');
+            badge.innerText = open ? '🟢 เปิดรับออเดอร์' : '🔴 ปิดรับออเดอร์';
+            badge.className = open ? 'status-badge status-open' : 'status-badge status-closed';
+            const overlay = document.getElementById('closedOverlay');
+            overlay.style.display = open ? 'none' : 'flex';
+            if (expired) overlay.style.zIndex = '10001';
+            return !!open;
+        }
+
         async function ensureStoreAvailable(silent = false) {
             if (storeUnavailable || !vendorData || !vendorData.id) return false;
             try {
                 const { data, error } = await supabaseClient.from('vendors')
-                    .select('id, is_subscription_active').eq('id', vendorData.id).single();
+                    .select('id, is_subscription_active, subscription_expires_at, is_open').eq('id', vendorData.id).single();
                 if (error) throw error;
                 if (!data || data.is_subscription_active === false) {
                     showStoreUnavailable();
                     return false;
                 }
-                return !storeUnavailable;
+                vendorData.is_open = data.is_open;
+                vendorData.subscription_expires_at = data.subscription_expires_at;
+                return syncCustomerStoreStatus() && !storeUnavailable;
             } catch (error) {
                 console.warn('Cannot verify store availability:', error);
                 if (!silent) alert('ไม่สามารถตรวจสอบสถานะร้านค้าได้ กรุณาลองใหม่');
@@ -528,15 +548,7 @@
 
                 document.getElementById('storeName').innerText = vendorData.name; 
                 if (vendorData.line_picture_url) document.getElementById('storeLogo').src = vendorData.line_picture_url; 
-                const statusBadge = document.getElementById('storeStatus'); 
-                if (vendorData.is_open) { 
-                    statusBadge.innerText = "🟢 เปิดรับออเดอร์"; 
-                    statusBadge.className = "status-badge status-open"; 
-                } else { 
-                    statusBadge.innerText = "🔴 ปิดรับออเดอร์"; 
-                    statusBadge.className = "status-badge status-closed"; 
-                    document.getElementById('closedOverlay').style.display = "flex"; 
-                } 
+                syncCustomerStoreStatus();
 
                 // เริ่มต้น LIFF (ป้องกันการค้างด้วยการดึงโปรไฟล์อย่างปลอดภัย)
                 const liffToUse = vendorData.liff_customer_id ? vendorData.liff_customer_id.trim() : (CONFIG.liffIdCustomer || '');
