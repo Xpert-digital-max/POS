@@ -308,6 +308,18 @@
         // NOTE: ใช้ RPC เดิมของ Production สำหรับรับออเดอร์/แจกคิว
         // เพิ่มเฉพาะ CTA ดูสถานะ โดยไม่เปลี่ยน flow เดิม
 
+        // รับเฉพาะค่า token ไม่แปลง object เป็น "[object Object]"
+        function normalizeOrderStatusToken(value) {
+            if (typeof value === 'string') return value.trim();
+            if (Array.isArray(value)) {
+                return value.length === 1 ? normalizeOrderStatusToken(value[0]) : '';
+            }
+            if (value && typeof value === 'object') {
+                return normalizeOrderStatusToken(value.status_token || value.get_takeaway_status_token || '');
+            }
+            return '';
+        }
+
         async function getTakeawayStatusTokenWithRetry(vendorId, referenceNo, customerUid, existingToken = '') {
             let token = String(existingToken || '').trim();
             if (token) return token;
@@ -336,7 +348,7 @@
                     }
 
                     if (data) {
-                        token = String(data).trim();
+                        token = normalizeOrderStatusToken(data);
                         if (token) return token;
                     }
                 } catch (err) {
@@ -425,10 +437,29 @@
                 // ---------------------------------------------------------
                 // 2) เตรียม CTA โดยไม่ให้การหา token ไปขวาง Flex แจกคิว
                 // ---------------------------------------------------------
-                let statusToken = String(data.status_token || statusTokenFromOrder || '').trim();
+                let statusToken = normalizeOrderStatusToken(data.status_token) || normalizeOrderStatusToken(statusTokenFromOrder);
                 let orderStatusUrl = '';
 
                 if (newStatus === 'processing') {
+                    // ใช้ session สาขาเดิม อ่าน token เฉพาะออเดอร์ที่เพิ่งรับ
+                    // ห้ามเลือกจากเลขคิวหรือออเดอร์ล่าสุด เพราะลูกค้าสั่งหลายร้านได้
+                    if (!statusToken && sessionToken) {
+                        try {
+                            const { data: refreshed, error: refreshError } = await supabaseClient.rpc(
+                                'get_branch_orders', { p_token: sessionToken }
+                            );
+                            const rows = refreshed && refreshed.success === true && Array.isArray(refreshed.data)
+                                ? refreshed.data : [];
+                            const sameOrder = !refreshError && rows.find(row =>
+                                String(row.id) === String(orderId) &&
+                                String(row.customer_uid || '') === finalCustomerUid &&
+                                (!row.vendor_id || String(row.vendor_id) === String(finalVendorId))
+                            );
+                            if (sameOrder) statusToken = normalizeOrderStatusToken(sameOrder.status_token);
+                        } catch (statusError) {
+                            console.warn('[ORDER STATUS] อ่าน token ไม่สำเร็จ ยังคงส่ง Flex เดิม');
+                        }
+                    }
                     if (!statusToken) {
                         statusToken = await getTakeawayStatusTokenWithRetry(
                             finalVendorId,
@@ -495,7 +526,9 @@ if (newStatus === 'processing') {
     notifyPayload.status_page_base_url =
         statusBase.toString();
 
-    if (finalStatusToken) {
+    if (orderStatusUrl) {
+        notifyPayload.order_status_url = orderStatusUrl;
+    } else if (finalStatusToken) {
 
         const statusUrl =
             new URL(
