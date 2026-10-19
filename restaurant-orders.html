@@ -1039,7 +1039,9 @@
                     store_name:order.store_name || 'ร้านอาหาร',
                     branch_name:order.branchName || order.branch_name || 'สาขาหลัก',
                     order_ref:order.reference_no || order.id || '-',
-                    queue_num:order.queue_no || '-'
+                    queue_num:order.queue_no || '-',
+                    status_token:order.status_token || '',
+                    status_page_base_url:new URL('order-status.html',window.location.href).origin + new URL('order-status.html',window.location.href).pathname
                 };
 
                 if (newStatus === 'processing' && orderStatusUrl) {
@@ -1052,7 +1054,17 @@
                     headers:{'Content-Type':'text/plain;charset=utf-8'},
                     body:JSON.stringify(payload)
                 });
-                console.log(`[CUSTOMER NOTIFY] ${newStatus}:`,await response.text());
+                const text=await response.text();
+                let result;
+                try { result=JSON.parse(text); } catch (_) {}
+                if (!response.ok || !result || result.status !== 'success') {
+                    alert('อัปเดตออเดอร์สำเร็จแล้ว แต่แจ้ง LINE ไม่สำเร็จ\n' +
+                        ((result && result.msg) || 'ระบบแจ้งเตือนไม่ได้ตอบกลับเป็น JSON') +
+                        (result && result.line_status ? ' (LINE ' + result.line_status + ')' : '') +
+                        '\nไม่ต้องรับออเดอร์ซ้ำ');
+                } else if (result.cta_warning) {
+                    alert('ส่ง Flex แล้ว แต่ปุ่มดูสถานะยังไม่พร้อม: ' + result.cta_warning);
+                }
             } catch(err) {
                 console.error('[CUSTOMER NOTIFY ERROR]',err);
             }
