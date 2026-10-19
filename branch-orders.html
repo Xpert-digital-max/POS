@@ -400,6 +400,8 @@
                         : null;
 
                 const finalReferenceNo = data.reference_no || orderRef || '-';
+                const finalVendorId = data.vendor_id || currentVendorId || '';
+                const finalCustomerUid = data.customer_uid || customerUid || '';
                 const finalVendorId = vendorIdFromOrder || data.vendor_id || currentVendorId || '';
                 if (finalVendorId) currentVendorId = finalVendorId;
 
@@ -407,82 +409,93 @@
                     throw new Error('รับออเดอร์สำเร็จ แต่ระบบไม่ได้คืนเลขคิว');
                 }
 
-                let statusToken = '';
-                let orderStatusUrl = '';
+                // =========================================================
+// ORDER STATUS CTA
+// รับ status_token มาจาก RPC เดียวกับที่แจกเลขคิว
+// ไม่ต้อง query รอบสองอีกแล้ว
+// =========================================================
 
-                if (newStatus === 'processing') {
-                    statusToken = await getTakeawayStatusTokenWithRetry(
-                        finalVendorId,
-                        finalReferenceNo,
-                        customerUid,
-                        statusTokenFromOrder
-                    );
-                    orderStatusUrl = buildOrderStatusUrl(statusToken);
+let statusToken =
+    String(
+        data.status_token ||
+        ''
+    ).trim();
 
-                    console.log('[ORDER STATUS CTA]', {
-                        orderId,
-                        vendorId: finalVendorId,
-                        referenceNo: finalReferenceNo,
-                        customerUid,
-                        assignedQueue,
-                        statusToken,
-                        orderStatusUrl
-                    });
 
-                    if (customerUid && (!statusToken || !orderStatusUrl)) {
-                        await loadBranchOrders();
-                        throw new Error('ระบบออกเลขคิวแล้ว แต่ไม่พบ status_token จึงไม่ส่ง Flex ที่ไม่มีปุ่มดูสถานะ');
-                    }
-                }
+let orderStatusUrl = '';
 
-                if (customerUid && String(customerUid).trim() !== '' && finalVendorId && CONFIG.gasWebhookUrl) {
-                    const notifyPayload = {
-                        action: 'notify_customer',
-                        vendor_id: finalVendorId,
-                        uid: customerUid,
-                        order_status: newStatus,
-                        store_name: currentStoreName || 'ร้านค้า',
-                        branch_name: document.getElementById('displayBranchName').innerText || 'สาขา',
-                        order_ref: finalReferenceNo,
-                        queue_num: newStatus === 'processing'
-                            ? assignedQueue
-                            : (assignedQueue || queueNum || '-')
-                    };
 
-                    if (newStatus === 'processing') {
-                        notifyPayload.order_status_url = orderStatusUrl;
-                        notifyPayload.status_token = statusToken;
+// ---------------------------------------------------------
+// เฉพาะตอนร้านรับออเดอร์
+// ---------------------------------------------------------
 
-                        const statusBase = new URL('order-status.html', window.location.href);
-                        statusBase.search = '';
-                        statusBase.hash = '';
-                        notifyPayload.status_page_base_url = statusBase.toString();
-                    }
+if (
+    newStatus === 'processing'
+) {
 
-                    console.log('[BRANCH NOTIFY CUSTOMER PAYLOAD]', notifyPayload);
+    // -----------------------------------------------------
+    // ตรวจ token
+    // -----------------------------------------------------
 
-                    const notifyResponse = await fetch(CONFIG.gasWebhookUrl, {
-                        method: 'POST',
-                        redirect: 'follow',
-                        cache: 'no-store',
-                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                        body: JSON.stringify(notifyPayload)
-                    });
+    if (!statusToken) {
 
-                    const notifyText = await notifyResponse.text();
-                    console.log('[BRANCH NOTIFY CUSTOMER RESULT]', notifyText);
+        console.error(
+            '[STATUS TOKEN MISSING]',
+            data
+        );
 
-                    let notifyResult = null;
-                    try { notifyResult = JSON.parse(notifyText); } catch (_) {}
 
-                    if (notifyResult && notifyResult.status === 'error') {
-                        throw new Error(notifyResult.msg || notifyResult.code || 'GAS ปฏิเสธการส่ง Flex');
-                    }
-                }
+        throw new Error(
+            'ระบบรับออเดอร์และออกเลขคิวแล้ว แต่ RPC ไม่คืน status_token'
+        );
 
-                await loadBranchOrders();
+    }
 
-            } catch (err) {
+
+    // -----------------------------------------------------
+    // สร้าง URL ติดตามออเดอร์
+    // -----------------------------------------------------
+
+    const statusPage =
+        new URL(
+            'order-status.html',
+            window.location.href
+        );
+
+
+    statusPage.search = '';
+
+    statusPage.hash = '';
+
+
+    statusPage.searchParams.set(
+        'token',
+        statusToken
+    );
+
+
+    orderStatusUrl =
+        statusPage.toString();
+
+
+    console.log(
+        '[ORDER STATUS CTA READY]',
+        {
+            reference_no:
+                data.reference_no,
+
+            queue_no:
+                data.queue_no,
+
+            status_token:
+                statusToken,
+
+            order_status_url:
+                orderStatusUrl
+        }
+    );
+
+}
                 console.error('[BRANCH ORDER STATUS ERROR]', err);
                 alert('การเปลี่ยนสถานะ/แจ้งลูกค้าล้มเหลว:\n' + (err && err.message ? err.message : String(err)));
                 btnElement.innerText = originalText;
