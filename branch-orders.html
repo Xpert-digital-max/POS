@@ -239,6 +239,8 @@
                             : 'คิว: -');
                 const custUid = order.customer_uid || '';
                 const queueParam = actualQueueNum !== null ? actualQueueNum : '';
+                const vendorParam = order.vendor_id || currentVendorId || '';
+                const statusTokenParam = order.status_token || '';
                 
                 const isCashOrder = itemsArray.some(
                     item =>
@@ -247,18 +249,41 @@
                 );
                 const paymentType = isCashOrder ? 'cash' : 'transfer';
                 
-                // ใช้ข้อมูลจาก Record ปัจจุบัน (vendor_id มาจากตาราง orders) เพื่อส่ง Notification
-                currentVendorId = order.vendor_id; 
-                let statusBadge = ''; let actionButtons = '';
+                if (vendorParam) currentVendorId = vendorParam;
+
+                let statusBadge = ''; 
+                let actionButtons = '';
+
                 if (order.status === 'pending') { 
                     statusBadge = isCashOrder
                         ? '<span class="status-badge" style="background: #fff3cd; color: #856404;">💵 ชำระเงินสด</span>'
                         : '<span class="status-badge" style="background: #fff3cd; color: #856404;">⏳ รอตรวจสอบสลิป</span>'; 
-                    actionButtons = `<button onclick="updateOrderStatus('${order.id}','processing','${custUid}', '${orderRef}','${queueParam}', this, '${paymentType}')" class="btn-action" style="background: #06C755; flex: 1;">✅ รับออเดอร์</button> <button onclick="updateOrderStatus('${order.id}','rejected','${custUid}', '${orderRef}','${queueParam}', this, '${paymentType}')" class="btn-action" style="background: #ff4d4f; flex: 1;">❌ ปฏิเสธ</button>`; 
+
+                    actionButtons = `
+                        <button
+                            onclick="updateOrderStatus('${order.id}','processing','${custUid}','${orderRef}','${queueParam}',this,'${paymentType}','${vendorParam}','${statusTokenParam}')"
+                            class="btn-action"
+                            style="background:#06C755;flex:1;">
+                            ✅ รับออเดอร์
+                        </button>
+                        <button
+                            onclick="updateOrderStatus('${order.id}','rejected','${custUid}','${orderRef}','${queueParam}',this,'${paymentType}','${vendorParam}','${statusTokenParam}')"
+                            class="btn-action"
+                            style="background:#ff4d4f;flex:1;">
+                            ❌ ปฏิเสธ
+                        </button>
+                    `;
                 } 
                 else if (order.status === 'processing') {
-                    statusBadge = '<span class="status-badge" style="background: #cce5ff; color: #004085;">กำลังทำอาหาร 🍳</span>'; 
-                    actionButtons = `<button onclick="updateOrderStatus('${order.id}','completed','${custUid}', '${orderRef}','${queueParam}', this)" class="btn-action" style="background: #2196F3; width: 100%;">🏁 อาหารเสร็จแล้ว</button>`; 
+                    statusBadge = '<span class="status-badge" style="background:#cce5ff;color:#004085;">กำลังทำอาหาร 🍳</span>'; 
+                    actionButtons = `
+                        <button
+                            onclick="updateOrderStatus('${order.id}','completed','${custUid}','${orderRef}','${queueParam}',this,'transfer','${vendorParam}','${statusTokenParam}')"
+                            class="btn-action"
+                            style="background:#2196F3;width:100%;">
+                            🏁 อาหารเสร็จแล้ว
+                        </button>
+                    `;
                 }
                 html += `
                     <div class="card" style="border-left: 4px solid #06C755;">
@@ -279,9 +304,62 @@
             listDiv.innerHTML = html;
         }
 
-       // ==================== ระบบอัปเดตสถานะ (แจ้ง GAS ด้วย) ====================
         // ==================== ระบบอัปเดตสถานะ (แจ้ง GAS ด้วย) ====================
-        async function updateOrderStatus(orderId, newStatus, customerUid, orderRef, queueNum, btnElement, paymentType = 'transfer') {
+        async function getTakeawayStatusTokenWithRetry(vendorId, referenceNo, customerUid, existingToken = '') {
+            let token = String(existingToken || '').trim();
+            if (token) return token;
+            if (!vendorId || !referenceNo || referenceNo === '-' || !customerUid) return '';
+
+            const waits = [0, 250, 700];
+            for (let i = 0; i < waits.length; i++) {
+                if (waits[i] > 0) {
+                    await new Promise(resolve => setTimeout(resolve, waits[i]));
+                }
+                try {
+                    const { data, error } = await supabaseClient.rpc(
+                        'get_takeaway_status_token',
+                        {
+                            p_vendor_id: String(vendorId),
+                            p_reference_no: String(referenceNo),
+                            p_customer_uid: String(customerUid)
+                        }
+                    );
+                    if (error) {
+                        console.error('[ORDER STATUS TOKEN RPC ERROR]', { attempt: i + 1, error });
+                        continue;
+                    }
+                    if (data) {
+                        token = String(data).trim();
+                        if (token) return token;
+                    }
+                } catch (err) {
+                    console.error('[ORDER STATUS TOKEN RETRY ERROR]', { attempt: i + 1, err });
+                }
+            }
+            return '';
+        }
+
+        function buildOrderStatusUrl(statusToken) {
+            const token = String(statusToken || '').trim();
+            if (!token) return '';
+            const url = new URL('order-status.html', window.location.href);
+            url.search = '';
+            url.hash = '';
+            url.searchParams.set('token', token);
+            return url.toString();
+        }
+
+        async function updateOrderStatus(
+            orderId,
+            newStatus,
+            customerUid,
+            orderRef,
+            queueNum,
+            btnElement,
+            paymentType = 'transfer',
+            vendorIdFromOrder = '',
+            statusTokenFromOrder = ''
+        ) {
             let confirmMsg = "";
             if (newStatus === 'processing') {
                 confirmMsg = paymentType === 'cash'
@@ -292,125 +370,124 @@
             } else {
                 confirmMsg = "ต้องการยกเลิกออเดอร์นี้ใช่หรือไม่?";
             }
+
             if (!confirm(confirmMsg)) return;
+
             const originalText = btnElement.innerText;
             btnElement.innerText = "⏳ กำลังส่งข้อมูล...";
             btnElement.disabled = true;
+
             try {
                 const { data, error } = await supabaseClient.rpc(
                     'update_branch_order_status',
-                    { p_token: sessionToken, p_order_id: orderId, p_new_status: newStatus }
+                    {
+                        p_token: sessionToken,
+                        p_order_id: orderId,
+                        p_new_status: newStatus
+                    }
                 );
+
                 if (error) throw error;
-                if (!data || data.success !== true) throw new Error((data && data.message) || "อัปเดตสถานะไม่สำเร็จ");
-
-                const assignedQueue = data.queue_no !== null && data.queue_no !== undefined && data.queue_no !== '' ? data.queue_no : null;
-                const finalReferenceNo = data.reference_no || orderRef || '-';
-
-                if (newStatus === 'processing' && !assignedQueue) {
-                    console.error('[QUEUE ERROR] RPC ไม่คืน queue_no', data);
-                    throw new Error('รับออเดอร์สำเร็จแต่ระบบไม่ได้คืนเลขคิว');
+                if (!data || data.success !== true) {
+                    throw new Error((data && data.message) || "อัปเดตสถานะไม่สำเร็จ");
                 }
 
-                let orderStatusUrl = '';
+                const assignedQueue =
+                    data.queue_no !== null &&
+                    data.queue_no !== undefined &&
+                    data.queue_no !== ''
+                        ? data.queue_no
+                        : null;
+
+                const finalReferenceNo = data.reference_no || orderRef || '-';
+                const finalVendorId = vendorIdFromOrder || data.vendor_id || currentVendorId || '';
+                if (finalVendorId) currentVendorId = finalVendorId;
+
+                if (newStatus === 'processing' && !assignedQueue) {
+                    throw new Error('รับออเดอร์สำเร็จ แต่ระบบไม่ได้คืนเลขคิว');
+                }
+
                 let statusToken = '';
+                let orderStatusUrl = '';
 
-                if (
-                    newStatus === 'processing' &&
-                    customerUid &&
-                    currentVendorId &&
-                    finalReferenceNo &&
-                    finalReferenceNo !== '-'
-                ) {
-                    try {
-                        const { data: statusTokenData, error: statusTokenError } =
-                            await supabaseClient.rpc(
-                                'get_takeaway_status_token',
-                                {
-                                    p_vendor_id: String(currentVendorId),
-                                    p_reference_no: String(finalReferenceNo),
-                                    p_customer_uid: String(customerUid)
-                                }
-                            );
+                if (newStatus === 'processing') {
+                    statusToken = await getTakeawayStatusTokenWithRetry(
+                        finalVendorId,
+                        finalReferenceNo,
+                        customerUid,
+                        statusTokenFromOrder
+                    );
+                    orderStatusUrl = buildOrderStatusUrl(statusToken);
 
-                        if (statusTokenError) {
-                            console.error('[ORDER STATUS TOKEN ERROR]', statusTokenError);
-                        }
+                    console.log('[ORDER STATUS CTA]', {
+                        orderId,
+                        vendorId: finalVendorId,
+                        referenceNo: finalReferenceNo,
+                        customerUid,
+                        assignedQueue,
+                        statusToken,
+                        orderStatusUrl
+                    });
 
-                        statusToken = statusTokenData
-                            ? String(statusTokenData).trim()
-                            : '';
-
-                        if (statusToken) {
-                            const statusPage = new URL(
-                                'order-status.html',
-                                window.location.href
-                            );
-
-                            statusPage.search = '';
-                            statusPage.hash = '';
-                            statusPage.searchParams.set('token', statusToken);
-
-                            orderStatusUrl = statusPage.toString();
-                        }
-
-                    } catch (statusErr) {
-                        console.error('[ORDER STATUS URL ERROR]', statusErr);
+                    if (customerUid && (!statusToken || !orderStatusUrl)) {
+                        await loadBranchOrders();
+                        throw new Error('ระบบออกเลขคิวแล้ว แต่ไม่พบ status_token จึงไม่ส่ง Flex ที่ไม่มีปุ่มดูสถานะ');
                     }
                 }
 
-                if (
-                    newStatus === 'processing' &&
-                    customerUid &&
-                    (!statusToken || !orderStatusUrl)
-                ) {
-                    console.error('[CTA REQUIRED] ไม่พบ order_status_url', {orderId, vendorId: currentVendorId, referenceNo: finalReferenceNo, customerUid, assignedQueue});
-                    alert(
-                        "⚠️ ร้านรับออเดอร์และออกเลขคิวแล้ว\n" +
-                        "แต่ระบบสร้างลิงก์ติดตามสถานะไม่สำเร็จ\n\n" +
-                        "เพื่อป้องกันลูกค้าสับสน ระบบจึงยังไม่ส่ง Flex ใบเลขคิว\n" +
-                        "กรุณารีเฟรชแล้วลองแจ้งลูกค้าอีกครั้ง"
-                    );
-                    await loadBranchOrders();
-                    return;
-                }
-
-                if (customerUid && customerUid !== '' && currentVendorId) {
+                if (customerUid && String(customerUid).trim() !== '' && finalVendorId && CONFIG.gasWebhookUrl) {
                     const notifyPayload = {
                         action: 'notify_customer',
-                        vendor_id: currentVendorId,
+                        vendor_id: finalVendorId,
                         uid: customerUid,
                         order_status: newStatus,
-                        store_name: currentStoreName,
-                        branch_name: document.getElementById('displayBranchName').innerText,
+                        store_name: currentStoreName || 'ร้านค้า',
+                        branch_name: document.getElementById('displayBranchName').innerText || 'สาขา',
                         order_ref: finalReferenceNo,
-                        queue_num: newStatus === 'processing' ? assignedQueue : (assignedQueue || queueNum || '-')
+                        queue_num: newStatus === 'processing'
+                            ? assignedQueue
+                            : (assignedQueue || queueNum || '-')
                     };
+
                     if (newStatus === 'processing') {
-                        // CTA เป็นข้อมูลบังคับสำหรับ Flex ใบเลขคิว
                         notifyPayload.order_status_url = orderStatusUrl;
                         notifyPayload.status_token = statusToken;
 
-                        // ส่ง base URL ไปให้ GAS เป็น fallback ชั้นที่ 2
                         const statusBase = new URL('order-status.html', window.location.href);
                         statusBase.search = '';
                         statusBase.hash = '';
                         notifyPayload.status_page_base_url = statusBase.toString();
                     }
+
                     console.log('[BRANCH NOTIFY CUSTOMER PAYLOAD]', notifyPayload);
+
                     const notifyResponse = await fetch(CONFIG.gasWebhookUrl, {
-                        method: 'POST', redirect: 'follow',
-                        headers: {"Content-Type":"text/plain;charset=utf-8"},
+                        method: 'POST',
+                        redirect: 'follow',
+                        cache: 'no-store',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                         body: JSON.stringify(notifyPayload)
                     });
-                    console.log('[BRANCH NOTIFY CUSTOMER RESULT]', await notifyResponse.text());
+
+                    const notifyText = await notifyResponse.text();
+                    console.log('[BRANCH NOTIFY CUSTOMER RESULT]', notifyText);
+
+                    let notifyResult = null;
+                    try { notifyResult = JSON.parse(notifyText); } catch (_) {}
+
+                    if (notifyResult && notifyResult.status === 'error') {
+                        throw new Error(notifyResult.msg || notifyResult.code || 'GAS ปฏิเสธการส่ง Flex');
+                    }
                 }
+
                 await loadBranchOrders();
-            } catch(err) {
+
+            } catch (err) {
                 console.error('[BRANCH ORDER STATUS ERROR]', err);
-                alert('การเปลี่ยนสถานะล้มเหลว: ' + err.message);
+                alert('การเปลี่ยนสถานะ/แจ้งลูกค้าล้มเหลว:\n' + (err && err.message ? err.message : String(err)));
                 btnElement.innerText = originalText;
                 btnElement.disabled = false;
+                try { await loadBranchOrders(); } catch (_) {}
             }
         }
 
