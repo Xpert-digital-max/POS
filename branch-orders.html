@@ -379,7 +379,7 @@
 
             try {
                 const { data, error } = await supabaseClient.rpc(
-                    'update_branch_order_status',
+                    'update_branch_order_status_with_cta',
                     {
                         p_token: sessionToken,
                         p_order_id: orderId,
