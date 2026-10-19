@@ -3031,6 +3031,14 @@ async function loadVendorData(uid) {
                     vendorData.subscription_expires_at = baseDate.toISOString(); 
                     vendorData.slip_check_mode = selectedPlanObj.mode || 'auto'; 
                     vendorData.is_subscription_active = true;
+                    // Read the is_open value restored by the database renewal trigger.
+                    try {
+                        const { data: renewedStoreState, error: renewedStateError } = await supabaseClient
+                            .from('vendors').select('is_open').eq('id', vendorData.id).single();
+                        if (!renewedStateError && renewedStoreState) vendorData.is_open = renewedStoreState.is_open;
+                    } catch (stateError) {
+                        console.warn('Cannot refresh renewed store state:', stateError);
+                    }
                     updateStoreStatusUI(vendorData.is_open);
                     vendorData.slip_quota = newQuota;
                     vendorData.restaurant_mode_enabled = enableRestaurantMode;
