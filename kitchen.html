@@ -164,7 +164,9 @@
                     .from('orders')
                     .select('*')
                     .eq('vendor_id', VENDOR_ID)
-                    .eq('status', 'processing');
+                    .eq('status', 'processing')
+                    .not('merchant_acknowledged_at', 'is', null)
+                    .not('queue_no', 'is', null);
 
                 if (staffBranchId) prepaidQuery = prepaidQuery.eq('branch_id', staffBranchId);
                 else prepaidQuery = prepaidQuery.is('branch_id', null);
@@ -190,7 +192,7 @@
                 if (prepaidData) {
                     prepaidData.forEach(o => {
                         o.source = 'prepaid';
-                        const q = o.queue_no ? `คิว ${o.queue_no}` : 'รอเลขคิว';
+                        const q = `คิว ${o.queue_no}`;
                         const ref = o.reference_no ? o.reference_no : String(o.id || '').substring(0,6).toUpperCase();
                         o.displayTitle = `กลับบ้าน • ${q}`;
                         o.badgeHtml = `<span class="source-badge" style="color:#69f0ae; border:1px solid #69f0ae;">🟢 Takeaway [${ref}]</span>`;
@@ -236,6 +238,18 @@
             playBeep(now); playBeep(now + 0.3);
         }
 
+        function cleanKdsSystemPaymentNote(raw) {
+            let note = String(raw || '');
+            note = note.replace(/(^|\s*\|\s*)💵\s*ชำระเงินสดหน้าร้าน\s*\(กรุณาเก็บเงินก่อนยืนยันออเดอร์\)\s*/g, '');
+            return note.replace(/^\s*\|\s*/, '').replace(/\s*\|\s*$/, '').trim();
+        }
+
+        function getKdsPaymentBadge(order) {
+            if (!order || order.source !== 'prepaid') return '';
+            if (order.slip_image_url) return '<div style="margin-top:7px;color:#90caf9;font-size:12px;font-weight:bold;">📲 ชำระด้วยการโอน</div>';
+            return '<div style="margin-top:7px;color:#ffcc80;font-size:12px;font-weight:bold;">💵 เงินสดหน้าร้าน • แคชเชียร์เก็บเงินตอนส่งมอบ</div>';
+        }
+
         function renderOrders() {
             const container = document.getElementById('orderGrid');
             if (activeOrders.length === 0) {
@@ -267,7 +281,8 @@
                     }
 
                     const optStr = item.option ? `<span class="item-option">👉 ${item.option}</span>` : '';
-                    const noteStr = item.note ? `<span class="item-note">📝 ${item.note}</span>` : '';
+                    const cleanNote = cleanKdsSystemPaymentNote(item.note);
+                    const noteStr = cleanNote ? `<span class="item-note">📝 ${cleanNote}</span>` : '';
                     const rejectStr = (iStatus === 'rejected' && item.reject_reason)
                         ? `<span class="item-note" style="margin-top:8px;">❌ ปฏิเสธ: ${item.reject_reason}</span>` : '';
 
@@ -319,7 +334,7 @@
                     <div class="ticket ${cardClass}">
                         <div>
                             <div class="ticket-header">
-                                <div><h3 class="table-name">${order.displayTitle}</h3>${order.badgeHtml}</div>
+                                <div><h3 class="table-name">${order.displayTitle}</h3>${order.badgeHtml}${getKdsPaymentBadge(order)}</div>
                                 <div style="text-align:right;"><span class="order-time">⏰ ${timeStr}</span><div style="font-size:12px;margin-top:4px;${timeColor}">${waitTimeDisplay}</div></div>
                             </div>
                             <div class="items-container">${itemsHtml}</div>
