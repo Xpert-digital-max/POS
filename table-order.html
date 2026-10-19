@@ -9,6 +9,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
     <script src="config.js"></script>
     <style>
+        /* Admin suspension hides the complete storefront, including open modals. */
+        body[data-npx-store-unavailable="true"] > :not(#storeUnavailableMessage):not(script) { display: none !important; }
+        #storeUnavailableMessage { box-sizing: border-box; min-height: 100vh; padding: 80px 24px; text-align: center; color: #666; background: #fff; }
+
         body { font-family: sans-serif; margin: 0; background-color: #f4f6f8; padding-bottom: 40px; }
         
         /* Header */
@@ -469,6 +473,53 @@
             }
         }
 
+
+        // Match admin.html: only an explicit false means admin suspension.
+        // is_open and marketplace_enabled keep their existing meanings.
+        let storeUnavailable = false;
+        let storeAvailabilityTimer = null;
+
+        function showStoreUnavailable() {
+            if (storeUnavailable) return;
+            storeUnavailable = true;
+            if (pollingInterval !== null) clearInterval(pollingInterval);
+            if (storeAvailabilityTimer !== null) clearInterval(storeAvailabilityTimer);
+            document.body.setAttribute('data-npx-store-unavailable', 'true');
+            document.title = 'ร้านค้านี้ไม่พร้อมให้บริการ';
+            const message = document.createElement('main');
+            message.id = 'storeUnavailableMessage';
+            message.innerHTML = '<h2>ร้านค้านี้ไม่พร้อมให้บริการ</h2><p>กรุณาลองใหม่ภายหลัง</p>';
+            document.body.appendChild(message);
+        }
+
+        async function ensureStoreAvailable(silent = false) {
+            if (storeUnavailable || !vendorData || !vendorData.id) return false;
+            try {
+                const { data, error } = await supabaseClient.from('vendors')
+                    .select('id, is_subscription_active').eq('id', vendorData.id).single();
+                if (error) throw error;
+                if (!data || data.is_subscription_active === false) {
+                    showStoreUnavailable();
+                    return false;
+                }
+                return !storeUnavailable;
+            } catch (error) {
+                console.warn('Cannot verify store availability:', error);
+                if (!silent) alert('ไม่สามารถตรวจสอบสถานะร้านค้าได้ กรุณาลองใหม่');
+                return false;
+            }
+        }
+
+        function startStoreAvailabilityWatch() {
+            if (storeAvailabilityTimer !== null) return;
+            const check = () => {
+                if (!document.hidden && !storeUnavailable) void ensureStoreAvailable(true);
+            };
+            storeAvailabilityTimer = setInterval(check, 15000);
+            document.addEventListener('visibilitychange', check);
+            window.addEventListener('pageshow', check);
+        }
+
         async function initApp() { 
             try {
                 // 1) อ่าน table_token ก่อน
@@ -485,6 +536,7 @@
                 //    Dine-in ต้องใช้กติกาเดียวกัน มิฉะนั้น shareTargetPicker อาจไม่พร้อม
                 customerUid = null;
                 await loadTableAndSession();
+                if (storeUnavailable) return;
 
                 // 3) Dine-in Share แยกออกไปอยู่ใน dinein-share.html โดยเฉพาะ
                 // table-order.html ไม่ init LIFF Share และไม่ login LINE เองอีกแล้ว
@@ -507,6 +559,11 @@
             try { 
                 const { data: tbData, error: tbError } = await supabaseClient.from('restaurant_tables').select('*, vendors(*), branches(*)').eq('table_token', tableToken).eq('is_active', true).single(); 
                 if (tbError || !tbData) throw new Error("QR Code โต๊ะนี้ไม่ถูกต้อง หรือถูกปิดใช้งานไปแล้ว"); tableData = tbData; vendorData = tbData.vendors; 
+                if (vendorData.is_subscription_active === false) {
+                    showStoreUnavailable();
+                    return;
+                }
+                startStoreAvailabilityWatch();
                 if (vendorData.restaurant_mode_enabled !== true) { throw new Error("ร้านค้านี้ยังไม่ได้เปิดใช้งานโหมดสั่งอาหารที่โต๊ะ"); } 
                 document.getElementById('storeName').innerText = vendorData.name; 
                 if (vendorData.line_picture_url) { document.getElementById('storeLogo').src = vendorData.line_picture_url; document.getElementById('storeLogo').style.display = 'block'; } 
@@ -552,8 +609,9 @@
             if (document.getElementById('orderStatusModal').style.display === 'flex') { openOrderStatusModal(true); } 
         } 
         
-        async function toggleCallStaff() { 
-            const btn = document.getElementById('btnCallStaff'); btn.disabled = true; 
+        async function toggleCallStaff() {
+            if (!await ensureStoreAvailable()) return; 
+            const btn = document.getElementById('btnCallStaff'); if (btn.disabled) return; btn.disabled = true; 
             try { 
                 if (currentServiceRequestId) { await supabaseClient.from('table_service_requests').delete().eq('id', currentServiceRequestId); currentServiceRequestId = null; } 
                 else { const { data, error } = await supabaseClient.from('table_service_requests').insert([{ vendor_id: vendorData.id, branch_id: tableData.branch_id, table_session_id: sessionData.id, table_id: tableData.id, request_type: 'call_staff', status: 'pending' }]).select().single(); if (error) throw error; currentServiceRequestId = data.id; } 
@@ -756,7 +814,8 @@
         
         function closePaymentModal() { document.getElementById('paymentSelectionModal').style.display = 'none'; } 
         
-        async function submitCheckbill(method) { 
+        async function submitCheckbill(method) {
+            if (!await ensureStoreAvailable()) return; 
             closePaymentModal();
 
             const { data: freshSession, error: freshSessionError } = await supabaseClient
@@ -792,11 +851,13 @@
             } catch (err) { alert("เกิดข้อผิดพลาด: " + err.message); } btn.innerText = originalText; btn.disabled = false; 
         } 
         
-        async function verifyTableSlip() { 
+        async function verifyTableSlip() {
+            if (!await ensureStoreAvailable()) return; 
             const fileInput = document.getElementById('slipImageInput');
             if (fileInput.files.length === 0) return alert("กรุณาเลือกไฟล์สลิปก่อนกดยืนยันครับ");
 
             const btn = document.getElementById('verifySlipBtn');
+            if (btn.disabled) return;
             btn.innerText = "กำลังตรวจสอบสลิป ⏳";
             btn.disabled = true;
 
@@ -1207,9 +1268,11 @@
         function closeCartModal() { document.getElementById('cartModal').style.display = 'none'; } 
         function updateCartItemQty(index, delta) { cart[index].qty += delta; if (cart[index].qty <= 0) { cart.splice(index, 1); } updateCartBadge(); if (cart.length === 0) { closeCartModal(); } else { openCartModal(); } } 
         
-        async function submitOrder() { 
+        async function submitOrder() {
+            if (!await ensureStoreAvailable()) return; 
             if (cart.length === 0) return;
             const btn = document.getElementById('submitOrderBtn');
+            if (btn.disabled) return;
             btn.innerText = "กำลังส่ง...";
             btn.disabled = true;
             const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
