@@ -243,16 +243,19 @@
             try {
                 // 1. ดึงร้านค้าหลักที่เปิด Marketplace
                 const { data: vendors, error: vErr } = await supabaseClient.from('vendors')
-                    .select('id, name, line_picture_url, is_open, latitude, longitude, address, food_category, influencer_comm_type, influencer_comm_value, liff_customer_id')
-                    .eq('marketplace_enabled', true);
+                    .select('id, name, line_picture_url, is_open, latitude, longitude, address, food_category, influencer_comm_type, influencer_comm_value, liff_customer_id, is_subscription_active')
+                    .eq('marketplace_enabled', true)
+                    .or('is_subscription_active.is.null,is_subscription_active.eq.true');
                 
                 if (vErr) throw vErr;
-                if (!vendors || vendors.length === 0) {
+                const availableVendors = (vendors || []).filter(v => v.is_subscription_active !== false);
+                if (availableVendors.length === 0) {
+                    allStores = [];
                     renderEmpty("ยังไม่มีร้านอาหารในพื้นที่ของคุณ");
                     return;
                 }
 
-                const vendorIds = vendors.map(v => v.id);
+                const vendorIds = availableVendors.map(v => v.id);
 
                 // Rule กลาง: Marketplace ยังเห็นร้านทั้งหมด แต่ referral ใช้ได้เฉพาะ influencer_visible = true
                 const { data: walletRows, error: walletErr } = await supabaseClient
@@ -277,7 +280,7 @@
                 // 3. รวมร่างข้อมูล (Main + Branches)
                 let combinedStores = [];
 
-                vendors.forEach(v => {
+                availableVendors.forEach(v => {
                     // สาขาหลัก (ใช้ lat/lng จาก vendor)
                     combinedStores.push({
                         vid: v.id,
@@ -360,6 +363,7 @@
                 filterStores();
 
             } catch (error) {
+                allStores = [];
                 console.error("Error loading stores:", error);
                 renderEmpty("เกิดข้อผิดพลาดในการโหลดข้อมูล");
             }
@@ -464,7 +468,23 @@
             `;
         }
 
-        function goToStore(vid, bid, influencerVisible, customerLiffId) {
+        async function goToStore(vid, bid, influencerVisible, customerLiffId) {
+            // Recheck cards that were loaded before the admin suspended the store.
+            try {
+                const { data, error } = await supabaseClient.from('vendors')
+                    .select('id, is_subscription_active').eq('id', vid).single();
+                if (error) throw error;
+                if (!data || data.is_subscription_active === false) {
+                    allStores = allStores.filter(store => store.vid !== vid);
+                    filterStores();
+                    alert('ร้านค้านี้ไม่พร้อมให้บริการ');
+                    return;
+                }
+            } catch (error) {
+                console.warn('Cannot verify store availability:', error);
+                alert('ไม่สามารถตรวจสอบสถานะร้านค้าได้ กรุณาลองใหม่');
+                return;
+            }
             // URL เว็บปกติ: ต้องใช้งานได้เสมอ แม้ไม่มี LINE
             let webUrl = `customer.html?vid=${encodeURIComponent(vid)}`;
 
@@ -525,6 +545,29 @@
             // ไม่บังคับ Login และยังเก็บ ref เพื่อให้ค่าคอมทำงาน
             window.location.href = webUrl;
         }
+
+        // Refresh suspended stores without resetting search, category or referral.
+        async function refreshStoreAvailability() {
+            const ids = [...new Set(allStores.map(store => store.vid))];
+            if (document.hidden || ids.length === 0) return;
+            try {
+                const { data, error } = await supabaseClient.from('vendors')
+                    .select('id, is_subscription_active').in('id', ids);
+                if (error) throw error;
+                const available = new Set((data || [])
+                    .filter(v => v.is_subscription_active !== false).map(v => v.id));
+                const filtered = allStores.filter(store => available.has(store.vid));
+                if (filtered.length !== allStores.length) {
+                    allStores = filtered;
+                    filterStores();
+                }
+            } catch (error) {
+                console.warn('Cannot refresh store availability:', error);
+            }
+        }
+        setInterval(refreshStoreAvailability, 15000);
+        document.addEventListener('visibilitychange', refreshStoreAvailability);
+        window.addEventListener('pageshow', refreshStoreAvailability);
 
         // ==================== Start ====================
         window.onload = initMarketplace;
