@@ -467,16 +467,50 @@
                                 : (assignedQueue || queueNum || '-')
                     };
 
-                    // เพิ่ม CTA เฉพาะ processing ถ้ามี token
-                    if (newStatus === 'processing' && orderStatusUrl) {
-                        notifyPayload.order_status_url = orderStatusUrl;
-                        notifyPayload.status_token = statusToken;
+                    // =========================================================
+// CTA ดูสถานะออเดอร์
+// เพิ่มข้อมูล CTA โดยไม่กระทบ Flex แจกคิวเดิม
+// =========================================================
+if (newStatus === 'processing') {
 
-                        const statusBase = new URL('order-status.html', window.location.href);
-                        statusBase.search = '';
-                        statusBase.hash = '';
-                        notifyPayload.status_page_base_url = statusBase.toString();
-                    }
+    const finalStatusToken =
+        String(
+            statusToken ||
+            statusTokenFromOrder ||
+            ''
+        ).trim();
+
+    const statusBase =
+        new URL(
+            'order-status.html',
+            window.location.href
+        );
+
+    statusBase.search = '';
+    statusBase.hash = '';
+
+    notifyPayload.status_token =
+        finalStatusToken;
+
+    notifyPayload.status_page_base_url =
+        statusBase.toString();
+
+    if (finalStatusToken) {
+
+        const statusUrl =
+            new URL(
+                statusBase.toString()
+            );
+
+        statusUrl.searchParams.set(
+            'token',
+            finalStatusToken
+        );
+
+        notifyPayload.order_status_url =
+            statusUrl.toString();
+    }
+}
 
                     console.log('[BRANCH NOTIFY CUSTOMER PAYLOAD]', notifyPayload);
 
