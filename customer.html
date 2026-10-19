@@ -280,6 +280,7 @@
         let vendorId = null;
         let branchId = null; 
         let branchData = null; 
+        let customerContextReady = false;
         let vendorData = null; 
         let menuData = []; 
         let cart = []; 
@@ -330,85 +331,69 @@
         }
 
         function recoverCustomerContext() {
-            let vid = getUrlParameter('vid');
-            let bid = getUrlParameter('bid');
-            let ref = getUrlParameter('ref');
-
-            function readParamsFromText(rawText) {
-                if (!rawText) return;
+            // เลือกร้านและสาขาเป็นชุดเดียวจากลิงก์ ห้ามเติม bid เก่าข้ามร้าน
+            function readContext(rawText, depth = 0) {
+                if (!rawText || depth > 4) return null;
                 try {
                     let decoded = String(rawText);
-                    for (let i = 0; i < 3; i++) {
-                        try {
-                            const next = decodeURIComponent(decoded);
-                            if (next === decoded) break;
-                            decoded = next;
-                        } catch (e) { break; }
+                    if (/^[#?]?(vid|bid|ref|liff\.state|liffRedirectUri)=/.test(decoded)) {
+                        decoded = '?' + decoded.replace(/^[#?]/, '');
                     }
-
-                    try {
-                        const u = new URL(decoded, window.location.origin);
-                        vid = vid || u.searchParams.get('vid');
-                        bid = bid || u.searchParams.get('bid');
-                        ref = ref || u.searchParams.get('ref');
-                        const nestedState = u.searchParams.get('liff.state');
-                        if ((!vid || !bid || !ref) && nestedState) readParamsFromText(nestedState);
-                        return;
-                    } catch (e) {}
-
-                    const queryIndex = decoded.indexOf('?');
-                    const queryText = queryIndex >= 0 ? decoded.substring(queryIndex + 1) : decoded.replace(/^[?#]/, '');
-                    const params = new URLSearchParams(queryText);
-                    vid = vid || params.get('vid');
-                    bid = bid || params.get('bid');
-                    ref = ref || params.get('ref');
-
-                    const nestedState = params.get('liff.state');
-                    if ((!vid || !bid || !ref) && nestedState) readParamsFromText(nestedState);
+                    const url = new URL(decoded, window.location.origin);
+                    const params = url.searchParams;
+                    const vid = String(params.get('vid') || '').trim();
+                    const bid = String(params.get('bid') || '').trim();
+                    const ref = String(params.get('ref') || '').trim();
+                    if (vid) return { vendorId: vid, branchId: bid || null, referralRef: ref || null };
+                    const nested = readContext(params.get('liff.state'), depth + 1) ||
+                        readContext(params.get('liffRedirectUri'), depth + 1);
+                    if (nested) return nested;
+                    if (bid) return { vendorId: null, branchId: bid, referralRef: ref || null };
+                    if (url.hash) return readContext(url.hash.slice(1), depth + 1);
+                    const unescaped = decodeURIComponent(decoded);
+                    if (unescaped !== decoded) return readContext(unescaped, depth + 1);
                 } catch (e) {
-                    console.warn("[CONTEXT PARSE]", e);
+                    console.warn('[CONTEXT PARSE]', e);
                 }
+                return null;
             }
 
-            readParamsFromText(getUrlParameter('liff.state'));
-            readParamsFromText(getUrlParameter('liffRedirectUri'));
+            let context = readContext(window.location.href);
+            // รองรับกลับจาก LIFF login โดยเก็บ vid/bid คู่กันใน session เดียว
+            // ไม่อ่าน NPX_CUSTOMER_BRANCH_ID รุ่นเดิมที่ไม่ได้ผูกกับร้าน
+            if (!context) {
+                try {
+                    const saved = JSON.parse(sessionStorage.getItem('NPX_CUSTOMER_CONTEXT_V2') || 'null');
+                    if (saved && typeof saved.vendorId === 'string' && saved.vendorId.trim() &&
+                        (saved.branchId === null || typeof saved.branchId === 'string')) {
+                        context = saved;
+                    }
+                } catch (e) {}
+            }
+            context = context || { vendorId: null, branchId: null, referralRef: null };
 
-            if ((!vid || !bid) && window.location.hash) {
-                readParamsFromText(window.location.hash);
+            // รักษาระบบรหัสผู้แนะนำเดิม
+            if (!context.referralRef) {
+                context.referralRef = sessionStorage.getItem('NPX_CUSTOMER_REF') ||
+                    localStorage.getItem('NPX_CUSTOMER_REF') || null;
             }
-
-            if (!vid) {
-                vid = sessionStorage.getItem('NPX_CUSTOMER_VENDOR_ID') || localStorage.getItem('NPX_CUSTOMER_VENDOR_ID');
+            if (context.vendorId) {
+                sessionStorage.setItem('NPX_CUSTOMER_CONTEXT_V2', JSON.stringify(context));
+                sessionStorage.setItem('NPX_CUSTOMER_VENDOR_ID', context.vendorId);
+                localStorage.setItem('NPX_CUSTOMER_VENDOR_ID', context.vendorId);
             }
-            if (!bid) {
-                bid = sessionStorage.getItem('NPX_CUSTOMER_BRANCH_ID') || localStorage.getItem('NPX_CUSTOMER_BRANCH_ID');
+            if (context.branchId && context.vendorId) {
+                sessionStorage.setItem('NPX_CUSTOMER_BRANCH_ID', context.branchId);
+                localStorage.setItem('NPX_CUSTOMER_BRANCH_ID', context.branchId);
+            } else {
+                sessionStorage.removeItem('NPX_CUSTOMER_BRANCH_ID');
+                localStorage.removeItem('NPX_CUSTOMER_BRANCH_ID');
             }
-
-            if (vid) {
-                sessionStorage.setItem('NPX_CUSTOMER_VENDOR_ID', vid);
-                localStorage.setItem('NPX_CUSTOMER_VENDOR_ID', vid);
+            if (context.referralRef) {
+                sessionStorage.setItem('NPX_CUSTOMER_REF', context.referralRef);
+                localStorage.setItem('NPX_CUSTOMER_REF', context.referralRef);
             }
-            if (bid) {
-                sessionStorage.setItem('NPX_CUSTOMER_BRANCH_ID', bid);
-                localStorage.setItem('NPX_CUSTOMER_BRANCH_ID', bid);
-            }
-
-            if (!ref) {
-                ref =
-                    sessionStorage.getItem('NPX_CUSTOMER_REF') ||
-                    localStorage.getItem('NPX_CUSTOMER_REF');
-            }
-
-            if (ref) {
-                sessionStorage.setItem('NPX_CUSTOMER_REF', ref);
-                localStorage.setItem('NPX_CUSTOMER_REF', ref);
-            }
-
-            return {
-                vendorId: vid || null,
-                branchId: bid || null,
-                referralRef: ref || null
-            };
+            return context;
         }
 
         function saveCart() {
@@ -437,6 +422,8 @@
         }
 
         async function initCustomerApp() { 
+            customerContextReady = false;
+            branchData = null;
             try { 
                 const ctx = recoverCustomerContext();
                 vendorId = ctx.vendorId;
@@ -460,8 +447,8 @@
                 vendorData = vData;
 
                 if (branchId) {
-                    const { data: bData } = await supabaseClient.from('branches').select('*').eq('id', branchId).single();
-                    if (bData) {
+                    const { data: bData, error: bErr } = await supabaseClient.from('branches').select('*').eq('id', branchId).eq('merchant_id', vendorId).single();
+                    if (!bErr && bData && String(bData.merchant_id) === String(vendorId)) {
                         branchData = bData; 
                         vendorData.name = `${vendorData.name} (${bData.branch_name})`;
                         
@@ -475,9 +462,13 @@
                             }
                         }
                     } else {
-                        branchId = null; 
+                        alert('ไม่พบสาขาที่ตรงกับร้านนี้ กรุณาเปิดลิงก์สั่งอาหารจากร้านอีกครั้ง');
+                        document.getElementById('storeName').innerText = 'ลิงก์สาขาไม่ถูกต้อง';
+                        document.getElementById('menuContainer').innerHTML = '<p style="text-align:center;padding:20px;">ไม่สามารถยืนยันร้านและสาขาได้ กรุณาเปิดลิงก์จากร้านอีกครั้ง</p>';
+                        return;
                     }
                 }
+                customerContextReady = true;
 
                 document.getElementById('storeName').innerText = vendorData.name; 
                 if (vendorData.line_picture_url) document.getElementById('storeLogo').src = vendorData.line_picture_url; 
@@ -856,6 +847,11 @@
         }
 
         function goToCheckout() {
+            if (!customerContextReady || !vendorData || String(vendorData.id) !== String(vendorId) ||
+                (branchId && (!branchData || String(branchData.id) !== String(branchId) || String(branchData.merchant_id) !== String(vendorId)))) {
+                alert('ยังยืนยันร้านและสาขาไม่สำเร็จ กรุณาเปิดลิงก์สั่งอาหารจากร้านอีกครั้ง');
+                return;
+            }
             const summaryDiv = document.getElementById('checkoutSummary'); 
             let summaryHtml = '';
             cart.forEach((c, index) => {
@@ -1018,6 +1014,11 @@
 
         // ==================== ระบบส่งออเดอร์และตรวจสลิป ====================
         async function submitOrder(paymentMethod = 'transfer') {
+            if (!customerContextReady || !vendorData || String(vendorData.id) !== String(vendorId) ||
+                (branchId && (!branchData || String(branchData.id) !== String(branchId) || String(branchData.merchant_id) !== String(vendorId)))) {
+                alert('ยังยืนยันร้านและสาขาไม่สำเร็จ กรุณาเปิดลิงก์สั่งอาหารจากร้านอีกครั้ง');
+                return;
+            }
             const fileInput = document.getElementById('slipImage');
             const btn = document.getElementById('confirmOrderBtn');
             const cashBtn = document.getElementById('cashOrderBtn');
