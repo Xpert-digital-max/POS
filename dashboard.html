@@ -93,6 +93,19 @@
     <!-- [PHASE 2] พื้นที่สำหรับพิมพ์ป้าย QR Code ตั้งโต๊ะ -->
     <div id="printArea"></div>
 
+    <!-- แจ้งหมดอายุพร้อมทางลัดไปส่วนต่ออายุเดิม -->
+    <div id="subscriptionRenewalNotice" class="no-print" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="subscriptionRenewalTitle" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.5);align-items:center;justify-content:center;padding:20px;box-sizing:border-box;">
+        <div style="background:white;width:100%;max-width:400px;border-radius:14px;padding:24px;box-sizing:border-box;">
+            <h3 id="subscriptionRenewalTitle" style="margin:0 0 12px;color:#e65100;">กรุณาต่ออายุแพ็กเกจ</h3>
+            <p id="subscriptionRenewalMessage" style="margin:0 0 20px;color:#555;line-height:1.6;"></p>
+            <div style="display:flex;gap:10px;">
+                <button type="button" onclick="closeSubscriptionRenewalNotice()" style="flex:1;padding:12px;border:0;border-radius:8px;background:#eee;color:#555;font-weight:bold;cursor:pointer;">ไว้ภายหลัง</button>
+                <button type="button" id="goToSubscriptionRenewalBtn" onclick="goToSubscriptionRenewal()" style="flex:2;padding:12px;border:0;border-radius:8px;background:#2196F3;color:white;font-weight:bold;cursor:pointer;">ต่ออายุแพ็กเกจ</button>
+            </div>
+        </div>
+    </div>
+
+
     <!-- Modal แจ้งถอนเงิน -->
     <div id="withdrawModal" class="no-print" style="display: none; background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 400; justify-content: center; align-items: center;">
         <div style="background: white; width: 90%; max-width: 400px; border-radius: 12px; padding: 20px; box-sizing: border-box;">
@@ -1878,6 +1891,7 @@ async function loadVendorData(uid) {
                 }
 
                 updateStoreStatusUI(vendorData.is_open);
+                startStoreSubscriptionUIWatch();
 
                 const liffToUse = vendorData.liff_customer_id || CONFIG.liffIdCustomer;
                 const customerLinkEl = document.getElementById('customerLinkText');
@@ -3016,7 +3030,8 @@ async function loadVendorData(uid) {
                     vendorData.subscription_plan = planId; 
                     vendorData.subscription_expires_at = baseDate.toISOString(); 
                     vendorData.slip_check_mode = selectedPlanObj.mode || 'auto'; 
-                    vendorData.is_subscription_active = true; 
+                    vendorData.is_subscription_active = true;
+                    updateStoreStatusUI(vendorData.is_open);
                     vendorData.slip_quota = newQuota;
                     vendorData.restaurant_mode_enabled = enableRestaurantMode;
 
@@ -4429,20 +4444,108 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             if(btn) btn.disabled = false;
         }
 
+        let storeStatusChangePending = false;
+        let storeSubscriptionUITimer = null;
+
+        function isStoreSubscriptionExpired(data = vendorData) {
+            if (!data || !data.subscription_expires_at) return false;
+            const expiresAt = new Date(data.subscription_expires_at).getTime();
+            return Number.isFinite(expiresAt) && expiresAt <= Date.now();
+        }
+
+        function showSubscriptionRenewalNotice() {
+            const message = document.getElementById('subscriptionRenewalMessage');
+            message.innerText = isStoreSubscriptionExpired()
+                ? 'แพ็กเกจของร้านหมดอายุแล้ว กรุณาต่ออายุแพ็กเกจก่อนเปิดรับออเดอร์'
+                : 'ร้านค้ายังไม่มีสิทธิ์เปิดรับออเดอร์ กรุณาต่ออายุแพ็กเกจ หากชำระแล้วโปรดติดต่อผู้ดูแลระบบ';
+            const modal = document.getElementById('subscriptionRenewalNotice');
+            modal.style.display = 'flex';
+            modal.setAttribute('aria-hidden', 'false');
+            document.getElementById('goToSubscriptionRenewalBtn').focus();
+        }
+
+        function closeSubscriptionRenewalNotice() {
+            const modal = document.getElementById('subscriptionRenewalNotice');
+            modal.style.display = 'none';
+            modal.setAttribute('aria-hidden', 'true');
+        }
+
+        function goToSubscriptionRenewal() {
+            closeSubscriptionRenewalNotice();
+            switchTab('settings');
+            const container = document.getElementById('renewContainer');
+            container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            document.getElementById('renewPlanSelect').focus({ preventScroll: true });
+        }
+
+        function startStoreSubscriptionUIWatch() {
+            if (storeSubscriptionUITimer !== null) return;
+            // Repaint the button when a dashboard stays open past its expiry time.
+            storeSubscriptionUITimer = setInterval(() => {
+                if (vendorData) updateStoreStatusUI(vendorData.is_open);
+            }, 15000);
+        }
+
         async function toggleStoreStatus() {
-            if (!vendorData) return;
-            if (!vendorData.is_subscription_active) { alert("⚠️ ไม่สามารถเปิดร้านได้!\nคุณยังไม่ได้ชำระค่าแพ็กเกจ หรือกำลังรอแอดมินตรวจสอบ\n\n👉 กรุณาเลื่อนลงไปที่แท็บ 'ตั้งค่า' เพื่อสแกนจ่ายและแนบสลิปครับ"); return; }
-            if (vendorData.subscription_expires_at && new Date() > new Date(vendorData.subscription_expires_at)) { alert("⚠️️ ไม่สามารถเปิดร้านได้: แพ็กเกจของคุณหมดอายุแล้ว\nกรุณาต่ออายุที่แท็บ 'ตั้งค่า'"); return; }
-            const newStatus = !vendorData.is_open; if (!confirm(newStatus ? "ยืนยันการเปิดรับออเดอร์ใหม่?" : "ปิดรับออเดอร์ชั่วคราวใช่หรือไม่?")) return;
-            await supabaseClient.from('vendors').update({ is_open: newStatus }).eq('id', vendorData.id); vendorData.is_open = newStatus; updateStoreStatusUI(newStatus); 
+            if (!vendorData || storeStatusChangePending) return;
+            const btn = document.getElementById('storeStatusBtn');
+            storeStatusChangePending = true;
+            btn.disabled = true;
+            try {
+                // Read current subscription and store state; never rely on an old tab.
+                const { data: latest, error: readError } = await supabaseClient
+                    .from('vendors')
+                    .select('id, is_open, is_subscription_active, subscription_expires_at')
+                    .eq('id', vendorData.id)
+                    .single();
+                if (readError) throw readError;
+                if (!latest || String(latest.id) !== String(vendorData.id)) {
+                    throw new Error('ไม่พบข้อมูลร้านค้า');
+                }
+                vendorData.is_open = latest.is_open;
+                vendorData.is_subscription_active = latest.is_subscription_active;
+                vendorData.subscription_expires_at = latest.subscription_expires_at;
+                updateStoreStatusUI(vendorData.is_open);
+
+                if (!vendorData.is_subscription_active || isStoreSubscriptionExpired()) {
+                    showSubscriptionRenewalNotice();
+                    return;
+                }
+                const newStatus = !vendorData.is_open;
+                if (!confirm(newStatus ? 'ยืนยันการเปิดรับออเดอร์ใหม่?' : 'ปิดรับออเดอร์ชั่วคราวใช่หรือไม่?')) return;
+
+                let update = supabaseClient.from('vendors')
+                    .update({ is_open: newStatus }).eq('id', vendorData.id);
+                if (newStatus) {
+                    // Also reject an opening update if the row was suspended/expired
+                    // while its confirmation dialog was on screen.
+                    update = update.eq('is_subscription_active', true)
+                        .or('subscription_expires_at.is.null,subscription_expires_at.gt.' + new Date().toISOString());
+                }
+                const { data: updated, error: updateError } = await update
+                    .select('id, is_open, is_subscription_active, subscription_expires_at')
+                    .maybeSingle();
+                if (updateError) throw updateError;
+                if (!updated) throw new Error('สถานะร้านหรือแพ็กเกจเปลี่ยนแปลง กรุณาลองใหม่อีกครั้ง');
+                vendorData.is_open = updated.is_open;
+                vendorData.is_subscription_active = updated.is_subscription_active;
+                vendorData.subscription_expires_at = updated.subscription_expires_at;
+                updateStoreStatusUI(vendorData.is_open);
+            } catch (error) {
+                alert('ไม่สามารถเปลี่ยนสถานะร้านได้: ' + (error.message || error));
+            } finally {
+                storeStatusChangePending = false;
+                btn.disabled = false;
+            }
         }
 
         function updateStoreStatusUI(isOpen) {
             const btn = document.getElementById('storeStatusBtn');
-            if (isOpen) { btn.innerText = "🟢 เปิดร้าน"; btn.style.background = "white"; btn.style.color = "#06C755"; } 
+            const canOpen = vendorData && vendorData.is_subscription_active && !isStoreSubscriptionExpired();
+            if (isOpen && canOpen) { btn.innerText = "🟢 เปิดร้าน"; btn.style.background = "white"; btn.style.color = "#06C755"; }
             else { btn.innerText = "🔴 ปิดร้าน"; btn.style.background = "#ff4d4f"; btn.style.color = "white"; }
         }
-        
+
         // ==================== ระบบเติมเงินการตลาด ====================
         async function loadMarketingWalletStatus() {
             if (!vendorData || !vendorData.id) return;
