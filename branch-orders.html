@@ -380,11 +380,49 @@
 
             try {
                 // =========================================================
-                // 1) เปลี่ยนสถานะผ่าน RPC ตัวใหม่
-                // RPC นี้ต้องคืน queue_no + status_token + ข้อมูล order กลับมาพร้อมกัน
+                // STEP 1: เตรียม Status Token ก่อนเปลี่ยนสถานะ
+                // ใช้ token เดิมของออเดอร์ ถ้า get_branch_orders ส่งมา
+                // ถ้าไม่มี ให้เรียก RPC get_takeaway_status_token ก่อนแจกคิว
+                // เพราะ status_token มีอยู่ตั้งแต่สร้างออเดอร์แล้ว
+                // =========================================================
+                const finalVendorIdBeforeUpdate =
+                    vendorIdFromOrder ||
+                    currentVendorId ||
+                    '';
+
+                let statusToken = String(
+                    statusTokenFromOrder ||
+                    ''
+                ).trim();
+
+                if (
+                    newStatus === 'processing' &&
+                    !statusToken
+                ) {
+                    statusToken = await getTakeawayStatusTokenWithRetry(
+                        finalVendorIdBeforeUpdate,
+                        orderRef,
+                        customerUid,
+                        ''
+                    );
+                }
+
+                if (
+                    newStatus === 'processing' &&
+                    customerUid &&
+                    !statusToken
+                ) {
+                    throw new Error(
+                        'ไม่พบ status_token ของออเดอร์ จึงยังไม่ยืนยันรับออเดอร์ เพื่อป้องกัน Flex คิวไม่มีปุ่มติดตาม'
+                    );
+                }
+
+                // =========================================================
+                // STEP 2: ใช้ RPC เดิมที่ระบบแจกคิวเคยใช้งานได้
+                // ไม่ใช้ wrapper / ไม่เปลี่ยนระบบคิว
                 // =========================================================
                 const { data, error } = await supabaseClient.rpc(
-                    'update_branch_order_status_with_cta',
+                    'update_branch_order_status',
                     {
                         p_token: sessionToken,
                         p_order_id: orderId,
@@ -401,9 +439,6 @@
                     );
                 }
 
-                // =========================================================
-                // 2) ใช้ข้อมูลจาก RPC เป็นหลัก
-                // =========================================================
                 const assignedQueue =
                     data.queue_no !== null &&
                     data.queue_no !== undefined &&
@@ -441,55 +476,22 @@
                 }
 
                 // =========================================================
-                // 3) สร้าง Order Status CTA จาก status_token ที่ RPC คืนมา
+                // STEP 3: สร้าง URL ติดตามจาก token ที่เตรียมไว้ก่อนแจกคิว
                 // =========================================================
-                let statusToken = String(
-                    data.status_token ||
-                    statusTokenFromOrder ||
-                    ''
-                ).trim();
-
                 let orderStatusUrl = '';
 
                 if (newStatus === 'processing') {
-                    if (!statusToken) {
-                        console.error(
-                            '[STATUS TOKEN MISSING]',
-                            data
-                        );
-
-                        throw new Error(
-                            'ระบบรับออเดอร์และออกเลขคิวแล้ว แต่ RPC ไม่คืน status_token'
-                        );
-                    }
-
-                    orderStatusUrl =
-                        buildOrderStatusUrl(
-                            statusToken
-                        );
+                    orderStatusUrl = buildOrderStatusUrl(statusToken);
 
                     if (!orderStatusUrl) {
                         throw new Error(
-                            'ไม่สามารถสร้างลิงก์ติดตามสถานะออเดอร์ได้'
+                            'สร้างลิงก์ดูสถานะออเดอร์ไม่สำเร็จ'
                         );
                     }
-
-                    console.log(
-                        '[ORDER STATUS CTA READY]',
-                        {
-                            order_id: orderId,
-                            vendor_id: finalVendorId,
-                            customer_uid: finalCustomerUid,
-                            reference_no: finalReferenceNo,
-                            queue_no: assignedQueue,
-                            status_token: statusToken,
-                            order_status_url: orderStatusUrl
-                        }
-                    );
                 }
 
                 // =========================================================
-                // 4) ส่ง Flex ไปหาลูกค้าผ่าน GAS
+                // STEP 4: ส่ง Flex ไปหา LINE ลูกค้า
                 // =========================================================
                 if (
                     finalCustomerUid &&
@@ -502,44 +504,28 @@
                         vendor_id: finalVendorId,
                         uid: finalCustomerUid,
                         order_status: newStatus,
-                        store_name:
-                            currentStoreName ||
-                            'ร้านค้า',
+                        store_name: currentStoreName || 'ร้านค้า',
                         branch_name:
-                            document
-                                .getElementById('displayBranchName')
-                                .innerText ||
+                            document.getElementById('displayBranchName').innerText ||
                             'สาขา',
                         order_ref: finalReferenceNo,
                         queue_num:
                             newStatus === 'processing'
                                 ? assignedQueue
-                                : (
-                                    assignedQueue ||
-                                    queueNum ||
-                                    '-'
-                                )
+                                : (assignedQueue || queueNum || '-')
                     };
 
-                    // processing + queue = ต้องมี CTA เสมอ
                     if (newStatus === 'processing') {
-                        notifyPayload.order_status_url =
-                            orderStatusUrl;
+                        notifyPayload.order_status_url = orderStatusUrl;
+                        notifyPayload.status_token = statusToken;
 
-                        notifyPayload.status_token =
-                            statusToken;
-
-                        const statusBase =
-                            new URL(
-                                'order-status.html',
-                                window.location.href
-                            );
-
+                        const statusBase = new URL(
+                            'order-status.html',
+                            window.location.href
+                        );
                         statusBase.search = '';
                         statusBase.hash = '';
-
-                        notifyPayload.status_page_base_url =
-                            statusBase.toString();
+                        notifyPayload.status_page_base_url = statusBase.toString();
                     }
 
                     console.log(
@@ -547,41 +533,29 @@
                         notifyPayload
                     );
 
-                    const notifyResponse =
-                        await fetch(
-                            CONFIG.gasWebhookUrl,
-                            {
-                                method: 'POST',
-                                redirect: 'follow',
-                                cache: 'no-store',
-                                headers: {
-                                    'Content-Type':
-                                        'text/plain;charset=utf-8'
-                                },
-                                body:
-                                    JSON.stringify(
-                                        notifyPayload
-                                    )
-                            }
-                        );
+                    const notifyResponse = await fetch(
+                        CONFIG.gasWebhookUrl,
+                        {
+                            method: 'POST',
+                            redirect: 'follow',
+                            cache: 'no-store',
+                            headers: {
+                                'Content-Type': 'text/plain;charset=utf-8'
+                            },
+                            body: JSON.stringify(notifyPayload)
+                        }
+                    );
 
-                    const notifyText =
-                        await notifyResponse.text();
+                    const notifyText = await notifyResponse.text();
 
                     console.log(
                         '[BRANCH NOTIFY CUSTOMER RESULT]',
                         notifyText
                     );
 
-                    // GAS ของระบบปัจจุบันคืน JSON เมื่อสำเร็จ/ผิดพลาด
-                    // ถ้าบาง deployment เก่ายังคืน text ธรรมดา จะไม่ทำให้ flow พัง
                     let notifyResult = null;
-
                     try {
-                        notifyResult =
-                            JSON.parse(
-                                notifyText
-                            );
+                        notifyResult = JSON.parse(notifyText);
                     } catch (_) {}
 
                     if (
@@ -596,9 +570,6 @@
                     }
                 }
 
-                // =========================================================
-                // 5) โหลดข้อมูลใหม่หลังสำเร็จ
-                // =========================================================
                 await loadBranchOrders();
 
             } catch (err) {
@@ -609,18 +580,12 @@
 
                 alert(
                     'การเปลี่ยนสถานะ/แจ้งลูกค้าล้มเหลว:\n' +
-                    (
-                        err && err.message
-                            ? err.message
-                            : String(err)
-                    )
+                    (err && err.message ? err.message : String(err))
                 );
 
                 btnElement.innerText = originalText;
                 btnElement.disabled = false;
 
-                // RPC อาจอัปเดตสถานะสำเร็จไปแล้วก่อนขั้นแจ้ง LINE
-                // จึงโหลดข้อมูลล่าสุดเสมอ
                 try {
                     await loadBranchOrders();
                 } catch (_) {}
