@@ -9,6 +9,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
     <script src="config.js"></script>
     <style>
+        /* Admin suspension hides the complete storefront, including open modals. */
+        body[data-npx-store-unavailable="true"] > :not(#storeUnavailableMessage):not(script) { display: none !important; }
+        #storeUnavailableMessage { box-sizing: border-box; min-height: 100vh; padding: 80px 24px; text-align: center; color: #666; background: #fff; }
+
         body { font-family: sans-serif; margin: 0; background-color: #f4f6f8; padding-bottom: 80px; }
         .header { background: white; padding: 12px 16px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #e0e0e0; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         .header img { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; border: 2px solid #06C755; flex-shrink: 0; }
@@ -421,6 +425,53 @@
             }
         }
 
+
+        // Match admin.html: only an explicit false means admin suspension.
+        // is_open and marketplace_enabled keep their existing meanings.
+        let storeUnavailable = false;
+        let storeAvailabilityTimer = null;
+
+        function showStoreUnavailable() {
+            if (storeUnavailable) return;
+            storeUnavailable = true;
+            customerContextReady = false;
+            if (storeAvailabilityTimer !== null) clearInterval(storeAvailabilityTimer);
+            document.body.setAttribute('data-npx-store-unavailable', 'true');
+            document.title = 'ร้านค้านี้ไม่พร้อมให้บริการ';
+            const message = document.createElement('main');
+            message.id = 'storeUnavailableMessage';
+            message.innerHTML = '<h2>ร้านค้านี้ไม่พร้อมให้บริการ</h2><p>กรุณาลองใหม่ภายหลัง</p>';
+            document.body.appendChild(message);
+        }
+
+        async function ensureStoreAvailable(silent = false) {
+            if (storeUnavailable || !vendorData || !vendorData.id) return false;
+            try {
+                const { data, error } = await supabaseClient.from('vendors')
+                    .select('id, is_subscription_active').eq('id', vendorData.id).single();
+                if (error) throw error;
+                if (!data || data.is_subscription_active === false) {
+                    showStoreUnavailable();
+                    return false;
+                }
+                return !storeUnavailable;
+            } catch (error) {
+                console.warn('Cannot verify store availability:', error);
+                if (!silent) alert('ไม่สามารถตรวจสอบสถานะร้านค้าได้ กรุณาลองใหม่');
+                return false;
+            }
+        }
+
+        function startStoreAvailabilityWatch() {
+            if (storeAvailabilityTimer !== null) return;
+            const check = () => {
+                if (!document.hidden && !storeUnavailable) void ensureStoreAvailable(true);
+            };
+            storeAvailabilityTimer = setInterval(check, 15000);
+            document.addEventListener('visibilitychange', check);
+            window.addEventListener('pageshow', check);
+        }
+
         async function initCustomerApp() { 
             customerContextReady = false;
             branchData = null;
@@ -442,6 +493,10 @@
                     alert("ไม่มีข้อมูลร้านค้านี้ในระบบ"); 
                     document.getElementById('storeName').innerText = "ไม่มีข้อมูลร้าน";
                     document.getElementById('menuContainer').innerHTML = '<p style="text-align: center; color: #888; padding: 20px 0;">ไม่พบข้อมูลร้านค้านี้</p>';
+                    return;
+                }
+                if (vData.is_subscription_active === false) {
+                    showStoreUnavailable();
                     return;
                 }
                 vendorData = vData;
@@ -469,6 +524,7 @@
                     }
                 }
                 customerContextReady = true;
+                startStoreAvailabilityWatch();
 
                 document.getElementById('storeName').innerText = vendorData.name; 
                 if (vendorData.line_picture_url) document.getElementById('storeLogo').src = vendorData.line_picture_url; 
@@ -846,12 +902,13 @@
             } 
         }
 
-        function goToCheckout() {
+        async function goToCheckout() {
             if (!customerContextReady || !vendorData || String(vendorData.id) !== String(vendorId) ||
                 (branchId && (!branchData || String(branchData.id) !== String(branchId) || String(branchData.merchant_id) !== String(vendorId)))) {
                 alert('ยังยืนยันร้านและสาขาไม่สำเร็จ กรุณาเปิดลิงก์สั่งอาหารจากร้านอีกครั้ง');
                 return;
             }
+            if (!await ensureStoreAvailable()) return;
             const summaryDiv = document.getElementById('checkoutSummary'); 
             let summaryHtml = '';
             cart.forEach((c, index) => {
@@ -1019,9 +1076,11 @@
                 alert('ยังยืนยันร้านและสาขาไม่สำเร็จ กรุณาเปิดลิงก์สั่งอาหารจากร้านอีกครั้ง');
                 return;
             }
+            if (!await ensureStoreAvailable()) return;
             const fileInput = document.getElementById('slipImage');
             const btn = document.getElementById('confirmOrderBtn');
             const cashBtn = document.getElementById('cashOrderBtn');
+            if (btn.disabled || (cashBtn && cashBtn.disabled)) return;
             const total = document.getElementById('totalPrice').innerText;
 
             if (paymentMethod === 'transfer') {
@@ -1161,6 +1220,12 @@
             };
             if (branchId) orderPayload.branch_id = branchId;
 
+            if (!await ensureStoreAvailable()) {
+                btn.innerText = "ยืนยันการสั่งซื้อ";
+                btn.disabled = false;
+                if (cashBtn) { cashBtn.innerText = "💵 ชำระด้วยเงินสดที่หน้าร้าน"; cashBtn.disabled = false; }
+                return;
+            }
             const { data: insertedOrder, error: rpcError } = await supabaseClient.rpc(
                 'submit_order_with_number',
                 { p_payload: orderPayload }
