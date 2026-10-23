@@ -212,6 +212,7 @@
             }
 
             let html = '';
+            npxResolutionOrders.clear();
             orders.forEach(order => {
                 const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items; 
                 let itemsHtml = ''; 
@@ -285,6 +286,11 @@
                         </button>
                     `;
                 }
+                if (['rejected','cancelled'].includes(order.status)) {
+                    statusBadge='<span style="color:#b91c1c">ยกเลิกออเดอร์</span>'; actionButtons='';
+                }
+                if (order.order_resolution?.proposal_status === 'pending') actionButtons='';
+                actionButtons += npxResolutionControls(order);
                 html += `
                     <div class="card" style="border-left: 4px solid #06C755;">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
@@ -298,7 +304,7 @@
                             <ul style="margin: 0; padding-left: 20px; color: #333; list-style-type: square;">${itemsHtml}</ul>
                             <p style="margin: 10px 0 0 0; font-weight: bold; color: #06C755;">ยอดบิล: ฿${order.total_price}</p>
                         </div>
-                        <div style="display: flex; gap: 10px;">${actionButtons}</div>
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">${actionButtons}</div>
                     </div>`;
             });
             listDiv.innerHTML = html;
@@ -381,6 +387,7 @@
             vendorIdFromOrder = '',
             statusTokenFromOrder = ''
         ) {
+            if (newStatus === 'rejected') return npxOpenResolution(orderId, 'cancel');
             let confirmMsg = '';
 
             if (newStatus === 'processing') {
@@ -633,5 +640,126 @@ if (newStatus === 'processing') {
 
         window.onload = initStaffApp;
     </script>
+<script>
+
+// NPX order resolution: existing order buttons retain their original handlers.
+let npxResolutionOrders = new Map();
+const npxResolutionBusy = new Set();
+function npxEscape(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function npxResolutionControls(order) {
+  npxResolutionOrders.set(String(order.id), order);
+  const r = order.order_resolution || {};
+  const id = String(order.id);
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return '';
+  const terminal = ['rejected','cancelled'].includes(order.status);
+  const pending = r.proposal_status === 'pending' && !terminal;
+  const button = (action,label,color) => `<button type="button" style="padding:10px;border:0;border-radius:6px;background:${color};color:white;cursor:pointer;flex:1" onclick="npxOpenResolution('${id}','${action}')">${label}</button>`;
+  let info = '';
+  if (r.reason) info += `<p>เหตุผล: ${npxEscape(r.reason)}</p>`;
+  if (r.proposal) info += `<p>เมนูทดแทน (ยอดเดิม): ${npxEscape(r.proposal)}<br><b>${({pending:'รอลูกค้ายืนยัน — กรุณารอคำตอบก่อนทำอาหาร',accepted:'ลูกค้ายอมรับแล้ว',declined:'ลูกค้าไม่รับข้อเสนอ',withdrawn:'ร้านถอนข้อเสนอแล้ว'})[r.proposal_status] || ''}</b></p>`;
+  if (terminal && r.refund_status === 'pending') info += `<p style="color:#b45309"><b>รอร้านคืนเงิน ฿${npxEscape(r.refund_amount)}</b></p>`;
+  if (terminal && r.refund_status === 'not_required') info += '<p>ร้านระบุว่ายังไม่ได้รับเงิน · ไม่มีรายการคืนเงิน</p>';
+  if (terminal && r.refund_status === 'refunded') info += `<p style="color:#15803d">ร้านบันทึกว่าโอนคืนแล้ว ฿${npxEscape(r.refund_amount)}<br>เลขอ้างอิง: ${npxEscape(r.refund_reference)}</p>`;
+  let actions = '';
+  if (terminal) {
+    if (r.refund_status === 'pending') actions = button('mark_refunded','บันทึกการโอนคืน','#0f766e');
+  } else if (pending) {
+    actions = button('withdraw_proposal','ถอนข้อเสนอ / จัดการยกเลิก','#b45309');
+  } else {
+    actions = button('cancel','ยกเลิกพร้อมเหตุผล','#dc2626') + button('propose_change','เสนอเปลี่ยนเมนูยอดเดิม','#7c3aed');
+  }
+  return `<div style="flex:0 0 100%;box-sizing:border-box;min-width:0;margin-top:12px;padding:12px;background:#fff7ed;border-radius:8px;font-size:14px;overflow-wrap:anywhere">${info}<div style="display:flex;gap:8px;flex-wrap:wrap">${actions}</div></div>`;
+}
+function npxOpenResolution(id, action) {
+  if (npxResolutionBusy.has(id)) return;
+  const order = npxResolutionOrders.get(id);
+  if (!order) return;
+  document.getElementById('npxResolutionDialog')?.remove();
+  const box = document.createElement('div');
+  box.id = 'npxResolutionDialog';
+  box.style.cssText='position:fixed;inset:0;background:#0008;z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px';
+  const refund = action === 'mark_refunded';
+  const withdraw = action === 'withdraw_proposal';
+  const proposal = action === 'propose_change';
+  const field = 'display:block;width:100%;box-sizing:border-box;padding:10px;margin:8px 0;border:1px solid #ccc;border-radius:6px';
+  box.innerHTML=`<form style="background:white;color:#222;padding:20px;border-radius:12px;max-width:480px;width:100%;max-height:85vh;overflow:auto;text-align:left">
+    <h3>${refund?'บันทึกการโอนคืน':withdraw?'ถอนข้อเสนอ':proposal?'เสนอเมนูทดแทนยอดเดิม':'ยกเลิกออเดอร์'}</h3>
+    <p>อ้างอิง ${npxEscape(order.reference_no)} · ยอด ฿${npxEscape(order.total_price)}</p>
+    ${withdraw?'<p>ถอนข้อเสนอนี้แล้ว ลูกค้าจะกดยอมรับไม่ได้ จากนั้นจึงกดยกเลิกพร้อมเหตุผลได้</p>':refund?
+      `<p>ร้านต้องโอนคืนจริงก่อนบันทึก ระบบนี้ไม่ได้โอนเงินให้อัตโนมัติ<br>ยอดคืน ฿${npxEscape(order.order_resolution?.refund_amount)}</p>
+       <label>เลขอ้างอิงการโอนคืน<input name="refund_reference" required minlength="3" maxlength="500" style="${field}"></label>
+       <label>ลิงก์หลักฐานการโอนคืน (https://)<input name="refund_proof_url" type="url" required maxlength="2000" placeholder="https://..." style="${field}"></label>
+       <label><input type="checkbox" name="confirmed" required> ยืนยันว่าโอนคืนตามยอดนี้แล้วจริง</label>`:
+      `<label>เหตุผล<textarea name="reason" required minlength="3" maxlength="500" style="${field}" placeholder="เช่น วัตถุดิบหมด"></textarea></label>
+       <label>ตรวจสอบบัญชี / เงินสดแล้ว ร้านได้รับเงินจริงสำหรับออเดอร์นี้หรือยัง?
+       <select name="payment_received" required style="${field}"><option value="">กรุณาเลือก</option><option value="true">ได้รับแล้ว — หากยกเลิกต้องคืนเต็มยอด</option><option value="false">ยังไม่ได้รับเงินจริง</option></select></label>
+       ${proposal?`<label>รายการทดแทนทั้งออเดอร์ พร้อมจำนวนและตัวเลือก<textarea name="proposal" required minlength="3" maxlength="1000" style="${field}"></textarea></label><p>ใช้ยอดรวมเดิมเท่านั้น ลูกค้าต้องยอมรับก่อนทำอาหาร รายการสั่งเดิมยังเก็บไว้ หากลูกค้าไม่รับข้อเสนอจะยกเลิกและติดตามคืนเงินตามข้อมูลข้างต้น</p>`:'<p>ยกเลิกทั้งออเดอร์ หากรับเงินจริงแล้ว ระบบจะตั้งรายการรอคืนเงินเต็มยอด</p>'}`}
+    <p id="npxResolutionError" role="alert" style="color:#b91c1c;white-space:pre-wrap"></p>
+    <button type="submit" style="padding:12px;background:#0f766e;color:white;border:0;border-radius:6px">ยืนยัน</button>
+    <button type="button" id="npxResolutionClose" style="padding:12px">ปิด</button>
+  </form>`;
+  box.querySelector('#npxResolutionClose').onclick=()=>box.remove();
+  box.querySelector('form').onsubmit=async event=>{
+    event.preventDefault();
+    if (npxResolutionBusy.has(id)) return;
+    const form=event.currentTarget;
+    const values=new FormData(form);
+    const details=refund?{refund_confirmed:values.get('confirmed')==='on',refund_reference:values.get('refund_reference'),refund_proof_url:values.get('refund_proof_url')}:withdraw?{}:{reason:values.get('reason'),payment_received:values.get('payment_received')==='true',proposal:values.get('proposal') || ''};
+    if (refund && !/^https:\/\/[^\s]+$/i.test(String(details.refund_proof_url))) {
+      box.querySelector('#npxResolutionError').textContent='กรุณาใช้ลิงก์หลักฐาน https://'; return;
+    }
+    const submit=form.querySelector('[type=submit]');
+    submit.disabled=true; npxResolutionBusy.add(id);
+    let saved=false;
+    try {
+      const data=await npxSaveResolution(id,action,details);
+      saved=true;
+      const statusUrl=new URL('order-status.html',window.location.href);
+      statusUrl.search=''; statusUrl.hash='';
+      if(data.status_token) statusUrl.searchParams.set('token',data.status_token);
+      let notifyError='';
+      if (data.customer_uid && data.vendor_id && data.status_token) {
+        const controller=new AbortController();
+        const timeout=setTimeout(()=>controller.abort(),15000);
+        try {
+          const response=await fetch(CONFIG.gasWebhookUrl,{
+            method:'POST',redirect:'follow',signal:controller.signal,headers:{'Content-Type':'text/plain;charset=utf-8'},
+            body:JSON.stringify({action:'notify_customer',vendor_id:data.vendor_id,uid:data.customer_uid,
+              order_status:data.notification_status,store_name:NPX_RESOLUTION_STORE(),branch_name:await NPX_RESOLUTION_BRANCH(id),
+              order_ref:data.reference_no,queue_num:data.queue_no,order_status_url:statusUrl.toString(),
+              order_id:data.order_id,order_resolution:data.order_resolution})
+          });
+          if (!response.ok) throw new Error('HTTP '+response.status);
+          const result=await response.json();
+          if (result.status==='error' || result.success===false) throw new Error(result.msg || result.message || 'ส่ง LINE ไม่สำเร็จ');
+        } catch(e) { notifyError='บันทึกออเดอร์แล้ว แต่ยังยืนยันการส่ง LINE ไม่ได้ กรุณาติดต่อลูกค้าเพิ่มเติม'; }
+        finally {clearTimeout(timeout);}
+      } else { notifyError='บันทึกออเดอร์แล้ว แต่ไม่มีข้อมูลส่ง LINE ครบ กรุณาติดต่อลูกค้าเพิ่มเติม'; }
+      box.remove();
+      await npxReloadOrders();
+      if (notifyError) alert(notifyError);
+    } catch(e) {
+      if (saved) {box.remove();alert('บันทึกสำเร็จแล้ว แต่โหลดรายการใหม่ไม่สำเร็จ กรุณารีเฟรชหน้า');}
+      else box.querySelector('#npxResolutionError').textContent=e.message || String(e);
+    } finally { npxResolutionBusy.delete(id);submit.disabled=false; }
+  };
+  document.body.appendChild(box);
+}
+
+async function npxSaveResolution(orderId,action,details) {
+  const {data,error}=await supabaseClient.rpc('npx_resolve_branch_order',{
+    p_token:sessionToken,p_order_id:orderId,p_action:action,p_details:details
+  });
+  if(error) throw error;
+  if(!data?.success) throw new Error(data?.message || 'บันทึกไม่สำเร็จ');
+  return data;
+}
+function NPX_RESOLUTION_STORE(){return currentStoreName || 'ร้านค้า';}
+async function NPX_RESOLUTION_BRANCH(){return document.getElementById('displayBranchName').innerText || 'สาขา';}
+async function npxReloadOrders(){await loadBranchOrders();}
+
+</script>
 </body>
 </html>
