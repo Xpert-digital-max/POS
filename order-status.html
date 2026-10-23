@@ -1505,6 +1505,7 @@ async function loadStatus() {
 ========================================================= */
 
 function render(o) {
+  npxRenderResolution(o);
 
 
   document
@@ -2158,13 +2159,7 @@ function render(o) {
     เริ่มแสดงช่องทางติดต่อร้าน
   */
 
-  const showContact =
-
-    !ack &&
-
-    !closed &&
-
-    sec >= 300;
+  const showContact = rejected || cancelled || o.order_resolution?.proposal_status === 'pending' || (!ack && !closed && sec >= 300);
 
 
 
@@ -2579,6 +2574,46 @@ pollTimer =
 </script>
 
 
+<script>
+
+let npxResponding = false;
+function npxRenderResolution(o) {
+  let box=document.getElementById('npxCustomerResolution');
+  if(!box){box=document.createElement('section');box.id='npxCustomerResolution';box.style.cssText='margin:16px 0;padding:16px;background:#fff7ed;border-radius:12px;text-align:left;white-space:pre-wrap';document.getElementById('statusBox').after(box);}
+  const r=o.order_resolution;
+  if(!r){box.hidden=true;return;}
+  box.hidden=false;
+  const terminal=['rejected','cancelled'].includes(o.status);
+  let text=r.reason?'เหตุผลจากร้าน: '+r.reason+'\n':'';
+  if(r.proposal)text+='เมนูทดแทนทั้งออเดอร์ (ยอดเดิม): '+r.proposal+'\n'+({pending:'รอคุณยืนยัน',accepted:'คุณยอมรับเมนูทดแทนแล้ว ร้านจะใช้ข้อเสนอนี้แทนรายการเดิม',declined:'คุณไม่รับข้อเสนอ ออเดอร์ถูกยกเลิกแล้ว',withdrawn:'ร้านถอนข้อเสนอนี้แล้ว'})[r.proposal_status]+'\n';
+  if(terminal && r.refund_status==='pending')text+='รอร้านคืนเงิน ฿'+r.refund_amount+'\nเงินชำระเข้าร้านโดยตรง กรุณาติดต่อร้านเพื่อตกลงช่องทางคืนเงิน';
+  if(terminal && r.refund_status==='not_required')text+='ร้านระบุว่ายังไม่ได้รับเงินจริง หากคุณชำระแล้ว กรุณาติดต่อร้านพร้อมหลักฐาน';
+  if(terminal && r.refund_status==='refunded')text+='ร้านบันทึกว่าโอนคืนแล้ว ฿'+r.refund_amount+'\nเลขอ้างอิง: '+r.refund_reference+'\nกรุณาตรวจสอบยอดเข้าบัญชีของคุณ';
+  box.textContent=text;
+  if(terminal && r.refund_status==='refunded' && /^https:\/\/[^\s]+$/i.test(r.refund_proof_url || '')){
+    const link=document.createElement('a');link.href=r.refund_proof_url;link.target='_blank';link.rel='noopener noreferrer';link.textContent='ดูหลักฐานที่ร้านแนบ';link.style.display='block';box.appendChild(link);
+  }
+  if(!terminal && r.proposal_status==='pending'){
+    for(const [accept,label] of [[true,'ยอมรับเมนูทดแทนยอดเดิม'],[false,'ไม่รับข้อเสนอ · ยกเลิกออเดอร์']]){
+      const button=document.createElement('button');button.textContent=label;button.disabled=npxResponding;button.style.cssText='display:block;width:100%;padding:12px;margin-top:10px;border-radius:8px;cursor:pointer';
+      button.onclick=()=>npxRespondChange(r.proposal_id,accept);box.appendChild(button);
+    }
+  }
+}
+async function npxRespondChange(proposalId,accept){
+  if(npxResponding)return;
+  if(!confirm(accept?'ยืนยันรับเมนูทดแทนตามข้อเสนอ โดยยอดรวมเท่าเดิม?':'ไม่รับข้อเสนอและยกเลิกทั้งออเดอร์? หากร้านได้รับเงินแล้วจะเป็นรายการรอร้านคืนเงิน'))return;
+  npxResponding=true;
+  document.querySelectorAll('#npxCustomerResolution button').forEach(b=>b.disabled=true);
+  try{
+    const {data,error}=await supabaseClient.rpc('npx_respond_order_change',{p_token:token,p_proposal_id:proposalId,p_accept:accept});
+    if(error)throw error;
+    if(!data?.success)throw new Error(data?.message || 'บันทึกคำตอบไม่สำเร็จ');
+  }catch(e){alert(e.message || String(e));}
+  finally{npxResponding=false;await loadStatus();}
+}
+
+</script>
 </body>
 
 </html>
