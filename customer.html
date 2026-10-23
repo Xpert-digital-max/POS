@@ -492,7 +492,186 @@
             window.addEventListener('pageshow', check);
         }
 
-        async function initCustomerApp() { 
+
+// Takeaway friendship is never trusted from localStorage/sessionStorage or a previous shop.
+let npxTakeawayLiffId = '';
+let npxTakeawayLiffReady = false;
+let npxTakeawayFriendCheck = null;
+let npxTakeawayMenuReady = false;
+let npxTakeawayMenuLoading = null;
+let npxTakeawayInitBusy = false;
+
+function npxFriendTimeout(promise) {
+  let timer;
+  return Promise.race([promise,new Promise((_,reject)=>{
+    timer=setTimeout(()=>reject(new Error('ตรวจสอบ LINE ใช้เวลานาน กรุณาลองใหม่')),15000);
+  })]).finally(()=>clearTimeout(timer));
+}
+function npxTakeawayContextKey() {
+  return [vendorId,branchId || '',npxTakeawayLiffId].join('|');
+}
+function npxTakeawayContextParams() {
+  const params=new URLSearchParams();
+  if(vendorId) params.set('vid',vendorId);
+  if(branchId) params.set('bid',branchId);
+  if(influencerRef) params.set('ref',influencerRef);
+  return params;
+}
+function npxTakeawayLiffUrl() {
+  if(!npxTakeawayLiffId) return '';
+  return 'https://liff.line.me/'+encodeURIComponent(npxTakeawayLiffId)+'?'+npxTakeawayContextParams().toString();
+}
+function npxTakeawayFriendLink() {
+  // The vendor linked OA is the notification account; do not substitute a branch/other shop.
+  try {
+    const u=new URL(String(vendorData?.customer_line_url || '').trim());
+    if(u.protocol!=='https:' || u.username || u.password) return '';
+    if(u.hostname==='lin.ee' || (u.hostname==='line.me' && /^\/(?:R\/)?ti\/p\//.test(u.pathname))) return u.toString();
+  } catch (_) {}
+  return '';
+}
+function npxShowFriendGate(message) {
+  let box=document.getElementById('npxTakeawayFriendGate');
+  if(!box){
+    box=document.createElement('div');
+    box.id='npxTakeawayFriendGate';
+    box.setAttribute('role','dialog');box.setAttribute('aria-modal','true');
+    box.setAttribute('aria-labelledby','npxTakeawayFriendTitle');
+    box.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box';
+    box.innerHTML='<section style="background:white;color:#222;width:100%;max-width:420px;max-height:90vh;overflow:auto;padding:24px;border-radius:16px;box-sizing:border-box;text-align:center">'+
+      '<h2 id="npxTakeawayFriendTitle" style="margin-top:0;font-size:22px">เพิ่มเพื่อน LINE เพื่อรับคิว</h2>'+
+      '<p id="npxTakeawayFriendStore" style="font-weight:bold;overflow-wrap:anywhere"></p>'+
+      '<p>รับข้อความยืนยัน เลขคิว และสถานะออเดอร์จาก LINE ที่ร้านใช้แจ้งเตือน</p>'+
+      '<p id="npxTakeawayFriendMessage" role="status" style="white-space:pre-wrap;overflow-wrap:anywhere;color:#555"></p>'+
+      '<button type="button" id="npxTakeawayFriendAdd" style="width:100%;padding:14px;margin-top:8px;border:0;border-radius:8px;background:#06c755;color:white;font-size:16px;font-weight:bold">เพิ่มเพื่อน / ปลดบล็อก</button>'+
+      '<button type="button" id="npxTakeawayFriendRetry" style="width:100%;padding:12px;margin-top:10px;border:1px solid #ccc;border-radius:8px;background:white;color:#333;font-size:15px">ตรวจสอบอีกครั้ง</button>'+
+      '<a id="npxTakeawayFriendFallback" target="_blank" rel="noopener noreferrer" style="display:none;margin-top:16px;color:#168544">เปิด LINE ที่ร้านใช้แจ้งคิวเพื่อเพิ่มเพื่อน</a>'+
+      '<a id="npxTakeawayFriendOpenLine" style="display:block;margin-top:16px;color:#168544">เปิดหน้าสั่งอาหารผ่าน LINE</a>'+
+      '</section>';
+    document.body.appendChild(box);
+    box.querySelector('#npxTakeawayFriendAdd').onclick=()=>npxRetryTakeawayFriendship(true);
+    box.querySelector('#npxTakeawayFriendRetry').onclick=()=>npxRetryTakeawayFriendship(false);
+  }
+  box.style.display='flex';
+  box.querySelector('#npxTakeawayFriendStore').textContent=vendorData?.name || 'ร้านค้า';
+  box.querySelector('#npxTakeawayFriendMessage').textContent=message;
+  const link=box.querySelector('#npxTakeawayFriendOpenLine');
+  const url=npxTakeawayLiffUrl();
+  if(url){link.href=url;link.style.display='block';}else{link.removeAttribute('href');link.style.display='none';}
+  const fallback=box.querySelector('#npxTakeawayFriendFallback');
+  const friendUrl=npxTakeawayFriendLink();
+  if(friendUrl){fallback.href=friendUrl;fallback.style.display='block';}else{fallback.removeAttribute('href');fallback.style.display='none';}
+  const loggedIn=npxTakeawayLiffReady && typeof liff!=='undefined' && liff.isLoggedIn();
+  box.querySelector('#npxTakeawayFriendAdd').textContent=loggedIn?'เพิ่มเพื่อน / ปลดบล็อก':'เข้าสู่ระบบ LINE เพื่อรับคิว';
+}
+async function npxReadTakeawayFriendship() {
+  if(!liff.isLoggedIn()) throw new Error('กรุณาเข้าสู่ระบบ LINE ก่อนสั่งอาหาร เพื่อให้ร้านส่งข้อความคิวถึงคุณ');
+  const friendship=await npxFriendTimeout(liff.getFriendship());
+  if(!friendship || typeof friendship.friendFlag!=='boolean') throw new Error('ยังยืนยันสถานะเพื่อน LINE ไม่ได้');
+  if(!friendship.friendFlag) return false;
+  const idToken=typeof liff.getDecodedIDToken==='function'?liff.getDecodedIDToken():null;
+  let uid=idToken && typeof idToken.sub==='string'?idToken.sub:'';
+  if(!uid){const profile=await npxFriendTimeout(liff.getProfile());uid=profile?.userId || '';}
+  if(typeof uid!=='string' || !uid.trim()) throw new Error('ยังยืนยันบัญชี LINE สำหรับรับคิวไม่ได้ กรุณาเข้าสู่ระบบใหม่');
+  customerUid=uid.trim();
+  return true;
+}
+async function npxEnsureTakeawayFriendship(requestIfNeeded=false) {
+  // Share an in-flight read, not a successful result cached for later orders/QR scans.
+  if(npxTakeawayFriendCheck) return npxTakeawayFriendCheck;
+  const context=npxTakeawayContextKey();
+  const check=(async()=>{
+    try {
+      customerUid=null;
+      if(!npxTakeawayLiffReady) throw new Error('ยังเชื่อมต่อ LINE ของร้านไม่ได้ กรุณากดตรวจสอบอีกครั้ง');
+      if(!vendorData || String(vendorData.id)!==String(vendorId) ||
+        (branchId && (!branchData || String(branchData.id)!==String(branchId) || String(branchData.merchant_id)!==String(vendorId)))) throw new Error('ข้อมูลร้านหรือสาขาไม่ตรง กรุณาเปิด QR ของร้านอีกครั้ง');
+      if(!liff.isLoggedIn()){
+        npxShowFriendGate('กรุณาเข้าสู่ระบบ LINE ก่อนสั่งอาหาร เพื่อให้ร้านส่งข้อความคิวถึงคุณ');
+        return false;
+      }
+      let friend=await npxReadTakeawayFriendship();
+      if(!friend){
+        npxShowFriendGate('กรุณาเพิ่มเพื่อนหรือปลดบล็อก LINE ที่ร้านใช้แจ้งคิวก่อนสั่งอาหาร');
+        if(requestIfNeeded && liff.isInClient() && typeof liff.requestFriendship==='function'){
+          try {await liff.requestFriendship();}
+          catch(error){console.warn('[TAKEAWAY FRIEND REQUEST]',error.code || 'UNAVAILABLE');}
+          // A closed popup is NOT proof of friendship; always ask LINE again.
+          friend=await npxReadTakeawayFriendship();
+        }
+      }
+      if(context!==npxTakeawayContextKey()) throw new Error('ร้านหรือสาขาเปลี่ยนระหว่างตรวจสอบ กรุณาเปิด QR อีกครั้ง');
+      if(!friend){
+        npxShowFriendGate('ยังไม่พบการเพิ่มเพื่อน กรุณากดเพิ่มเพื่อน / ปลดบล็อก แล้วตรวจสอบอีกครั้ง');
+        return false;
+      }
+      const box=document.getElementById('npxTakeawayFriendGate');
+      if(box) box.style.display='none';
+      return true;
+    } catch(error){
+      customerUid=null;
+      console.warn('[TAKEAWAY FRIEND CHECK]',error.code || 'CHECK_FAILED');
+      npxShowFriendGate('ยังตรวจสอบ LINE สำหรับรับคิวไม่สำเร็จ\nกรุณาลองอีกครั้ง หากยังไม่ได้ให้ติดต่อร้าน');
+      return false;
+    }
+  })();
+  npxTakeawayFriendCheck=check;
+  try{return await check;}finally{if(npxTakeawayFriendCheck===check)npxTakeawayFriendCheck=null;}
+}
+async function npxRetryTakeawayFriendship(requestFriend) {
+  const box=document.getElementById('npxTakeawayFriendGate');
+  const buttons=box?[...box.querySelectorAll('button')]:[];
+  if(buttons.some(b=>b.disabled))return;
+  buttons.forEach(b=>b.disabled=true);
+  try {
+    if(!npxTakeawayLiffReady){await initCustomerApp();return;}
+    if(!liff.isLoggedIn()){
+      const redirect=new URL(window.location.href);redirect.search=npxTakeawayContextParams().toString();redirect.hash='';
+      liff.login({redirectUri:redirect.toString()});
+      return;
+    }
+    if(requestFriend && (!liff.isInClient() || typeof liff.requestFriendship!=='function')){
+      const addUrl=npxTakeawayFriendLink();
+      if(addUrl){
+        if(liff.isInClient() && typeof liff.openWindow==='function')liff.openWindow({url:addUrl,external:true});
+        else window.open(addUrl,'_blank','noopener,noreferrer');
+        npxShowFriendGate('เพิ่มเพื่อน LINE ที่เปิดขึ้นแล้ว กลับมากดตรวจสอบอีกครั้ง');
+        return;
+      }
+      npxShowFriendGate('กรุณาเปิดหน้าสั่งอาหารผ่าน LINE เพื่อเพิ่มเพื่อนกับบัญชีที่ร้านใช้แจ้งคิว');
+      return;
+    }
+    if(await npxEnsureTakeawayFriendship(requestFriend))await npxFinishTakeawayInit();
+  } finally {buttons.forEach(b=>b.disabled=false);}
+}
+async function npxFinishTakeawayInit() {
+  if(npxTakeawayMenuReady)return;
+  if(npxTakeawayMenuLoading)return npxTakeawayMenuLoading;
+  npxTakeawayMenuLoading=(async()=>{
+                await loadCategories(); 
+                await loadMenu(); 
+                loadSavedCart();
+
+                const isCheckoutOpen = localStorage.getItem(`checkoutState_${vendorId}`);
+                if (isCheckoutOpen === 'open' && cart.length > 0) {
+                    goToCheckout();
+                }
+
+    npxTakeawayMenuReady=true;
+  })();
+  try{await npxTakeawayMenuLoading;}finally{npxTakeawayMenuLoading=null;}
+}
+// Revalidate after returning from adding/unblocking, including back-forward cache restores.
+async function npxRecheckTakeawayOnReturn() {
+  if(document.hidden || !npxTakeawayLiffReady || !customerContextReady || storeUnavailable)return;
+  if(await npxEnsureTakeawayFriendship(false))await npxFinishTakeawayInit();
+}
+document.addEventListener('visibilitychange',()=>{void npxRecheckTakeawayOnReturn().catch(()=>{});});
+window.addEventListener('pageshow',event=>{if(event.persisted)void npxRecheckTakeawayOnReturn().catch(()=>{});});
+
+        async function initCustomerApp() {
+            if (npxTakeawayInitBusy) return;
+            npxTakeawayInitBusy = true;
             customerContextReady = false;
             branchData = null;
             try { 
@@ -550,55 +729,29 @@
                 if (vendorData.line_picture_url) document.getElementById('storeLogo').src = vendorData.line_picture_url; 
                 syncCustomerStoreStatus();
 
-                // เริ่มต้น LIFF (ป้องกันการค้างด้วยการดึงโปรไฟล์อย่างปลอดภัย)
-                const liffToUse = vendorData.liff_customer_id ? vendorData.liff_customer_id.trim() : (CONFIG.liffIdCustomer || '');
-                if (liffToUse) {
-                    try {
-                        await liff.init({ liffId: liffToUse }); 
-                        if (liff.isLoggedIn()) { 
-                    try {
-                        const idToken = liff.getDecodedIDToken();
-                        if (idToken && idToken.sub) {
-                            customerUid = idToken.sub;
-                        } else {
-                            const profile = await liff.getProfile();
-                            customerUid = profile.userId;
-                        }
-
-                        // ตรวจสอบสถานะการเป็นเพื่อนกับ LINE OA
-                        const friendship = await liff.getFriendship();
-                        if (!friendship.friendFlag) {
-                            console.log("ลูกค้ายังไม่ได้เป็นเพื่อนกับ LINE OA");
-                            // กรณีต้องการให้เด้งไปหน้าเพิ่มเพื่อนของร้านทันที (ถ้ามีลิงก์ LINE OA ของร้าน):
-                            // window.location.href = "https://line.me/R/ti/p/@ไอดีไลน์ร้าน";
-                        }
-
-                    } catch (e) {
-                        console.warn("Cannot get profile / friendship from LIFF:", e);
-                    }
-                        } else if (liff.isInClient()) {
-                            liff.login();
-                            return;
-                        }
-                    } catch (liffErr) {
-                        console.warn("LIFF Init Warning: ", liffErr);
-                    }
+                // Verify the registered shop's linked OA on every Takeaway opening.
+                npxTakeawayLiffId = String(vendorData.liff_customer_id || CONFIG.liffIdCustomer || '').trim();
+                npxTakeawayLiffReady = false;
+                npxShowFriendGate('กำลังตรวจสอบ LINE สำหรับรับคิวจากร้านนี้…');
+                try {
+                    if (!npxTakeawayLiffId) throw new Error('ร้านยังไม่ได้ตั้งค่า LINE สำหรับรับคิว');
+                    await npxFriendTimeout(liff.init({ liffId: npxTakeawayLiffId }));
+                    npxTakeawayLiffReady = true;
+                } catch (error) {
+                    console.warn('[TAKEAWAY LINE INIT]', error.code || 'INIT_FAILED');
+                    npxShowFriendGate('ยังเชื่อมต่อ LINE ของร้านไม่ได้ กรุณาลองตรวจสอบอีกครั้ง หรือติดต่อร้าน');
+                    return;
                 }
-
-                await loadCategories(); 
-                await loadMenu(); 
-                loadSavedCart();
-
-                const isCheckoutOpen = localStorage.getItem(`checkoutState_${vendorId}`);
-                if (isCheckoutOpen === 'open' && cart.length > 0) {
-                    goToCheckout();
-                }
+                if (!await npxEnsureTakeawayFriendship(true)) return;
+                await npxFinishTakeawayInit();
 
             } catch (err) { 
                 console.error("Init Error: ", err);
                 document.getElementById('storeName').innerText = "เกิดข้อผิดพลาด";
                 document.getElementById('menuContainer').innerHTML = `<p style="text-align: center; color: red; padding: 20px 0;">${err.message}</p>`;
-            } 
+            } finally {
+                npxTakeawayInitBusy = false;
+            }
         }
         
         async function loadCategories() { 
@@ -921,6 +1074,7 @@
                 return;
             }
             if (!await ensureStoreAvailable()) return;
+            if (!await npxEnsureTakeawayFriendship(false)) return;
             const summaryDiv = document.getElementById('checkoutSummary'); 
             let summaryHtml = '';
             cart.forEach((c, index) => {
@@ -1089,6 +1243,8 @@
                 return;
             }
             if (!await ensureStoreAvailable()) return;
+            if (!await npxEnsureTakeawayFriendship(false)) return;
+            const orderCustomerUid = customerUid;
             const fileInput = document.getElementById('slipImage');
             const btn = document.getElementById('confirmOrderBtn');
             const cashBtn = document.getElementById('cashOrderBtn');
@@ -1222,7 +1378,7 @@
 
             const orderPayload = { 
                 vendor_id: vendorId, 
-                customer_uid: customerUid, 
+                customer_uid: orderCustomerUid, 
                 items: cart, 
                 total_price: parseFloat(total), 
                 slip_image_url: slipUrl, 
@@ -1260,13 +1416,13 @@
             let orderStatusUrl = '';
             try {
                 let statusToken = insertedOrder.status_token || '';
-                if (!statusToken && customerUid) {
+                if (!statusToken && orderCustomerUid) {
                     const { data: statusTokenData, error: statusTokenError } = await supabaseClient.rpc(
                         'get_takeaway_status_token',
                         {
                             p_vendor_id: String(vendorId),
                             p_reference_no: String(referenceNo),
-                            p_customer_uid: String(customerUid)
+                            p_customer_uid: String(orderCustomerUid)
                         }
                     );
                     if (!statusTokenError && statusTokenData) statusToken = statusTokenData;
@@ -1286,10 +1442,10 @@
             alert(orderStatus === 'processing' ? "✅ ชำระเงินและสร้างออเดอร์เรียบร้อย!\nระบบออกเลขคิวแล้ว กรุณาติดตามสถานะร้าน" : "ส่งออเดอร์เรียบร้อยแล้ว!\n(รอร้านตรวจสอบและยืนยันสักครู่นะครับ)");
             
             let customerNotifyWarning = '';
-            if (!customerUid || !CONFIG.gasWebhookUrl) {
+            if (!orderCustomerUid || !CONFIG.gasWebhookUrl) {
                 customerNotifyWarning = 'ไม่มี LINE userId หรือยังไม่ได้ตั้งค่าลิงก์แจ้งเตือน';
             }
-            if (customerUid && CONFIG.gasWebhookUrl) {
+            if (orderCustomerUid && CONFIG.gasWebhookUrl) {
                 // 1. แจ้งเตือนลูกค้าผ่าน LINE
                 try {
                     const notifyResponse = await fetch(CONFIG.gasWebhookUrl, {
@@ -1299,7 +1455,7 @@
                         body: JSON.stringify({ 
                             action: 'notify_customer', 
                             vendor_id: vendorId, 
-                            uid: customerUid, 
+                            uid: orderCustomerUid, 
                             order_status: (orderStatus === 'processing' ? 'pending_ack' : orderStatus), 
                             merchant_acknowledged: false,
                             store_name: vendorData.name, 
