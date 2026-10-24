@@ -186,6 +186,14 @@
                     return;
                 }
 
+                // Restore authenticated shop/branch metadata for cached staff sessions too.
+                if (!data.branch_id || !data.vendor_id || String(data.branch_id) !== String(branchId)) {
+                    throw new Error('ข้อมูลเซสชันไม่ตรงกับลิงก์สาขา กรุณาติดต่อเจ้าของร้าน');
+                }
+                currentVendorId = String(data.vendor_id);
+                currentStoreName = data.store_name || 'ร้านค้า';
+                document.getElementById('displayBranchName').innerText = data.branch_name || 'สาขาที่เข้าใช้งาน';
+
                 const orders = data.data;
                 renderOrderList(orders);
                 
@@ -201,6 +209,8 @@
 
             } catch (err) {
                 console.error("Load Orders Error:", err);
+                const list = document.getElementById('orderList');
+                if (list) list.textContent = 'ยังโหลดออเดอร์ไม่สำเร็จ กรุณากดรีเฟรช หากยังไม่ได้ให้ติดต่อเจ้าของร้าน';
             }
         }
 
