@@ -3948,7 +3948,19 @@ const safeImgUrl = encodeURIComponent(item.image_url || '')
             if (!vendorData) return; 
             const orderListDiv = document.getElementById('orderList'); 
             let query = supabaseClient.from('orders').select('*').eq('vendor_id', vendorData.id).in('status', ['pending', 'processing', 'rejected', 'cancelled']);
-            if (currentOrderBranchFilter === 'main') { query = query.is('branch_id', null); } else if (currentOrderBranchFilter !== 'all') { query = query.eq('branch_id', currentOrderBranchFilter); }
+            const selectedBranch = branchListData.find(b => String(b.id) === String(currentOrderBranchFilter));
+            const isMainFilter = currentOrderBranchFilter === 'main' || selectedBranch?.branch_name === 'สาขาหลัก';
+            if (isMainFilter) {
+                const main = selectedBranch?.branch_name === 'สาขาหลัก'
+                    ? selectedBranch : branchListData.find(b => b.branch_name === 'สาขาหลัก');
+                if (main && /^[0-9a-f-]{36}$/i.test(String(main.id))) {
+                    query = query.or(`branch_id.is.null,branch_id.eq.${main.id}`);
+                } else {
+                    query = query.is('branch_id', null);
+                }
+            } else if (currentOrderBranchFilter !== 'all') {
+                query = query.eq('branch_id', currentOrderBranchFilter);
+            }
             
             const { data, error } = await query.order('created_at', { ascending: true });
             if (error) return;
