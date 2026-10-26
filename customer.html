@@ -500,6 +500,28 @@ let npxTakeawayFriendCheck = null;
 let npxTakeawayMenuReady = false;
 let npxTakeawayMenuLoading = null;
 let npxTakeawayInitBusy = false;
+let npxTakeawayLinePromise = null;
+let npxTakeawayAuthContext = '';
+let npxTakeawayFriendKnown = null;
+let npxTakeawayRestoreCheckout = false;
+
+
+async function npxPrepareTakeawayLine() {
+  if(npxTakeawayLiffReady)return true;
+  if(npxTakeawayLinePromise)return npxTakeawayLinePromise;
+  const context=npxTakeawayContextKey();
+  const task=(async()=>{
+    try {
+      if(!npxTakeawayLiffId || typeof liff==='undefined')return false;
+      await npxFriendTimeout(liff.init({liffId:npxTakeawayLiffId}));
+      if(context!==npxTakeawayContextKey())return false;
+      npxTakeawayLiffReady=true;
+      return true;
+    }catch(error){console.warn('[TAKEAWAY LINE INIT]',error.code || 'INIT_FAILED');return false;}
+  })();
+  npxTakeawayLinePromise=task;
+  try{return await task;}finally{if(npxTakeawayLinePromise===task)npxTakeawayLinePromise=null;}
+}
 
 function npxFriendTimeout(promise) {
   let timer;
@@ -547,12 +569,15 @@ function npxShowFriendGate(message) {
       '<button type="button" id="npxTakeawayFriendRetry" style="width:100%;padding:12px;margin-top:10px;border:1px solid #ccc;border-radius:8px;background:white;color:#333;font-size:15px">ตรวจสอบอีกครั้ง</button>'+
       '<a id="npxTakeawayFriendFallback" target="_blank" rel="noopener noreferrer" style="display:none;margin-top:16px;color:#168544">เปิด LINE ที่ร้านใช้แจ้งคิวเพื่อเพิ่มเพื่อน</a>'+
       '<a id="npxTakeawayFriendOpenLine" style="display:block;margin-top:16px;color:#168544">เปิดหน้าสั่งอาหารผ่าน LINE</a>'+
+      '<button type="button" id="npxTakeawayFriendClose" style="width:100%;padding:12px;margin-top:12px;border:0;background:#eee;color:#333;border-radius:8px">กลับไปเลือกอาหาร</button>'+
       '</section>';
     document.body.appendChild(box);
+    box.querySelector('#npxTakeawayFriendClose').onclick=()=>{box.style.display='none';};
     box.querySelector('#npxTakeawayFriendAdd').onclick=()=>npxRetryTakeawayFriendship(true);
     box.querySelector('#npxTakeawayFriendRetry').onclick=()=>npxRetryTakeawayFriendship(false);
   }
   box.style.display='flex';
+  box.querySelector('#npxTakeawayFriendTitle').textContent=npxTakeawayFriendKnown===false?'เพิ่มเพื่อน LINE เพื่อรับคิว':'เข้าสู่ระบบ LINE เพื่อยืนยันออเดอร์';
   box.querySelector('#npxTakeawayFriendStore').textContent=vendorData?.name || 'ร้านค้า';
   box.querySelector('#npxTakeawayFriendMessage').textContent=message;
   const link=box.querySelector('#npxTakeawayFriendOpenLine');
@@ -565,53 +590,64 @@ function npxShowFriendGate(message) {
   box.querySelector('#npxTakeawayFriendAdd').textContent=loggedIn?'เพิ่มเพื่อน / ปลดบล็อก':'เข้าสู่ระบบ LINE เพื่อรับคิว';
 }
 async function npxReadTakeawayFriendship() {
-  if(!liff.isLoggedIn()) throw new Error('กรุณาเข้าสู่ระบบ LINE ก่อนสั่งอาหาร เพื่อให้ร้านส่งข้อความคิวถึงคุณ');
-  const friendship=await npxFriendTimeout(liff.getFriendship());
-  if(!friendship || typeof friendship.friendFlag!=='boolean') throw new Error('ยังยืนยันสถานะเพื่อน LINE ไม่ได้');
-  if(!friendship.friendFlag) return false;
-  const idToken=typeof liff.getDecodedIDToken==='function'?liff.getDecodedIDToken():null;
-  let uid=idToken && typeof idToken.sub==='string'?idToken.sub:'';
+  if(!liff.isLoggedIn())throw new Error('กรุณาเข้าสู่ระบบ LINE ก่อนยืนยันออเดอร์');
+  let uid='';
+  try {const idToken=liff.getDecodedIDToken?.();if(typeof idToken?.sub==='string')uid=idToken.sub;}catch(_){}
   if(!uid){const profile=await npxFriendTimeout(liff.getProfile());uid=profile?.userId || '';}
-  if(typeof uid!=='string' || !uid.trim()) throw new Error('ยังยืนยันบัญชี LINE สำหรับรับคิวไม่ได้ กรุณาเข้าสู่ระบบใหม่');
+  if(typeof uid!=='string' || !uid.trim())throw new Error('ยังยืนยันบัญชี LINE สำหรับรับคิวไม่ได้');
   customerUid=uid.trim();
-  return true;
+  // An unavailable friendship API must not repeatedly force login/add-friend dialogs.
+  try {
+    const result=await npxFriendTimeout(liff.getFriendship());
+    return typeof result?.friendFlag==='boolean'?result.friendFlag:null;
+  }catch(error){console.warn('[TAKEAWAY FRIEND STATUS]',error.code || 'UNAVAILABLE');return null;}
 }
-async function npxEnsureTakeawayFriendship(requestIfNeeded=false) {
-  // Share an in-flight read, not a successful result cached for later orders/QR scans.
-  if(npxTakeawayFriendCheck) return npxTakeawayFriendCheck;
+async function npxEnsureTakeawayFriendship(requestIfNeeded=false, interactive=true) {
   const context=npxTakeawayContextKey();
+  if(!vendorData || String(vendorData.id)!==String(vendorId) ||
+    (branchId && (!branchData || String(branchData.id)!==String(branchId) || String(branchData.merchant_id)!==String(vendorId))))return false;
+  if(!requestIfNeeded && npxTakeawayAuthContext===context && customerUid)return true;
+  if(npxTakeawayFriendCheck){
+    const pending=npxTakeawayFriendCheck;
+    const ready=await pending;
+    if(ready)return true;
+    if(requestIfNeeded){
+      if(npxTakeawayFriendCheck===pending)npxTakeawayFriendCheck=null;
+      return npxEnsureTakeawayFriendship(true,interactive);
+    }
+    if(interactive)npxShowFriendGate(npxTakeawayFriendKnown===false?'กรุณาเพิ่มเพื่อน / ปลดบล็อก LINE เพื่อรับคิว':'กรุณายืนยันบัญชี LINE ก่อนยืนยันออเดอร์');
+    return false;
+  }
   const check=(async()=>{
     try {
-      customerUid=null;
-      if(!npxTakeawayLiffReady) throw new Error('ยังเชื่อมต่อ LINE ของร้านไม่ได้ กรุณากดตรวจสอบอีกครั้ง');
-      if(!vendorData || String(vendorData.id)!==String(vendorId) ||
-        (branchId && (!branchData || String(branchData.id)!==String(branchId) || String(branchData.merchant_id)!==String(vendorId)))) throw new Error('ข้อมูลร้านหรือสาขาไม่ตรง กรุณาเปิด QR ของร้านอีกครั้ง');
+      if(!await npxPrepareTakeawayLine()){
+        if(interactive)npxShowFriendGate('ยังเชื่อมต่อ LINE ไม่สำเร็จ กรุณาลองอีกครั้งก่อนยืนยันออเดอร์ หรือกลับไปเลือกอาหารก่อนได้');
+        return false;
+      }
       if(!liff.isLoggedIn()){
-        npxShowFriendGate('กรุณาเข้าสู่ระบบ LINE ก่อนสั่งอาหาร เพื่อให้ร้านส่งข้อความคิวถึงคุณ');
+        if(interactive)npxShowFriendGate('กรุณาเข้าสู่ระบบ LINE ก่อนยืนยันออเดอร์ เพื่อให้ร้านส่งเลขคิวถึงคุณ');
         return false;
       }
       let friend=await npxReadTakeawayFriendship();
-      if(!friend){
-        npxShowFriendGate('กรุณาเพิ่มเพื่อนหรือปลดบล็อก LINE ที่ร้านใช้แจ้งคิวก่อนสั่งอาหาร');
-        if(requestIfNeeded && liff.isInClient() && typeof liff.requestFriendship==='function'){
-          try {await liff.requestFriendship();}
-          catch(error){console.warn('[TAKEAWAY FRIEND REQUEST]',error.code || 'UNAVAILABLE');}
-          // A closed popup is NOT proof of friendship; always ask LINE again.
-          friend=await npxReadTakeawayFriendship();
-        }
+      if(friend===false && requestIfNeeded && liff.isInClient() && typeof liff.requestFriendship==='function'){
+        try {await liff.requestFriendship();}catch(error){console.warn('[TAKEAWAY FRIEND REQUEST]',error.code || 'UNAVAILABLE');}
+        friend=await npxReadTakeawayFriendship();
       }
-      if(context!==npxTakeawayContextKey()) throw new Error('ร้านหรือสาขาเปลี่ยนระหว่างตรวจสอบ กรุณาเปิด QR อีกครั้ง');
-      if(!friend){
-        npxShowFriendGate('ยังไม่พบการเพิ่มเพื่อน กรุณากดเพิ่มเพื่อน / ปลดบล็อก แล้วตรวจสอบอีกครั้ง');
+      if(context!==npxTakeawayContextKey())return false;
+      npxTakeawayFriendKnown=friend;
+      if(friend===false){
+        npxTakeawayAuthContext='';
+        if(interactive)npxShowFriendGate('LINE แจ้งว่ายังไม่ได้เพิ่มเพื่อนหรือยังบล็อกอยู่ กรุณาเพิ่มเพื่อน / ปลดบล็อกเพื่อรับคิว');
         return false;
       }
-      const box=document.getElementById('npxTakeawayFriendGate');
-      if(box) box.style.display='none';
+      // UID is verified. Cache only for this page/context; no prompts on focus/checkout/submit again.
+      npxTakeawayAuthContext=context;
+      const box=document.getElementById('npxTakeawayFriendGate');if(box)box.style.display='none';
       return true;
-    } catch(error){
-      customerUid=null;
-      console.warn('[TAKEAWAY FRIEND CHECK]',error.code || 'CHECK_FAILED');
-      npxShowFriendGate('ยังตรวจสอบ LINE สำหรับรับคิวไม่สำเร็จ\nกรุณาลองอีกครั้ง หากยังไม่ได้ให้ติดต่อร้าน');
+    }catch(error){
+      npxTakeawayAuthContext='';
+      console.warn('[TAKEAWAY LINE USER]',error.code || 'CHECK_FAILED');
+      if(interactive)npxShowFriendGate('ยังยืนยันบัญชี LINE สำหรับรับคิวไม่ได้ กรุณาลองอีกครั้งก่อนยืนยันออเดอร์');
       return false;
     }
   })();
@@ -624,7 +660,10 @@ async function npxRetryTakeawayFriendship(requestFriend) {
   if(buttons.some(b=>b.disabled))return;
   buttons.forEach(b=>b.disabled=true);
   try {
-    if(!npxTakeawayLiffReady){await initCustomerApp();return;}
+    if(!npxTakeawayLiffReady && !await npxPrepareTakeawayLine()){
+      npxShowFriendGate('ยังเชื่อมต่อ LINE ไม่สำเร็จ กลับไปเลือกอาหารก่อน แล้วลองยืนยันออเดอร์อีกครั้งได้');return;
+    }
+    npxTakeawayAuthContext='';
     if(!liff.isLoggedIn()){
       const redirect=new URL(window.location.href);redirect.search=npxTakeawayContextParams().toString();redirect.hash='';
       liff.login({redirectUri:redirect.toString()});
@@ -654,7 +693,8 @@ async function npxFinishTakeawayInit() {
 
                 const isCheckoutOpen = localStorage.getItem(`checkoutState_${vendorId}`);
                 if (isCheckoutOpen === 'open' && cart.length > 0) {
-                    goToCheckout();
+                    if(npxTakeawayAuthContext===npxTakeawayContextKey())goToCheckout();
+                    else npxTakeawayRestoreCheckout=true;
                 }
 
     npxTakeawayMenuReady=true;
@@ -663,8 +703,12 @@ async function npxFinishTakeawayInit() {
 }
 // Revalidate after returning from adding/unblocking, including back-forward cache restores.
 async function npxRecheckTakeawayOnReturn() {
-  if(document.hidden || !npxTakeawayLiffReady || !customerContextReady || storeUnavailable)return;
-  if(await npxEnsureTakeawayFriendship(false))await npxFinishTakeawayInit();
+  // Only recheck when the user explicitly left an add-friend dialog open.
+  const box=document.getElementById('npxTakeawayFriendGate');
+  if(document.hidden || !box || box.style.display!=='flex' || npxTakeawayFriendCheck ||
+    !npxTakeawayLiffReady || !customerContextReady || storeUnavailable)return;
+  npxTakeawayAuthContext='';
+  if(await npxEnsureTakeawayFriendship(false,false))await npxFinishTakeawayInit();
 }
 document.addEventListener('visibilitychange',()=>{void npxRecheckTakeawayOnReturn().catch(()=>{});});
 window.addEventListener('pageshow',event=>{if(event.persisted)void npxRecheckTakeawayOnReturn().catch(()=>{});});
@@ -729,21 +773,19 @@ window.addEventListener('pageshow',event=>{if(event.persisted)void npxRecheckTak
                 if (vendorData.line_picture_url) document.getElementById('storeLogo').src = vendorData.line_picture_url; 
                 syncCustomerStoreStatus();
 
-                // Verify the registered shop's linked OA on every Takeaway opening.
+                // Open the menu immediately; LINE preparation never blocks browsing.
                 npxTakeawayLiffId = String(vendorData.liff_customer_id || CONFIG.liffIdCustomer || '').trim();
                 npxTakeawayLiffReady = false;
-                npxShowFriendGate('กำลังตรวจสอบ LINE สำหรับรับคิวจากร้านนี้…');
-                try {
-                    if (!npxTakeawayLiffId) throw new Error('ร้านยังไม่ได้ตั้งค่า LINE สำหรับรับคิว');
-                    await npxFriendTimeout(liff.init({ liffId: npxTakeawayLiffId }));
-                    npxTakeawayLiffReady = true;
-                } catch (error) {
-                    console.warn('[TAKEAWAY LINE INIT]', error.code || 'INIT_FAILED');
-                    npxShowFriendGate('ยังเชื่อมต่อ LINE ของร้านไม่ได้ กรุณาลองตรวจสอบอีกครั้ง หรือติดต่อร้าน');
-                    return;
-                }
-                if (!await npxEnsureTakeawayFriendship(true)) return;
+                npxTakeawayAuthContext = '';
+                npxTakeawayFriendKnown = null;
+                const oldGate=document.getElementById('npxTakeawayFriendGate');if(oldGate)oldGate.style.display='none';
+                const lineReady=npxPrepareTakeawayLine();
                 await npxFinishTakeawayInit();
+                void lineReady.then(async ready=>{
+                    if(ready && await npxEnsureTakeawayFriendship(false,false) && npxTakeawayRestoreCheckout){
+                        npxTakeawayRestoreCheckout=false;void goToCheckout();
+                    }
+                }).catch(()=>{});
 
             } catch (err) { 
                 console.error("Init Error: ", err);
