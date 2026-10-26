@@ -555,39 +555,26 @@ function npxTakeawayFriendLink() {
 function npxShowFriendGate(message) {
   let box=document.getElementById('npxTakeawayFriendGate');
   if(!box){
-    box=document.createElement('div');
-    box.id='npxTakeawayFriendGate';
+    box=document.createElement('div');box.id='npxTakeawayFriendGate';
     box.setAttribute('role','dialog');box.setAttribute('aria-modal','true');
     box.setAttribute('aria-labelledby','npxTakeawayFriendTitle');
     box.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box';
     box.innerHTML='<section style="background:white;color:#222;width:100%;max-width:420px;max-height:90vh;overflow:auto;padding:24px;border-radius:16px;box-sizing:border-box;text-align:center">'+
-      '<h2 id="npxTakeawayFriendTitle" style="margin-top:0;font-size:22px">เพิ่มเพื่อน LINE เพื่อรับคิว</h2>'+
+      '<h2 id="npxTakeawayFriendTitle" style="margin-top:0;font-size:22px">เข้าสู่ระบบ LINE เพื่อรับคิว</h2>'+
       '<p id="npxTakeawayFriendStore" style="font-weight:bold;overflow-wrap:anywhere"></p>'+
-      '<p>รับข้อความยืนยัน เลขคิว และสถานะออเดอร์จาก LINE ที่ร้านใช้แจ้งเตือน</p>'+
+      '<p>หากเพิ่มเพื่อนแล้ว ระบบจะตรวจสอบและไปต่อ โดยไม่ขอเพิ่มเพื่อนซ้ำ</p>'+
       '<p id="npxTakeawayFriendMessage" role="status" style="white-space:pre-wrap;overflow-wrap:anywhere;color:#555"></p>'+
-      '<button type="button" id="npxTakeawayFriendAdd" style="width:100%;padding:14px;margin-top:8px;border:0;border-radius:8px;background:#06c755;color:white;font-size:16px;font-weight:bold">เพิ่มเพื่อน / ปลดบล็อก</button>'+
-      '<button type="button" id="npxTakeawayFriendRetry" style="width:100%;padding:12px;margin-top:10px;border:1px solid #ccc;border-radius:8px;background:white;color:#333;font-size:15px">ตรวจสอบอีกครั้ง</button>'+
-      '<a id="npxTakeawayFriendFallback" target="_blank" rel="noopener noreferrer" style="display:none;margin-top:16px;color:#168544">เปิด LINE ที่ร้านใช้แจ้งคิวเพื่อเพิ่มเพื่อน</a>'+
-      '<a id="npxTakeawayFriendOpenLine" style="display:block;margin-top:16px;color:#168544">เปิดหน้าสั่งอาหารผ่าน LINE</a>'+
-      '<button type="button" id="npxTakeawayFriendClose" style="width:100%;padding:12px;margin-top:12px;border:0;background:#eee;color:#333;border-radius:8px">กลับไปเลือกอาหาร</button>'+
-      '</section>';
+      '<a id="npxTakeawayFriendAdd" style="display:block;box-sizing:border-box;width:100%;padding:14px;margin-top:8px;border-radius:8px;background:#06c755;color:white;font-size:16px;font-weight:bold;text-decoration:none">เข้าสู่ระบบ LINE เพื่อรับคิว</a>'+
+      '<a id="npxTakeawayFriendClose" href="#" style="display:block;margin-top:16px;color:#666">กลับไปเลือกอาหาร</a></section>';
     document.body.appendChild(box);
-    box.querySelector('#npxTakeawayFriendClose').onclick=()=>{box.style.display='none';};
-    box.querySelector('#npxTakeawayFriendAdd').onclick=()=>npxRetryTakeawayFriendship(true);
-    box.querySelector('#npxTakeawayFriendRetry').onclick=()=>npxRetryTakeawayFriendship(false);
+    box.querySelector('#npxTakeawayFriendClose').onclick=event=>{event.preventDefault();box.style.display='none';};
+    box.querySelector('#npxTakeawayFriendAdd').onclick=event=>{event.preventDefault();void npxRetryTakeawayFriendship(true);};
   }
   box.style.display='flex';
-  box.querySelector('#npxTakeawayFriendTitle').textContent=npxTakeawayFriendKnown===false?'เพิ่มเพื่อน LINE เพื่อรับคิว':'เข้าสู่ระบบ LINE เพื่อยืนยันออเดอร์';
   box.querySelector('#npxTakeawayFriendStore').textContent=vendorData?.name || 'ร้านค้า';
   box.querySelector('#npxTakeawayFriendMessage').textContent=message;
-  const link=box.querySelector('#npxTakeawayFriendOpenLine');
-  const url=npxTakeawayLiffUrl();
-  if(url){link.href=url;link.style.display='block';}else{link.removeAttribute('href');link.style.display='none';}
-  const fallback=box.querySelector('#npxTakeawayFriendFallback');
-  const friendUrl=npxTakeawayFriendLink();
-  if(friendUrl){fallback.href=friendUrl;fallback.style.display='block';}else{fallback.removeAttribute('href');fallback.style.display='none';}
-  const loggedIn=npxTakeawayLiffReady && typeof liff!=='undefined' && liff.isLoggedIn();
-  box.querySelector('#npxTakeawayFriendAdd').textContent=loggedIn?'เพิ่มเพื่อน / ปลดบล็อก':'เข้าสู่ระบบ LINE เพื่อรับคิว';
+  const action=box.querySelector('#npxTakeawayFriendAdd');
+  const url=npxTakeawayLiffUrl();if(url)action.href=url;else action.removeAttribute('href');
 }
 async function npxReadTakeawayFriendship() {
   if(!liff.isLoggedIn())throw new Error('กรุณาเข้าสู่ระบบ LINE ก่อนยืนยันออเดอร์');
@@ -630,7 +617,7 @@ async function npxEnsureTakeawayFriendship(requestIfNeeded=false, interactive=tr
       }
       let friend=await npxReadTakeawayFriendship();
       if(friend===false && requestIfNeeded && liff.isInClient() && typeof liff.requestFriendship==='function'){
-        try {await liff.requestFriendship();}catch(error){console.warn('[TAKEAWAY FRIEND REQUEST]',error.code || 'UNAVAILABLE');}
+        try {await npxFriendTimeout(liff.requestFriendship());}catch(error){console.warn('[TAKEAWAY FRIEND REQUEST]',error.code || 'UNAVAILABLE');}
         friend=await npxReadTakeawayFriendship();
       }
       if(context!==npxTakeawayContextKey())return false;
@@ -654,34 +641,66 @@ async function npxEnsureTakeawayFriendship(requestIfNeeded=false, interactive=tr
   npxTakeawayFriendCheck=check;
   try{return await check;}finally{if(npxTakeawayFriendCheck===check)npxTakeawayFriendCheck=null;}
 }
-async function npxRetryTakeawayFriendship(requestFriend) {
-  const box=document.getElementById('npxTakeawayFriendGate');
-  const buttons=box?[...box.querySelectorAll('button')]:[];
-  if(buttons.some(b=>b.disabled))return;
-  buttons.forEach(b=>b.disabled=true);
+function npxTakeawayLoginIntent(write=false) {
+  const key='NPX_TAKEAWAY_LINE_CONTINUE';
   try {
-    if(!npxTakeawayLiffReady && !await npxPrepareTakeawayLine()){
-      npxShowFriendGate('ยังเชื่อมต่อ LINE ไม่สำเร็จ กลับไปเลือกอาหารก่อน แล้วลองยืนยันออเดอร์อีกครั้งได้');return;
-    }
-    npxTakeawayAuthContext='';
+    if(write){sessionStorage.setItem(key,JSON.stringify({context:npxTakeawayContextKey(),at:Date.now()}));return true;}
+    const saved=JSON.parse(sessionStorage.getItem(key) || 'null');
+    sessionStorage.removeItem(key);
+    return saved?.context===npxTakeawayContextKey() && Date.now()-saved.at>=0 && Date.now()-saved.at<600000;
+  }catch(_){return false;}
+}
+function npxOpenTakeawayLine() {
+  const url=npxTakeawayLiffUrl();
+  if(!url){npxShowFriendGate('ร้านค้ายังไม่ได้ตั้งค่า LIFF สำหรับรับคิว กรุณาติดต่อร้านค้า');return;}
+  npxTakeawayLoginIntent(true);
+  // Navigate in this click, even if SDK init previously failed. Do not await another init.
+  window.location.assign(url);
+}
+async function npxContinueTakeawayCheckout() {
+  await npxFinishTakeawayInit();
+  npxTakeawayRestoreCheckout=false;
+  if(cart.length>0)await goToCheckout();
+}
+async function npxRetryTakeawayFriendship(requestFriend=true) {
+  const box=document.getElementById('npxTakeawayFriendGate');
+  const action=box?.querySelector('#npxTakeawayFriendAdd');
+  if(action?.getAttribute('aria-busy')==='true')return;
+  if(action)action.setAttribute('aria-busy','true');
+  try {
+    // Login and friendship are distinct. A failed SDK init must not disable the login route.
+    if(!npxTakeawayLiffReady || typeof liff==='undefined'){npxOpenTakeawayLine();return;}
     if(!liff.isLoggedIn()){
+      npxTakeawayLoginIntent(true);
+      if(liff.isInClient()){npxOpenTakeawayLine();return;}
       const redirect=new URL(window.location.href);redirect.search=npxTakeawayContextParams().toString();redirect.hash='';
-      liff.login({redirectUri:redirect.toString()});
-      return;
+      liff.login({redirectUri:redirect.toString()});return;
     }
-    if(requestFriend && (!liff.isInClient() || typeof liff.requestFriendship!=='function')){
+    // Read first: never open an add-friend window for a user who is already a friend.
+    if(await npxEnsureTakeawayFriendship(false,false)){
+      npxTakeawayLoginIntent();await npxContinueTakeawayCheckout();return;
+    }
+    if(npxTakeawayFriendKnown===false && requestFriend){
+      if(liff.isInClient() && typeof liff.requestFriendship==='function'){
+        if(await npxEnsureTakeawayFriendship(true,true)){
+          npxTakeawayLoginIntent();await npxContinueTakeawayCheckout();return;
+        }
+      }
       const addUrl=npxTakeawayFriendLink();
       if(addUrl){
+        npxTakeawayLoginIntent(true);
         if(liff.isInClient() && typeof liff.openWindow==='function')liff.openWindow({url:addUrl,external:true});
-        else window.open(addUrl,'_blank','noopener,noreferrer');
-        npxShowFriendGate('เพิ่มเพื่อน LINE ที่เปิดขึ้นแล้ว กลับมากดตรวจสอบอีกครั้ง');
-        return;
+        else window.location.assign(addUrl);
+        npxShowFriendGate('เพิ่มเพื่อนใน LINE แล้วกลับมาหน้านี้ ระบบจะตรวจสอบให้อัตโนมัติ');return;
       }
-      npxShowFriendGate('กรุณาเปิดหน้าสั่งอาหารผ่าน LINE เพื่อเพิ่มเพื่อนกับบัญชีที่ร้านใช้แจ้งคิว');
-      return;
+      npxShowFriendGate('ยังไม่ได้รับการยืนยันว่าเพิ่มเพื่อนสำเร็จ กรุณาอนุญาตใน LINE แล้วกดปุ่มเขียวอีกครั้ง');return;
     }
-    if(await npxEnsureTakeawayFriendship(requestFriend))await npxFinishTakeawayInit();
-  } finally {buttons.forEach(b=>b.disabled=false);}
+    npxShowFriendGate('ยังยืนยันบัญชี LINE ไม่สำเร็จ กรุณากดปุ่มเขียวเพื่อเปิดหน้าสั่งอาหารผ่าน LINE');
+    npxOpenTakeawayLine();
+  }catch(error){
+    console.warn('[TAKEAWAY LINE ACTION]',error.code || 'ACTION_FAILED');
+    npxShowFriendGate('LINE ยังทำรายการไม่สำเร็จ กรุณากดปุ่มเขียวเพื่อลองอีกครั้ง'+(error.code?' ('+String(error.code).slice(0,80)+')':''));
+  }finally{if(action)action.removeAttribute('aria-busy');}
 }
 async function npxFinishTakeawayInit() {
   if(npxTakeawayMenuReady)return;
@@ -708,7 +727,7 @@ async function npxRecheckTakeawayOnReturn() {
   if(document.hidden || !box || box.style.display!=='flex' || npxTakeawayFriendCheck ||
     !npxTakeawayLiffReady || !customerContextReady || storeUnavailable)return;
   npxTakeawayAuthContext='';
-  if(await npxEnsureTakeawayFriendship(false,false))await npxFinishTakeawayInit();
+  if(await npxEnsureTakeawayFriendship(false,false)){npxTakeawayLoginIntent();await npxContinueTakeawayCheckout();}
 }
 document.addEventListener('visibilitychange',()=>{void npxRecheckTakeawayOnReturn().catch(()=>{});});
 window.addEventListener('pageshow',event=>{if(event.persisted)void npxRecheckTakeawayOnReturn().catch(()=>{});});
@@ -782,7 +801,14 @@ window.addEventListener('pageshow',event=>{if(event.persisted)void npxRecheckTak
                 const lineReady=npxPrepareTakeawayLine();
                 await npxFinishTakeawayInit();
                 void lineReady.then(async ready=>{
-                    if(ready && await npxEnsureTakeawayFriendship(false,false) && npxTakeawayRestoreCheckout){
+                    const requested=npxTakeawayLoginIntent();
+                    if(!ready)return;
+                    const authenticated=await npxEnsureTakeawayFriendship(false,false);
+                    if(requested){
+                        if(authenticated)await npxContinueTakeawayCheckout();
+                        else if(liff.isLoggedIn())await npxRetryTakeawayFriendship(true);
+                        else npxShowFriendGate('กรุณาเข้าสู่ระบบ LINE เพื่อรับคิว');
+                    }else if(authenticated && npxTakeawayRestoreCheckout){
                         npxTakeawayRestoreCheckout=false;void goToCheckout();
                     }
                 }).catch(()=>{});
